@@ -148,47 +148,63 @@ export const getProcedure = authedProcedure
     return recipe;
   });
 
-const create = authedProcedure.input(FullRecipeInsertSchema).mutation(({ ctx, input }) => {
-  const recipeId = input.id ?? randomUUID();
+export const createRecipeProcedure = authedProcedure
+  .meta({
+    openapi: {
+      method: "POST",
+      path: "/recipes",
+      protect: true,
+      tags: ["Recipes"],
+      summary: "Create a recipe",
+      description: "Creates a recipe directly from structured recipe data without parser transformation.",
+      errorResponses: {
+        401: "Missing or invalid API credentials",
+      },
+    },
+  })
+  .input(FullRecipeInsertSchema)
+  .output(z.uuid())
+  .mutation(({ ctx, input }) => {
+    const recipeId = input.id ?? randomUUID();
 
-  log.info(
-    { userId: ctx.user.id, recipeName: input.name, recipeId, providedId: input.id },
-    "Creating recipe"
-  );
-  log.debug({ recipe: input }, "Full recipe data");
+    log.info(
+      { userId: ctx.user.id, recipeName: input.name, recipeId, providedId: input.id },
+      "Creating recipe"
+    );
+    log.debug({ recipe: input }, "Full recipe data");
 
-  if (input.id && input.id !== recipeId) {
-    log.error({ inputId: input.id, generatedId: recipeId }, "Recipe ID mismatch detected!");
-  }
+    if (input.id && input.id !== recipeId) {
+      log.error({ inputId: input.id, generatedId: recipeId }, "Recipe ID mismatch detected!");
+    }
 
-  createRecipeWithRefs(recipeId, ctx.user.id, input)
-    .then(async (createdId) => {
-      if (!createdId) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to create recipe",
-        });
-      }
+    createRecipeWithRefs(recipeId, ctx.user.id, input)
+      .then(async (createdId) => {
+        if (!createdId) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Failed to create recipe",
+          });
+        }
 
-      const dashboardDto = await dashboardRecipe(createdId);
+        const dashboardDto = await dashboardRecipe(createdId);
 
-      if (dashboardDto) {
-        log.info({ userId: ctx.user.id, recipeId: createdId }, "Recipe created");
-        const policy = await getRecipePermissionPolicy();
+        if (dashboardDto) {
+          log.info({ userId: ctx.user.id, recipeId: createdId }, "Recipe created");
+          const policy = await getRecipePermissionPolicy();
 
-        emitByPolicy(
-          recipeEmitter,
-          policy.view,
-          { userId: ctx.user.id, householdKey: ctx.householdKey },
-          "created",
-          { recipe: dashboardDto }
-        );
-      }
-    })
-    .catch((err) => handleRecipeError(ctx, err, "create recipe", { recipeId }));
+          emitByPolicy(
+            recipeEmitter,
+            policy.view,
+            { userId: ctx.user.id, householdKey: ctx.householdKey },
+            "created",
+            { recipe: dashboardDto }
+          );
+        }
+      })
+      .catch((err) => handleRecipeError(ctx, err, "create recipe", { recipeId }));
 
-  return recipeId;
-});
+    return recipeId;
+  });
 
 const update = authedProcedure.input(RecipeUpdateInputSchema).mutation(({ ctx, input }) => {
   const { id, data, version } = input;
@@ -895,7 +911,7 @@ const triggerAllergyDetection = authedProcedure
 export const recipesProcedures = router({
   list: listProcedure,
   get: getProcedure,
-  create,
+  create: createRecipeProcedure,
   update,
   delete: deleteProcedure,
   importFromUrl: importFromUrlProcedure,

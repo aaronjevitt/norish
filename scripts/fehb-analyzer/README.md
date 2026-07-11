@@ -30,6 +30,28 @@ Tax savings use your combined marginal rate (federal + state + 7.65% FICA),
 since FEHB premium conversion, payroll HSA contributions, and FSAs all avoid
 payroll tax.
 
+## Scraping live data from OPM (Playwright)
+
+`scrape_opm.js` walks [OPM's official plan-comparison tool](https://www.opm.gov/healthcare-insurance/healthcare/plan-information/compare-plans/)
+and extracts every plan available for your zip code — premiums, deductible,
+OOP max, coinsurance, HSA pass-through — into `out/plans.json`, with raw HTML
+snapshots in `out/raw/` for auditing.
+
+```bash
+cd scripts/fehb-analyzer
+npm install playwright-core            # Chromium must be available
+node scrape_opm.js --zip 20001         # --headed to watch; --enrollment self|self-plus-one|family
+python3 fehb_analyzer.py --plans-json out/plans.json
+```
+
+**Network caveat:** opm.gov (and carrier sites) are blocked by the egress
+policy in restricted Claude Code remote sessions, and OPM's WAF blocks many
+datacenter IPs. Run the scraper from your own machine, or a session whose
+network policy allows general web access. Extraction is defensive (labeled
+rows → regex fallback → raw HTML kept), since OPM redesigns the tool
+periodically — plans missing fields are flagged `⚠ verify` by the analyzer
+rather than silently trusted.
+
 ## Data & caveats
 
 - Premiums are **2026 biweekly employee shares, Self Plus One, non-postal**.

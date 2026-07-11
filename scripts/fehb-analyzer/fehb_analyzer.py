@@ -37,6 +37,7 @@ Usage:
     python3 fehb_analyzer.py --hsa-contrib 4000    # you'd only put $4k/yr in the HSA
     python3 fehb_analyzer.py --no-pretax-premiums  # if not using premium conversion
     python3 fehb_analyzer.py --json                # machine-readable output
+    python3 fehb_analyzer.py --plans-json out/plans.json   # use scrape_opm.js output
 """
 
 import argparse
@@ -143,6 +144,42 @@ DEFAULT_SCENARIOS = [
     ("high",        12000, 0.20),  # ongoing condition or one surgery
     ("catastrophic", 60000, 0.05), # hospitalization / major diagnosis
 ]
+
+
+def load_plans_json(path):
+    """Load plans scraped by scrape_opm.js (or hand-written JSON).
+
+    Missing benefit fields get conservative defaults and the plan is flagged
+    "verify" so the report shows it needs a human look. Entries with no
+    usable premium are skipped with a warning.
+    """
+    with open(path) as f:
+        raw = json.load(f)
+    plans, skipped = [], []
+    for entry in raw:
+        premium = entry.get("biweekly_premium")
+        if not premium:
+            skipped.append(entry.get("name", "?"))
+            continue
+        complete = all(entry.get(k) is not None
+                       for k in ("annual_deductible", "oop_max", "coinsurance"))
+        plans.append(Plan(
+            name=entry.get("name", "?"),
+            code=str(entry.get("code") or "?"),
+            biweekly_premium=float(premium),
+            deductible=float(entry.get("annual_deductible") or 0),
+            coinsurance=float(entry.get("coinsurance") or 0.20),
+            oop_max=float(entry.get("oop_max") or 12000),
+            hsa_qualified=bool(entry.get("hsa_qualified")),
+            hsa_passthrough=float(entry.get("hsa_passthrough") or 0),
+            notes=entry.get("notes", "scraped from OPM"),
+            premium_confidence="verified" if complete else "verify",
+        ))
+    if skipped:
+        print(f"note: skipped {len(skipped)} plan(s) with no premium: "
+              f"{', '.join(skipped[:8])}{'…' if len(skipped) > 8 else ''}",
+              file=sys.stderr)
+    return plans
 
 
 @dataclass
@@ -269,13 +306,20 @@ def main():
     ap.add_argument("--no-pretax-premiums", action="store_true",
                     help="don't credit premium-conversion tax savings")
     ap.add_argument("--json", action="store_true", help="emit JSON instead of a table")
+    ap.add_argument("--plans-json", type=str, default=None,
+                    help="load plan data from scrape_opm.js output instead of built-ins")
     args = ap.parse_args()
+
+    plans = load_plans_json(args.plans_json) if args.plans_json else PLANS
+    if not plans:
+        print("error: no usable plans loaded", file=sys.stderr)
+        sys.exit(1)
 
     scenarios = DEFAULT_SCENARIOS
     if args.spend is not None:
         scenarios = [("custom", args.spend, 1.0)]
 
-    results = analyze(PLANS, scenarios, args.fed, args.state,
+    results = analyze(plans, scenarios, args.fed, args.state,
                       args.hsa_contrib, not args.no_pretax_premiums)
 
     if args.json:

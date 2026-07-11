@@ -1,0 +1,12 @@
+{
+  "name": "fehb-analyzer-scraper",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Playwright scraper for OPM's FEHB plan comparison tool",
+  "scripts": {
+    "scrape": "node scrape_opm.js"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

@@ -750,7 +750,7 @@
       "usesPlaceholder": "Nothing",
       "useNames": {
         "autoCategorization": "Auto-Categorization",
-        "autoCategorizationDescription": "Decide whether a recipe is a breakfast, lunch, dinner or snack",
+        "autoCategorizationDescription": "Decide whether a recipe is a breakfast, lunch, dinner, snack or dessert",
         "autoTagging": "Auto-Tagging",
         "autoTaggingDescription": "Pick tags from the predefined list, and confirm each tag the AI proposes",
         "allergyDetection": "Allergy Detection",
@@ -783,7 +783,7 @@
       "autoTaggingDescription": "This prompt is used to generate tags for imported recipes. Define tagging rules and predefined tags list.",
       "autoTaggingPlaceholder": "Enter the auto-tagging prompt...",
       "autoCategorization": "Auto-Categorization Prompt",
-      "autoCategorizationDescription": "This prompt is used to sort recipes into meal categories (Breakfast, Lunch, Dinner, Snack).",
+      "autoCategorizationDescription": "This prompt is used to sort recipes into meal categories (Breakfast, Lunch, Dinner, Snack, Dessert).",
       "autoCategorizationPlaceholder": "Enter the auto-categorization prompt...",
       "allergyDetection": "Allergy Detection Prompt",
       "allergyDetectionDescription": "This prompt is used to detect the household's configured allergens in a recipe's ingredients.",

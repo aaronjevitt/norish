@@ -11,7 +11,7 @@ recipe:
 
 - **Tags**: descriptive keywords such as _quick_, _one-pot_, _vegetarian_
 - **Allergy indications**: tags for the allergies your household has configured
-- **Meal categories**: Breakfast, Lunch, Dinner, Snack
+- **Meal categories**: Breakfast, Lunch, Dinner, Snack, Dessert
 - **Nutrition**: calories, fat, carbs, and protein per serving
 - **[Provenance](./provenance.md)**: where the recipe comes from: its country,
   region, cuisines, and a short written explanation

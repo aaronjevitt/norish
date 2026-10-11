@@ -1,5 +1,11 @@
 import type { useTranslations } from "next-intl";
 
+import type {
+  AdminJobAttemptDTO,
+  AdminJobDetailDTO,
+  AdminJobStepStatus,
+} from "@norish/shared/contracts";
+
 export function formatDuration(durationMs: number | null): string {
   if (durationMs === null || durationMs < 0) return "-";
   if (durationMs < 1_000) return `${durationMs}ms`;
@@ -39,4 +45,19 @@ export function formatStep(
   }
 
   return step;
+}
+
+/**
+ * One attempt's status. An attempt only carries a message once it has failed,
+ * so the latest attempt of a job that is still active is running, not done.
+ */
+export function attemptStatus(
+  attempt: AdminJobAttemptDTO,
+  job: Pick<AdminJobDetailDTO, "state" | "attempts">
+): Extract<AdminJobStepStatus, "done" | "failed" | "running"> {
+  if (attempt.message) return "failed";
+
+  const isLatest = attempt.attempt === job.attempts[job.attempts.length - 1]?.attempt;
+
+  return isLatest && job.state === "active" ? "running" : "done";
 }

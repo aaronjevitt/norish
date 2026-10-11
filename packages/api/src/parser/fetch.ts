@@ -17,6 +17,11 @@ const NAVIGATION_TIMEOUT_MS = 30_000;
 const SETTLE_TIMEOUT_MS = 15_000;
 const SETTLE_POLL_MS = 500;
 
+/** Playwright's navigation timeout, told apart by name: the class differs per bundled copy. */
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof Error && error.name === "TimeoutError";
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -136,10 +141,27 @@ export async function renderPage(
       }
     });
 
-    const response = await page.goto(targetUrl, {
-      waitUntil: "load",
-      timeout: NAVIGATION_TIMEOUT_MS,
-    });
+    let response: Awaited<ReturnType<Page["goto"]>> = null;
+
+    try {
+      response = await page.goto(targetUrl, {
+        waitUntil: "load",
+        timeout: NAVIGATION_TIMEOUT_MS,
+      });
+    } catch (error) {
+      // `load` also waits on a page's trackers, fonts and third-party apps, so
+      // a healthy article can arrive in a fraction of a second and still miss
+      // the deadline (#606). Once the main document has arrived, that page is
+      // read as it stands; a navigation that never got a document still fails.
+      if (!isTimeoutError(error) || status === null) {
+        throw error;
+      }
+
+      log.info(
+        { url: targetUrl, timeoutMs: NAVIGATION_TIMEOUT_MS },
+        "Page did not finish loading in time; reading the document that arrived"
+      );
+    }
 
     status ??= response?.status() ?? null;
 

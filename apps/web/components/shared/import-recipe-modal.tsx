@@ -9,6 +9,8 @@ import { ArrowDownTrayIcon, SparklesIcon } from "@heroicons/react/16/solid";
 import { Button, Input, Label, Modal, TextField } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
+import { withDefaultUrlScheme } from "@norish/shared/lib/helpers";
+
 interface ImportRecipeModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -45,7 +47,7 @@ export default function ImportRecipeModal({ isOpen, onOpenChange }: ImportRecipe
   async function handleImportFromUrl() {
     if (importUrl.trim() === "") return;
     try {
-      await importRecipe(importUrl);
+      await importRecipe(withDefaultUrlScheme(importUrl));
       onOpenChange(false);
       setImportUrl("");
     } catch (e) {
@@ -63,7 +65,7 @@ export default function ImportRecipeModal({ isOpen, onOpenChange }: ImportRecipe
   async function handleAIImport() {
     if (importUrl.trim() === "") return;
     try {
-      await importRecipeWithAI(importUrl);
+      await importRecipeWithAI(withDefaultUrlScheme(importUrl));
       onOpenChange(false);
       setImportUrl("");
     } catch (e) {
@@ -88,9 +90,19 @@ export default function ImportRecipeModal({ isOpen, onOpenChange }: ImportRecipe
               <Modal.CloseTrigger />
               <Modal.Header className="flex flex-col gap-1">{t("title")}</Modal.Header>
               <Modal.Body>
-                <TextField fullWidth type="url" value={importUrl} onChange={setImportUrl}>
+                {/* Not type="url": the browser would mark "www.example.com/…" invalid
+                    with no message, though the import adds the missing https://. */}
+                <TextField fullWidth type="text" value={importUrl} onChange={setImportUrl}>
                   <Label>{t("label")}</Label>
-                  <Input fullWidth placeholder={t("placeholder")} variant="secondary" />
+                  <Input
+                    fullWidth
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    inputMode="url"
+                    placeholder={t("placeholder")}
+                    spellCheck={false}
+                    variant="secondary"
+                  />
                 </TextField>
               </Modal.Body>
               <Modal.Footer>

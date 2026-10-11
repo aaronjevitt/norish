@@ -179,6 +179,29 @@ describe("fetchRenderedPage – rendered-page contract", () => {
     expect(mockClose).toHaveBeenCalledOnce();
   });
 
+  it("reads a page whose document arrived but whose load event missed the deadline (#606)", async () => {
+    mockGoto.mockImplementation(async () => {
+      emitResponse(fakeResponse(200));
+      throw Object.assign(new Error("page.goto: Timeout 30000ms exceeded."), {
+        name: "TimeoutError",
+      });
+    });
+
+    await expect(renderPage("https://example.com/slow-blog")).resolves.toEqual({
+      html: "<html>rendered</html>",
+      status: 200,
+    });
+  });
+
+  it("still fails a navigation that timed out before any document arrived", async () => {
+    mockGoto.mockRejectedValue(
+      Object.assign(new Error("page.goto: Timeout 30000ms exceeded."), { name: "TimeoutError" })
+    );
+
+    await expect(fetchRenderedPage("https://example.com/dead")).resolves.toBe("");
+    expect(mockContent).not.toHaveBeenCalled();
+  });
+
   it("reports no HTML when Obscura is unreachable", async () => {
     mockGetBrowser.mockRejectedValue(new Error("Obscura is not available."));
 

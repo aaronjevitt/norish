@@ -15,6 +15,7 @@ import {
   parseIngredientWithDefaults,
   parseIsoDuration,
   stripHtmlTags,
+  withDefaultUrlScheme,
 } from "@norish/shared/lib/helpers";
 
 describe("parseIsoDuration", () => {
@@ -340,5 +341,28 @@ describe("avatar filename helpers", () => {
 
   it("rejects avatar paths with nested segments", () => {
     expect(avatarFilenameFromImagePath("/avatars/nested/file.png")).toBeNull();
+  });
+});
+
+describe("withDefaultUrlScheme", () => {
+  it("adds https:// to a link typed without a scheme", () => {
+    expect(withDefaultUrlScheme("www.hellofresh.co.uk/recipes/udon-6914a9")).toBe(
+      "https://www.hellofresh.co.uk/recipes/udon-6914a9"
+    );
+    expect(withDefaultUrlScheme("example.com")).toBe("https://example.com");
+  });
+
+  it("keeps a scheme that is already there", () => {
+    expect(withDefaultUrlScheme("http://example.com/a")).toBe("http://example.com/a");
+    expect(withDefaultUrlScheme("HTTPS://example.com/a")).toBe("HTTPS://example.com/a");
+  });
+
+  it("trims whitespace and drops a leading protocol-relative slash pair", () => {
+    expect(withDefaultUrlScheme("  example.com/r  ")).toBe("https://example.com/r");
+    expect(withDefaultUrlScheme("//example.com/r")).toBe("https://example.com/r");
+  });
+
+  it("leaves an empty value empty", () => {
+    expect(withDefaultUrlScheme("   ")).toBe("");
   });
 });

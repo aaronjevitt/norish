@@ -40,7 +40,7 @@ Notes:
 
 - `GET /api/v1/recipes/{id}`
 - `POST /api/v1/recipes/search` — list recipes with optional filters.
-- `POST /api/v1/recipes/import/url`
+- `POST /api/v1/recipes/import/url` — see [iOS Shortcut](./ios-shortcut.md) for a share-sheet import.
 - `POST /api/v1/recipes/import/paste`
 
 `POST /api/v1/recipes/search` returns a paginated recipe list. Optional filters

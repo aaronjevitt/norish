@@ -19,7 +19,7 @@ import type {
   AdminJobStepDTO,
 } from "@norish/shared/contracts";
 
-import { formatDuration, formatStep, formatTimestamp } from "./job-format";
+import { attemptStatus, formatDuration, formatStep, formatTimestamp } from "./job-format";
 import JobStatusChip from "./job-status-chip";
 
 type Translate = ReturnType<typeof useTranslations>;
@@ -301,13 +301,11 @@ export default function JobDetailModal({ queue, jobId, onClose }: Props) {
                                       {t("detail.attempt", { number: attempt.attempt })}
                                     </span>
                                     <Chip
-                                      color={attempt.message ? "danger" : "success"}
+                                      color={stepStatusColors[attemptStatus(attempt, job)]}
                                       size="sm"
                                       variant="soft"
                                     >
-                                      {attempt.message
-                                        ? t("stepStatus.failed")
-                                        : t("stepStatus.done")}
+                                      {t(`stepStatus.${attemptStatus(attempt, job)}`)}
                                     </Chip>
                                   </div>
                                   <Accordion.Indicator />

@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { matchCategory } from "@norish/shared-server/ai/enrichment/category-matcher";
 import { serverLogger as log } from "@norish/shared-server/logger";
-import { FullRecipeInsertDTO } from "@norish/shared/contracts";
+import { FullRecipeInsertDTO, RecipeCategory } from "@norish/shared/contracts";
 
 import {
   base64ToBuffer,
@@ -93,7 +93,7 @@ export async function parsePaprikaRecipeToDTO(
     new Set(
       validated.categories
         .map((value) => matchCategory(value))
-        .filter((value): value is "Breakfast" | "Lunch" | "Dinner" | "Snack" => Boolean(value))
+        .filter((value): value is RecipeCategory => Boolean(value))
     )
   );
 

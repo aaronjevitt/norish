@@ -191,7 +191,8 @@
       "breakfast": "Ontbijt",
       "lunch": "Lunch",
       "dinner": "Diner",
-      "snack": "Snack"
+      "snack": "Snack",
+      "dessert": "Dessert"
     },
     "calories": "Calorieën",
     "fat": "Vet (g)",

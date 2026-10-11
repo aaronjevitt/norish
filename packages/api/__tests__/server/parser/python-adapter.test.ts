@@ -137,7 +137,7 @@ describe("adaptRecipeScrapersResponse", () => {
             video: "/recipes/recipe-1/video.mp4",
           }),
         ]),
-        categories: expect.arrayContaining(["Breakfast", "Snack"]),
+        categories: expect.arrayContaining(["Breakfast", "Dessert"]),
         tags: [],
       })
     );

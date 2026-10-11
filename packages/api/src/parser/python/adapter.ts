@@ -137,7 +137,7 @@ function mapCategories(recipe: ScraperRecipe): RecipeCategory[] {
     supper: "Dinner",
     snack: "Snack",
     appetizer: "Snack",
-    dessert: "Snack",
+    dessert: "Dessert",
     "side dish": "Snack",
   };
 

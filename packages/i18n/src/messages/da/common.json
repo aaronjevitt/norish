@@ -68,7 +68,8 @@
       "breakfast": "Morgenmad",
       "lunch": "Frokost",
       "dinner": "Aftensmad",
-      "snack": "Snack"
+      "snack": "Snack",
+      "dessert": "Dessert"
     },
     "sortByTitle": "Titel",
     "sortByDate": "Dato",

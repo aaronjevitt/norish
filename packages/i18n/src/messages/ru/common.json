@@ -68,7 +68,8 @@
       "breakfast": "Завтрак",
       "lunch": "Обед",
       "dinner": "Ужин",
-      "snack": "Перекус"
+      "snack": "Перекус",
+      "dessert": "Десерт"
     },
     "sortByTitle": "Название",
     "sortByDate": "Дата",

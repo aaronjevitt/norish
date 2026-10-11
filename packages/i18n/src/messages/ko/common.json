@@ -68,7 +68,8 @@
       "breakfast": "아침",
       "lunch": "점심",
       "dinner": "저녁",
-      "snack": "간식"
+      "snack": "간식",
+      "dessert": "디저트"
     },
     "sortByTitle": "제목",
     "sortByDate": "날짜",

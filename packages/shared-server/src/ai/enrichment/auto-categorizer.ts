@@ -1,5 +1,5 @@
 /**
- * Auto-categorization: which of Breakfast, Lunch, Dinner and Snack a recipe
+ * Auto-categorization: which of Breakfast, Lunch, Dinner, Snack and Dessert a recipe
  * is. Two paths, in a fixed order (ADR-0035): a Decision when a Decision Model
  * is configured and this use is on, and otherwise — or when the Decision is
  * unsure, or fails — the language-model request the kind has always made.
@@ -21,7 +21,13 @@ import { verifyClaims } from "./verification";
  */
 export const CATEGORY_THRESHOLD = 0.6;
 
-const CATEGORIES = ["Breakfast", "Lunch", "Dinner", "Snack"] as const satisfies RecipeCategory[];
+const CATEGORIES = [
+  "Breakfast",
+  "Lunch",
+  "Dinner",
+  "Snack",
+  "Dessert",
+] as const satisfies RecipeCategory[];
 
 const autoCategorizationSchema = z
   .object({
@@ -45,9 +51,9 @@ function recipeState(recipe: RecipeSummary) {
 }
 
 /**
- * Four Booleans rather than one Choice, because a recipe may be several
+ * One Boolean per category rather than one Choice, because a recipe may be several
  * categories and the product already stores several. The criteria labels are
- * the four categories themselves — the domain's own option set, which is why
+ * the categories themselves — the domain's own option set, which is why
  * a Decision has no Prompt.
  */
 const CATEGORY_QUESTIONS = {
@@ -55,6 +61,7 @@ const CATEGORY_QUESTIONS = {
   Lunch: { type: "boolean", instructions: "Is this recipe a lunch dish?" },
   Dinner: { type: "boolean", instructions: "Is this recipe a dinner dish?" },
   Snack: { type: "boolean", instructions: "Is this recipe a snack?" },
+  Dessert: { type: "boolean", instructions: "Is this recipe a dessert?" },
 } as const;
 
 /**
@@ -94,7 +101,7 @@ async function categorizeWithLanguageModel(recipe: RecipeSummary): Promise<Recip
     ],
   });
 
-  // Model answers are matched onto the four categories; anything else drops.
+  // Model answers are matched onto the categories; anything else drops.
   const matched = Array.from(
     new Set(
       output.categories

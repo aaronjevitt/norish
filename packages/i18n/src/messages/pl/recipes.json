@@ -191,7 +191,8 @@
       "breakfast": "Śniadanie",
       "lunch": "Lunch",
       "dinner": "Obiad",
-      "snack": "Przekąska"
+      "snack": "Przekąska",
+      "dessert": "Deser"
     },
     "calories": "Kalorie",
     "fat": "Tłuszcze (g)",

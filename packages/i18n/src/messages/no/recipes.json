@@ -191,7 +191,8 @@
       "breakfast": "Frokost",
       "lunch": "Lunsj",
       "dinner": "Middag",
-      "snack": "Snacks"
+      "snack": "Snacks",
+      "dessert": "Dessert"
     },
     "calories": "Kalorier",
     "fat": "Fett (g)",

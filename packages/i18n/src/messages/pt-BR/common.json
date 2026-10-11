@@ -68,7 +68,8 @@
       "breakfast": "Café da manhã",
       "lunch": "Almoço",
       "dinner": "Jantar",
-      "snack": "Lanche"
+      "snack": "Lanche",
+      "dessert": "Sobremesa"
     },
     "sortByTitle": "Título",
     "sortByDate": "Data",

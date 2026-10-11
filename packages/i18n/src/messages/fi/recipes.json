@@ -191,7 +191,8 @@
       "breakfast": "Aamiainen",
       "lunch": "Lounas",
       "dinner": "Päivällinen",
-      "snack": "Välipala"
+      "snack": "Välipala",
+      "dessert": "Jälkiruoka"
     },
     "calories": "Kalorit",
     "fat": "Rasva (g)",

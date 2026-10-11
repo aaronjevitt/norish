@@ -51,12 +51,12 @@ const recipe = {
 
 /** A Decision answer with the given probability per category. */
 function decided(
-  probabilities: Partial<Record<"Breakfast" | "Lunch" | "Dinner" | "Snack", number>>
+  probabilities: Partial<Record<"Breakfast" | "Lunch" | "Dinner" | "Snack" | "Dessert", number>>
 ) {
   return {
     model: "jev-2026-09-01",
     answers: Object.fromEntries(
-      (["Breakfast", "Lunch", "Dinner", "Snack"] as const).map((category) => [
+      (["Breakfast", "Lunch", "Dinner", "Snack", "Dessert"] as const).map((category) => [
         category,
         { type: "boolean", probability: probabilities[category] ?? 0.01 },
       ])
@@ -84,7 +84,7 @@ describe("categorizeRecipe", () => {
   });
 
   describe("with a Decision Model configured", () => {
-    it("asks four Boolean questions on the structured recipe and no language model", async () => {
+    it("asks one Boolean question per category on the structured recipe and no language model", async () => {
       vi.mocked(isDecisionModelConfigured).mockResolvedValue(true);
 
       const categories = await categorizeRecipe(recipe);
@@ -105,6 +105,7 @@ describe("categorizeRecipe", () => {
           Lunch: { type: "boolean", instructions: expect.stringMatching(/lunch/i) },
           Dinner: { type: "boolean", instructions: expect.stringMatching(/dinner/i) },
           Snack: { type: "boolean", instructions: expect.stringMatching(/snack/i) },
+          Dessert: { type: "boolean", instructions: expect.stringMatching(/dessert/i) },
         },
       });
       expect(mocked.generateStructured).not.toHaveBeenCalled();

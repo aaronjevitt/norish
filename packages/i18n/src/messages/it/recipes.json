@@ -191,7 +191,8 @@
       "breakfast": "Colazione",
       "lunch": "Pranzo",
       "dinner": "Cena",
-      "snack": "Spuntino"
+      "snack": "Spuntino",
+      "dessert": "Dolce"
     },
     "calories": "Calorie",
     "fat": "Grassi (g)",

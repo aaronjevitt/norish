@@ -191,7 +191,8 @@
       "breakfast": "Morgenmad",
       "lunch": "Frokost",
       "dinner": "Aftensmad",
-      "snack": "Snack"
+      "snack": "Snack",
+      "dessert": "Dessert"
     },
     "calories": "Kalorier",
     "fat": "Fedt (g)",

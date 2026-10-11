@@ -15,7 +15,7 @@ import { RecipeVideosArraySchema, RecipeVideoSchema } from "./recipe-videos";
 import { StepOutputSchema, StepStepSchema } from "./steps";
 import { TagNameSchema, TagSummarySchema } from "./tag";
 
-export const recipeCategorySchema = z.enum(["Breakfast", "Lunch", "Dinner", "Snack"]);
+export const recipeCategorySchema = z.enum(["Breakfast", "Lunch", "Dinner", "Snack", "Dessert"]);
 
 export const RecipeSelectBaseSchema = createSelectSchema(recipes).extend({
   userId: z.string().nullable(),
@@ -162,7 +162,7 @@ export const RecipeListInputSchema = z.object({
     .describe("Fields searched when `search` is provided. Defaults to `title` and `ingredients`."),
   tags: z.array(z.string()).optional().describe("Optional tag filter."),
   categories: z
-    .array(z.enum(["Breakfast", "Lunch", "Dinner", "Snack"]))
+    .array(z.enum(["Breakfast", "Lunch", "Dinner", "Snack", "Dessert"]))
     .optional()
     .describe("Optional meal category filter."),
   filterMode: z

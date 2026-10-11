@@ -7,7 +7,7 @@ export const recipeAutocompleteInputSchema = z.object({
 });
 
 export const randomRecipeInputSchema = z.object({
-  category: z.enum(["Breakfast", "Lunch", "Dinner", "Snack"]).optional(),
+  category: z.enum(["Breakfast", "Lunch", "Dinner", "Snack", "Dessert"]).optional(),
 });
 
 export const recipeImportPasteInputSchema = z.object({

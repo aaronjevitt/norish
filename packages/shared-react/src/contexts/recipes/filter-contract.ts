@@ -38,7 +38,7 @@ export type RecipeFilterPreset = {
   isActive: (filters: CanonicalRecipeFilters) => boolean;
 };
 
-const VALID_CATEGORIES: RecipeCategory[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
+const VALID_CATEGORIES: RecipeCategory[] = ["Breakfast", "Lunch", "Dinner", "Snack", "Dessert"];
 const VALID_SORT_MODES: SortOrder[] = ["titleAsc", "titleDesc", "dateAsc", "dateDesc", "none"];
 const VALID_FILTER_MODES: FilterMode[] = ["AND", "OR"];
 
@@ -216,6 +216,15 @@ export const RECIPE_FILTER_PRESETS: RecipeFilterPreset[] = [
       categories: filters.categories.includes("Dinner") ? [] : ["Dinner"],
     }),
     isActive: (filters) => filters.categories.includes("Dinner"),
+  },
+  {
+    id: "dessert",
+    label: "Dessert",
+    apply: (filters) => ({
+      ...filters,
+      categories: filters.categories.includes("Dessert") ? [] : ["Dessert"],
+    }),
+    isActive: (filters) => filters.categories.includes("Dessert"),
   },
   {
     id: "vegetarian",

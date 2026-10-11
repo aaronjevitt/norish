@@ -191,7 +191,8 @@
       "breakfast": "Desayuno",
       "lunch": "Comida",
       "dinner": "Cena",
-      "snack": "Tentempié"
+      "snack": "Tentempié",
+      "dessert": "Postre"
     },
     "calories": "Calorías",
     "fat": "Grasas (g)",

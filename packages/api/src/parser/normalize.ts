@@ -68,7 +68,7 @@ function parseAllergyIndications(json: Record<string, unknown>): string[] {
 }
 
 export function parseCategories(recipeCategory: unknown): RecipeCategory[] {
-  const validCategories: RecipeCategory[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
+  const validCategories: RecipeCategory[] = ["Breakfast", "Lunch", "Dinner", "Snack", "Dessert"];
   const categoryMap: Record<string, RecipeCategory> = {
     breakfast: "Breakfast",
     lunch: "Lunch",
@@ -82,7 +82,7 @@ export function parseCategories(recipeCategory: unknown): RecipeCategory[] {
     entree: "Dinner",
     entrée: "Dinner",
     appetizer: "Snack",
-    dessert: "Snack",
+    dessert: "Dessert",
     starter: "Snack",
     side: "Snack",
     "side dish": "Snack",

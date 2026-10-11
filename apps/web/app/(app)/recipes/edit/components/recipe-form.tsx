@@ -32,7 +32,7 @@ import ProvenanceFields, { EMPTY_PROVENANCE_FORM_VALUE } from "./provenance-fiel
 import { useRecipeFormDirtyState } from "./use-recipe-form-dirty-state";
 
 const log = createClientLogger("RecipeForm");
-const ALL_CATEGORIES: RecipeCategory[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
+const ALL_CATEGORIES: RecipeCategory[] = ["Breakfast", "Lunch", "Dinner", "Snack", "Dessert"];
 export interface RecipeFormProps {
   mode: "create" | "edit";
   initialData?: FullRecipeDTO;

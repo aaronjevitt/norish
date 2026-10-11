@@ -68,7 +68,8 @@
       "breakfast": "Frokost",
       "lunch": "Lunsj",
       "dinner": "Middag",
-      "snack": "Snacks"
+      "snack": "Snacks",
+      "dessert": "Dessert"
     },
     "sortByTitle": "Tittel",
     "sortByDate": "Dato",

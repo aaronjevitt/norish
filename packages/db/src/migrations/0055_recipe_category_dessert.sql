@@ -1,0 +1,1 @@
+ALTER TYPE "public"."recipe_category" ADD VALUE IF NOT EXISTS 'Dessert';

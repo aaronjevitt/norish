@@ -12,7 +12,7 @@ import nlRecipes from "@norish/i18n/messages/nl/recipes.json";
 
 const FUZZY_THRESHOLD = 0.25;
 
-type RecipeCategoryKey = "breakfast" | "lunch" | "dinner" | "snack";
+type RecipeCategoryKey = "breakfast" | "lunch" | "dinner" | "snack" | "dessert";
 
 type RecipesMessageSubset = {
   form?: {
@@ -40,13 +40,15 @@ const CATEGORY_MESSAGE_KEYS: Record<RecipeCategory, RecipeCategoryKey> = {
   Lunch: "lunch",
   Dinner: "dinner",
   Snack: "snack",
+  Dessert: "dessert",
 };
 
 const BASE_SYNONYMS: Record<RecipeCategory, string[]> = {
   Breakfast: ["breakfast", "brunch", "morning meal"],
   Lunch: ["lunch", "midday meal"],
   Dinner: ["dinner", "diner", "supper", "main course", "main dish", "entree", "entrée"],
-  Snack: ["snack", "appetizer", "dessert", "starter", "side", "side dish"],
+  Snack: ["snack", "appetizer", "starter", "side", "side dish"],
+  Dessert: ["dessert", "desserts", "pudding"],
 };
 
 function normalizeCategoryText(input: string): string {
@@ -68,7 +70,7 @@ function getLocalizedCategorySynonyms(category: RecipeCategory): string[] {
 }
 
 const CATEGORY_DATA: CategoryEntry[] = (
-  ["Breakfast", "Lunch", "Dinner", "Snack"] as RecipeCategory[]
+  ["Breakfast", "Lunch", "Dinner", "Snack", "Dessert"] as RecipeCategory[]
 ).map((category) => {
   const allSynonyms = [...BASE_SYNONYMS[category], ...getLocalizedCategorySynonyms(category)].map(
     normalizeCategoryText

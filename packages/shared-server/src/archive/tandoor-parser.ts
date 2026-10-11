@@ -4,7 +4,7 @@ import { z } from "zod";
 import { FullRecipeInsertSchema } from "@norish/db";
 import { matchCategory } from "@norish/shared-server/ai/enrichment/category-matcher";
 import { saveImageBytes } from "@norish/shared-server/media/storage";
-import { FullRecipeInsertDTO } from "@norish/shared/contracts";
+import { FullRecipeInsertDTO, RecipeCategory } from "@norish/shared/contracts";
 import { inferSystemUsedFromParsed } from "@norish/shared/lib/determine-recipe-system";
 
 // Zod schemas for Tandoor recipe structure
@@ -210,9 +210,7 @@ export async function parseTandoorRecipeToDTO(
     new Set(
       categoryCandidates
         .map((value) => matchCategory(value))
-        .filter((category): category is "Breakfast" | "Lunch" | "Dinner" | "Snack" =>
-          Boolean(category)
-        )
+        .filter((category): category is RecipeCategory => Boolean(category))
     )
   );
 

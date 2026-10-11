@@ -285,7 +285,7 @@ const updateCategories = authedProcedure
     z.object({
       recipeId: z.uuid(),
       version: z.number().int().positive(),
-      categories: z.array(z.enum(["Breakfast", "Lunch", "Dinner", "Snack"])),
+      categories: z.array(z.enum(["Breakfast", "Lunch", "Dinner", "Snack", "Dessert"])),
     })
   )
   .mutation(async ({ ctx, input }) => {

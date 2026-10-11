@@ -13,6 +13,7 @@ import {
   ClockIcon,
   FireIcon,
   MoonIcon,
+  SparklesIcon,
   SunIcon,
   WrenchScrewdriverIcon,
 } from "@heroicons/react/16/solid";
@@ -98,6 +99,7 @@ const categoryIcons: Record<RecipeCategory, typeof FireIcon> = {
   Lunch: SunIcon,
   Dinner: MoonIcon,
   Snack: CakeIcon,
+  Dessert: SparklesIcon,
 };
 
 /**

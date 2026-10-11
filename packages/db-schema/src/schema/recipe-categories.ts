@@ -5,4 +5,5 @@ export const recipeCategoryEnum = pgEnum("recipe_category", [
   "Lunch",
   "Dinner",
   "Snack",
+  "Dessert",
 ]);

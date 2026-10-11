@@ -191,7 +191,8 @@
       "breakfast": "Petit-déjeuner",
       "lunch": "Déjeuner",
       "dinner": "Dîner",
-      "snack": "Collation"
+      "snack": "Collation",
+      "dessert": "Dessert"
     },
     "calories": "Calories",
     "fat": "Lipides (g)",

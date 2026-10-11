@@ -23,7 +23,7 @@ import type { FilterMode, RecipeCategory, SearchField, SortOrder } from "@norish
 import { DEFAULT_RECIPE_FILTERS } from "@norish/shared-react/contexts";
 import StarRating from "@norish/ui/star-rating";
 
-const ALL_CATEGORIES: RecipeCategory[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
+const ALL_CATEGORIES: RecipeCategory[] = ["Breakfast", "Lunch", "Dinner", "Snack", "Dessert"];
 const COOKING_TIME_OPTIONS: Array<{
   value: number;
   labelKey: string;

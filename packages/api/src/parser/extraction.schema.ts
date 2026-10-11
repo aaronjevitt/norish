@@ -81,7 +81,7 @@ export const recipeExtractionSchema = z
     categories: z
       .array(z.string())
       .describe(
-        "Meal categories the source explicitly states, from: Breakfast, Lunch, Dinner, Snack. Empty when the source states none."
+        "Meal categories the source explicitly states, from: Breakfast, Lunch, Dinner, Snack, Dessert. Empty when the source states none."
       ),
     nutrition: sourceNutritionSchema,
   })

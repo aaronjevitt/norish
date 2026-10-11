@@ -191,7 +191,8 @@
       "breakfast": "아침",
       "lunch": "점심",
       "dinner": "저녁",
-      "snack": "간식"
+      "snack": "간식",
+      "dessert": "디저트"
     },
     "calories": "칼로리",
     "fat": "지방(g)",

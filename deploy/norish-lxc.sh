@@ -17,6 +17,8 @@
 #     bash norish-lxc.sh update 121                       # update the app in CT 121
 #     bash norish-lxc.sh update 121 --ref my-branch       # deploy a branch of the fork
 #     bash norish-lxc.sh update 121 --repo norish-recipes/norish   # switch to upstream releases
+#     bash norish-lxc.sh auto-update 121 on               # nightly update of CT 121 (see below)
+#     bash norish-lxc.sh auto-update 121 on --notify-url https://ntfy.sh/<your-topic>
 #
 #  MIGRATING FROM DOCKER (see --help for how to produce these files):
 #     bash norish-lxc.sh --ctid 121 --auth-url https://recipes.example.com \
@@ -27,6 +29,13 @@
 #     update                         # newest commit on main (fork) / newest release (upstream)
 #     update --ref v0.24.0-beta      # a specific tag, branch or commit
 #     update --force                 # rebuild the current version
+#     norish-lxc.sh --auto-update on|off|status    # nightly 'update' via a systemd timer
+#
+#  AUTO-UPDATE runs 'update' at night: it only rebuilds when the source moved,
+#  backs up the database first and rolls back if the new version won't start.
+#  It deploys whatever the CT tracks: your fork's main (you decide what gets
+#  merged), or every new upstream release if the CT tracks upstream. Settings
+#  (schedule, alert URL) live in /etc/norish/auto-update.env.
 #
 #  Run it from a saved file (bash norish-lxc.sh), not "bash -c $(curl …)",
 #  because the host copies this same file into the container.
@@ -59,6 +68,9 @@ DB_NAME="norish"; DB_USER="norish"
 APP_PORT="3000"; OBSCURA_PORT="9222"
 SELF_INSTALL_PATH="/usr/local/bin/${NSAPP}-lxc.sh"
 STAGE_DIR="/root/${NSAPP}-import"          # where the host drops migration files
+AUTO_ENV="${CONF_DIR}/auto-update.env"     # auto-update schedule + alert URL (kept on update)
+AUTO_UNIT="${NSAPP}-auto-update"           # systemd service + timer name
+UPDATE_LOCK="/run/${NSAPP}-update.lock"    # one update at a time, manual or timed
 
 # ------------------------------------------------------------------- defaults
 CTID=""; HN="${NSAPP}"
@@ -70,6 +82,7 @@ AUTH_URL=""            # external URL Norish is reached at; empty -> http://<ip>
 MASTER_KEY_IN=""       # reuse an existing key when migrating
 RESTORE_DB=""; RESTORE_UPLOADS=""
 ASSUME_YES="0"; FORCE="0"; REF=""; MODE=""; REPO_ARG=""
+AUTO_ACTION=""; NOTIFY_URL_IN=""
 
 # ------------------------------------------------------------------- helpers
 YW=$'\033[33m'; GN=$'\033[1;92m'; RD=$'\033[01;31m'; CL=$'\033[m'; BOLD=$'\033[1m'
@@ -93,7 +106,15 @@ Create options (host):
                         remembered in ${SOURCE_ENV} for later updates
   --ref TAG|BRANCH|SHA  what to build (default: 'main' for a fork, the newest
                         release, betas included, for ${UPSTREAM_REPO})
+  --auto-update on      also install the nightly auto-update timer
+  --notify-url URL      where auto-update posts failures (ntfy topic URL or any
+                        endpoint that takes a plain-text POST)
   --yes
+
+Auto-update (host: 'auto-update <CTID> ACTION', inside the CT: '--auto-update ACTION'):
+  on      install/enable the timer (default: nightly 04:00 + up to 30 min jitter)
+  off     disable it (settings in ${AUTO_ENV} are kept)
+  status  show the timer and the last run
 
 Migrating an existing Docker install (run on the old Docker host):
   1. Database:   docker exec norish-db pg_dump -U postgres -Fc norish > norish.dump
@@ -114,6 +135,11 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     update)            MODE="host-update"; CTID="${2:-}"; [[ $# -gt 1 ]] && shift ;;
+    auto-update)       MODE="host-auto"; CTID="${2:-}"; AUTO_ACTION="status"
+                       [[ $# -gt 1 ]] && shift
+                       if [[ $# -gt 1 && "${2:-}" != -* ]]; then AUTO_ACTION="$2"; shift; fi ;;
+    --auto-update)     AUTO_ACTION="$2"; shift ;;
+    --notify-url)      NOTIFY_URL_IN="$2"; shift ;;
     --install-only)    MODE="ct-install" ;;
     --update-only)     MODE="ct-update" ;;
     --restore-only)    MODE="ct-restore" ;;
@@ -150,6 +176,8 @@ if [[ -n "$REPO_ARG" ]]; then REPO="$REPO_ARG"
 elif [[ -f "$SOURCE_ENV" ]]; then REPO="$(sed -n 's/^REPO=//p' "$SOURCE_ENV")"; REPO="${REPO:-$DEFAULT_REPO}"
 fi
 [[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "Invalid --repo '${REPO}' (expected OWNER/NAME)"
+[[ -z "$AUTO_ACTION" || "$AUTO_ACTION" =~ ^(on|off|status|run)$ ]] \
+  || die "Invalid auto-update action '${AUTO_ACTION}' (on, off or status)"
 
 # ==============================================================================
 #                         CONTAINER-SIDE FUNCTIONS
@@ -552,6 +580,7 @@ motd() {
   Backups   : ${BACKUP_DIR}  (DB dumps taken before every update)
   Logs      : journalctl -u ${SERVICE} -f      (browser: -u ${OBSCURA_SERVICE})
   Update    : update   (or: update --force / update --ref <tag|branch>)
+  Auto      : $(systemctl is-enabled -q "${AUTO_UNIT}.timer" 2>/dev/null && echo "nightly (${NSAPP}-lxc.sh --auto-update status)" || echo "off (${NSAPP}-lxc.sh --auto-update on)")
   Source    : ${REPO}
   Version   : $(cat "$VERSION_FILE" 2>/dev/null)
 
@@ -597,6 +626,7 @@ ct_install() {
   motd
   if wait_healthy; then msg_ok "${APP} ${ref} is up"
   else msg_warn "Health check failed — see: journalctl -u ${SERVICE} -n 80"; fi
+  [[ "$AUTO_ACTION" == "on" ]] && ct_auto on
   rm -rf "$STAGE_DIR"
   msg_info "Cleaning up"
   apt-get -y -qq autoremove >/dev/null; apt-get -y -qq autoclean >/dev/null
@@ -625,6 +655,9 @@ ct_restore() {
 ct_update() {
   [[ $EUID -eq 0 ]] || die "Run as root"
   [[ -d "$APP_DIR" && -f "$VERSION_FILE" ]] || die "${APP} is not installed here (run with --install-only first)"
+  # A manual 'update' and the nightly timer must never swap the app at once.
+  exec 9>"$UPDATE_LOCK"
+  flock -n 9 || die "Another ${APP} update is already running"
   local current target dump rc
   current="$(cat "$VERSION_FILE")"
   target="$(resolve_ref "${REF:-$(default_ref)}")"
@@ -668,6 +701,144 @@ ct_update() {
     exit 1
   fi
   pnpm store prune >/dev/null 2>&1 || true
+}
+
+auto_env_get() { sed -n "s/^$1=//p" "$AUTO_ENV" 2>/dev/null | tail -1; }
+
+notify() {
+  # Best effort: a failed alert is logged, never fatal. ntfy reads the Title
+  # header; any endpoint that takes a plain-text POST gets the body.
+  local url; url="$(auto_env_get NOTIFY_URL)"
+  [[ -n "$url" ]] || return 0
+  curl -fsS -m 15 -H "Title: $1" -H "Tags: $2" --data-binary "$3" "$url" >/dev/null \
+    || msg_warn "Could not send the alert to ${url}"
+}
+
+write_auto_env() {
+  mkdir -p "$CONF_DIR"
+  if [[ ! -f "$AUTO_ENV" ]]; then
+    cat > "$AUTO_ENV" <<EOF
+# ${APP} auto-update settings. Apply changes with: ${NSAPP}-lxc.sh --auto-update on
+#
+# When to run (systemd OnCalendar syntax), plus up to 30 min random delay.
+SCHEDULE=*-*-* 04:00
+# Where to POST failures, e.g. https://ntfy.sh/<your-topic>. Empty: no alerts.
+NOTIFY_URL=
+# 1 = also alert when a new version was deployed.
+NOTIFY_ON_SUCCESS=0
+EOF
+    chmod 600 "$AUTO_ENV"
+  fi
+  if [[ -n "$NOTIFY_URL_IN" ]]; then
+    # awk, not sed: a webhook URL may hold '&', '#' or '/'.
+    local tmp; tmp="$(mktemp)"
+    NOTIFY_URL="$NOTIFY_URL_IN" awk '/^NOTIFY_URL=/ { print "NOTIFY_URL=" ENVIRON["NOTIFY_URL"]; next } { print }' \
+      "$AUTO_ENV" > "$tmp"
+    cat "$tmp" > "$AUTO_ENV"; rm -f "$tmp"
+  fi
+}
+
+ct_auto() {
+  [[ $EUID -eq 0 ]] || die "Run as root"
+  case "$1" in
+    on)
+      [[ -f "$VERSION_FILE" ]] || die "${APP} is not installed here"
+      write_auto_env
+      local schedule; schedule="$(auto_env_get SCHEDULE)"
+      if [[ "$REPO" == "$UPSTREAM_REPO" ]]; then
+        msg_warn "This CT builds from ${UPSTREAM_REPO}: auto-update will deploy every new upstream release unreviewed."
+      fi
+      cat > "/etc/systemd/system/${AUTO_UNIT}.service" <<EOF
+[Unit]
+Description=${APP} auto-update (rebuilds only when the source moved)
+After=network-online.target ${SERVICE}.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash ${SELF_INSTALL_PATH} --auto-update run
+# Keep the running app responsive while the new version builds.
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=2h
+EOF
+      cat > "/etc/systemd/system/${AUTO_UNIT}.timer" <<EOF
+[Unit]
+Description=Nightly ${APP} auto-update
+
+[Timer]
+OnCalendar=${schedule:-*-*-* 04:00}
+RandomizedDelaySec=30min
+# Not Persistent: a CT that was off at night skips the run rather than
+# rebuilding in the middle of someone's day.
+Persistent=false
+
+[Install]
+WantedBy=timers.target
+EOF
+      systemctl daemon-reload
+      systemctl enable -q --now "${AUTO_UNIT}.timer"
+      msg_ok "Auto-update on (${schedule:-*-*-* 04:00}); settings: ${AUTO_ENV}"
+      [[ -n "$(auto_env_get NOTIFY_URL)" ]] || msg_warn "No NOTIFY_URL set: a failed or rolled-back update will only show in: journalctl -u ${AUTO_UNIT}"
+      if [[ -f "$ENV_FILE" ]]; then motd; fi
+      ;;
+    off)
+      systemctl disable -q --now "${AUTO_UNIT}.timer" 2>/dev/null || true
+      msg_ok "Auto-update off (settings kept in ${AUTO_ENV})"
+      if [[ -f "$ENV_FILE" ]]; then motd; fi
+      ;;
+    status)
+      if systemctl is-enabled -q "${AUTO_UNIT}.timer" 2>/dev/null; then
+        msg_ok "Auto-update is on"
+        systemctl list-timers --no-pager "${AUTO_UNIT}.timer" | head -2
+      else
+        msg_warn "Auto-update is off (enable: ${NSAPP}-lxc.sh --auto-update on)"
+      fi
+      echo; echo "Last run:"
+      journalctl -u "${AUTO_UNIT}.service" -n 15 --no-pager -o cat 2>/dev/null || true
+      ;;
+    run) ct_auto_run ;;
+  esac
+}
+
+ct_auto_run() {
+  # What the timer runs: a plain 'update', with an alert when it did not end
+  # where it started cleanly. The update runs as its own process so its exit
+  # (a failed build, or a rollback) cannot take the alert down with it.
+  local before after log rc
+  trap - ERR                                  # a failed update is reported below, not traced
+  before="$(cat "$VERSION_FILE" 2>/dev/null)"
+  log="$(mktemp)"
+  set +e
+  bash "$SELF_INSTALL_PATH" --update-only 2>&1 | tee "$log"
+  rc=${PIPESTATUS[0]}
+  set -e
+  after="$(cat "$VERSION_FILE" 2>/dev/null)"
+  local tail_txt; tail_txt="$(tail -n 15 "$log" | sed -E 's/\x1B\[[0-9;]*m//g')"
+  rm -f "$log"
+
+  if [[ $rc -ne 0 ]]; then
+    local what="${APP} auto-update failed on $(hostname); still running ${before}"
+    grep -q "rolling back" <<<"$tail_txt" && what="${APP} auto-update rolled back on $(hostname); still running ${before}"
+    notify "$what" "warning" "${tail_txt}
+
+Details: journalctl -u ${AUTO_UNIT} -n 200"
+    exit "$rc"
+  fi
+  if [[ "$before" != "$after" && "$(auto_env_get NOTIFY_ON_SUCCESS)" == "1" ]]; then
+    notify "${APP} updated on $(hostname)" "white_check_mark" "${before} -> ${after}"
+  fi
+}
+
+host_auto() {
+  [[ -n "$CTID" ]] || die "Usage: $0 auto-update <CTID> on|off|status"
+  pct status "$CTID" >/dev/null 2>&1 || die "CT ${CTID} does not exist"
+  [[ "$(pct status "$CTID")" == "status: running" ]] || pct start "$CTID"
+  # The timer runs the CT's copy of this script, so ship the current one.
+  pct push "$CTID" "$0" "$SELF_INSTALL_PATH" --perms 0755
+  local extra=(--auto-update "$AUTO_ACTION")
+  [[ -n "$NOTIFY_URL_IN" ]] && extra+=(--notify-url "$NOTIFY_URL_IN")
+  ct_exec bash "$SELF_INSTALL_PATH" "${extra[@]}"
 }
 
 # ==============================================================================
@@ -756,6 +927,7 @@ host_create() {
     "Source" "$REPO" \
     "Version" "${REF:-$([[ "$REPO" == "$UPSTREAM_REPO" ]] && echo "newest release" || echo main)}" \
     "AUTH_URL" "${AUTH_URL:-http://<container IP>:${APP_PORT}}" \
+    "Auto-update" "$([[ "$AUTO_ACTION" == "on" ]] && echo "nightly" || echo "off")" \
     "Migrate" "$([[ -n "$RESTORE_DB$RESTORE_UPLOADS" ]] && echo "db: ${RESTORE_DB:-—}  uploads: ${RESTORE_UPLOADS:-—}" || echo "no (fresh install)")"
   echo
   if [[ "$ASSUME_YES" != "1" ]]; then
@@ -787,6 +959,8 @@ Update: bash norish-lxc.sh update ${CTID}  (or run 'update' inside)" \
   local extra=("${RESTORE_ARGS[@]}" --repo "$REPO")
   [[ -n "$AUTH_URL" ]] && extra+=(--auth-url "$AUTH_URL")
   [[ -n "$REF" ]] && extra+=(--ref "$REF")
+  [[ "$AUTO_ACTION" == "on" ]] && extra+=(--auto-update on)
+  [[ -n "$NOTIFY_URL_IN" ]] && extra+=(--notify-url "$NOTIFY_URL_IN")
   msg_info "Running installer inside CT ${CTID} (build takes 10-20 min)"
   ct_exec bash "$SELF_INSTALL_PATH" --install-only "${extra[@]}"
 
@@ -808,8 +982,10 @@ case "$MODE" in
   ct-update)   ct_update ;;
   ct-restore)  ct_restore ;;
   host-update) is_pve_host || die "'update <CTID>' runs on the Proxmox host (inside the CT just run: update)"; host_update ;;
+  host-auto)   is_pve_host || die "'auto-update <CTID>' runs on the Proxmox host (inside the CT: --auto-update on|off|status)"; host_auto ;;
   "")
     if is_pve_host; then host_create
+    elif [[ -n "$AUTO_ACTION" ]]; then ct_auto "$AUTO_ACTION"
     elif [[ -f "$VERSION_FILE" ]]; then ct_update
     else ct_install
     fi ;;

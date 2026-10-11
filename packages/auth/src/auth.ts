@@ -9,17 +9,17 @@ import { nextCookies } from "better-auth/next-js";
 import { genericOAuth } from "better-auth/plugins";
 
 import type { ApiKeyAuthService } from "@norish/shared/contracts/dto/auth";
-import { AUTH_SECRET, encrypt, hmacIndex, safeDecrypt } from "@norish/auth/crypto";
+import { AUTH_SECRET, encrypt, hmacIndex, safeDecrypt } from "@norish/config/crypto";
 import { SERVER_CONFIG } from "@norish/config/env-config-server";
-import { isRegistrationEnabled } from "@norish/config/server-config-loader";
 import { ServerConfigKeys } from "@norish/config/zod/server-config";
 import { db } from "@norish/db/drizzle";
 import { setApiKeyAuthService } from "@norish/db/repositories/api-keys";
 import { setConfig } from "@norish/db/repositories/server-config";
 import { countUsers } from "@norish/db/repositories/users";
 import * as schema from "@norish/db/schema/auth";
-import { getPublisherClient } from "@norish/queue/redis/client";
+import { isRegistrationEnabled } from "@norish/shared-server/config/server-config-loader";
 import { authLogger } from "@norish/shared-server/logger";
+import { getPublisherClient } from "@norish/shared-server/redis/client";
 
 import {
   getPendingOIDCProfile,
@@ -188,7 +188,7 @@ function buildEmailAndPasswordConfig() {
   };
 }
 
-function createAuth() {
+function createBetterAuth() {
   const emailAndPasswordConfig = buildEmailAndPasswordConfig();
 
   // Create base drizzle adapter factory
@@ -248,11 +248,12 @@ function createAuth() {
         await redis.del(key);
       },
     },
-    // Rate limiting configuration
+    // Rate limiting configuration. Values come from the environment so a test
+    // harness can lift the ceiling; the defaults are the production ones.
     rateLimit: {
-      enabled: true,
-      window: 60, // 60 seconds
-      max: 20, // 20 requests per window
+      enabled: SERVER_CONFIG.AUTH_RATE_LIMIT_ENABLED,
+      window: SERVER_CONFIG.AUTH_RATE_LIMIT_WINDOW, // seconds
+      max: SERVER_CONFIG.AUTH_RATE_LIMIT_MAX, // requests per window
       storage: "secondary-storage",
     },
     // Email and password authentication (conditionally enabled)
@@ -464,8 +465,14 @@ function createAuth() {
   });
 }
 
-// Type for the auth instance including plugins
-type AuthInstance = ReturnType<typeof createAuth>;
+// Type for the auth instance including plugin API methods used by this package.
+type AuthInstance = ReturnType<typeof betterAuth> & {
+  api: ReturnType<typeof betterAuth>["api"] & ApiKeyAuthService;
+};
+
+function createAuth(): AuthInstance {
+  return createBetterAuth() as AuthInstance;
+}
 
 // Lazy-initialized auth instance
 let _auth: AuthInstance | null = null;

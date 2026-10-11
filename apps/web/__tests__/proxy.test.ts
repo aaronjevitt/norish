@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { NextRequest } from "next/server";
-import { proxy } from "@/proxy";
+import { config, proxy } from "@/proxy";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.hoisted(() => vi.fn());
@@ -33,6 +33,17 @@ describe("proxy share access", () => {
 
     expect(response.headers.get("x-middleware-next")).toBe("1");
     expect(getSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("excludes public PWA assets from the Next proxy matcher", () => {
+    expect(config.matcher[0]).toContain("manifest\\.webmanifest");
+    expect(config.matcher[0]).toContain("sw\\.js");
+    expect(config.matcher[0]).toContain("favicon\\.ico");
+    expect(config.matcher[0]).toContain("icons");
+    // The worker script itself: browsers fetch it without credentials, and a
+    // script answered by a redirect is refused, so it can never sit behind
+    // the auth redirect.
+    expect(config.matcher[0]).toContain("serwist/");
   });
 
   it("redirects anonymous private recipe media requests", async () => {

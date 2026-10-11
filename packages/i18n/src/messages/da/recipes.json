@@ -1,9 +1,11 @@
 {
   "dashboard": {
-    "title": "Alle opskrifter",
+    "libraryTitle": "Dit bibliotek",
+    "recipesTitle": "Dine opskrifter",
+    "cookbooksTitle": "Dine kogebøger",
     "searchPlaceholder": "Søg eller tilføj opskrift...",
     "searchRecipesPlaceholder": "Søg opskrifter...",
-    "recipeCount": "{count, plural, one {# opskrift} other {# opskrifter}}",
+    "libraryCount": "{count, plural, one {# post} other {# poster}}",
     "addRecipe": "Tilføj opskrift",
     "importFromUrl": "URL",
     "importFromPaste": "Indsæt",
@@ -14,24 +16,48 @@
       "ingredients": "Ingredienser",
       "steps": "Trin",
       "tags": "Tags"
+    },
+    "viewMode": {
+      "label": "Opskriftsvisning",
+      "grid": "Gitter",
+      "list": "Liste"
+    },
+    "libraryType": {
+      "label": "Vis",
+      "all": "Alt",
+      "recipes": "Opskrifter",
+      "cookbooks": "Kogebøger"
     }
   },
+  "back": {
+    "all": "Tilbage til biblioteket",
+    "recipes": "Tilbage til opskrifter",
+    "cookbooks": "Tilbage til kogebøger",
+    "named": "Tilbage til {name}",
+    "cookbook": "Tilbage til kogebogen",
+    "generic": "Tilbage"
+  },
   "empty": {
-    "title": "Din opskriftsamling venter",
+    "title": "Dit bibliotek venter",
     "description": "Indsæt en opskrift-URL i søgefeltet ovenfor, og lad magien ske.",
     "noResults": "Ingen opskrifter fundet",
-    "noResultsHint": "Prøv at justere eller rydde dine filtre."
+    "noResultsHint": "Prøv at justere eller rydde dine filtre.",
+    "noCookbooks": "Ingen kogebøger endnu",
+    "noCookbooksHint": "En kogebog er et navngivet sæt opskrifter. Opret din første for at organisere dit bibliotek."
   },
   "card": {
     "noImage": "Intet billede tilgængeligt",
     "viewGroceries": "Se indkøbsliste",
     "addToCalendar": "Tilføj til kalender",
-    "deleteRecipe": "Slet opskrift"
+    "deleteRecipe": "Slet opskrift",
+    "recipeOptions": "Opskriftsindstillinger"
   },
   "detail": {
-    "backToRecipes": "Tilbage til opskrifter",
     "viewOriginal": "Se original opskrift",
     "ingredients": "Ingredienser",
+    "ingredientOptions": "Ingrediensindstillinger",
+    "showMore": "Vis mere",
+    "showLess": "Vis mindre",
     "steps": "Fremgangsmåde",
     "notes": "Noter",
     "addToGroceries": "Tilføj til indkøbsliste",
@@ -45,7 +71,12 @@
     "instructions": "Fremgangsmåde",
     "cook": "Tilbered",
     "switchToDecimal": "Vis decimaler",
-    "switchToFraction": "Vis brøker"
+    "switchToFraction": "Vis brøker",
+    "servingsCount": "{count, plural, one {# portion} other {# portioner}}",
+    "source": "Kilde",
+    "addedBy": "Tilføjet af {name}",
+    "decreaseServings": "Færre portioner",
+    "increaseServings": "Flere portioner"
   },
   "actions": {
     "plan": "Planlæg",
@@ -64,7 +95,16 @@
     "estimatingNutrition": "Estimerer næring...",
     "screenOn": "Skærm tændt",
     "keepScreenOn": "Hold skærm tændt",
-    "actionsLabel": "Handlinger"
+    "actionsLabel": "Handlinger",
+    "autoCategorizing": "Kategoriserer…",
+    "inferProvenance": "Find oprindelsen",
+    "inferringProvenance": "Finder oprindelsen …",
+    "linkIngredients": "Tilknyt ingredienser til trin",
+    "linkingIngredients": "Tilknytter ingredienser…",
+    "enrichmentFailed": "Sidste forsøg mislykkedes",
+    "generateImage": "Generér billede",
+    "generatingImage": "Genererer billede…",
+    "cookbooks": "Kogebøger"
   },
   "sharePanel": {
     "title": "Del opskrift",
@@ -113,7 +153,8 @@
   "convert": {
     "ariaLabel": "Konverter målesystem",
     "toMetric": "Konverter til metrisk",
-    "toUS": "Konverter til amerikansk"
+    "toUS": "Konverter til amerikansk",
+    "converting": "Konverterer…"
   },
   "deleteModal": {
     "title": "Slet opskrift",
@@ -143,7 +184,7 @@
     "notesPlaceholder": "Tilføj forberedelsesnoter, justeringer eller serveringstips til denne opskrift...",
     "ingredientsHelp": "Skriv ingredienser som \"2 dl mel\" – vi analyserer automatisk mængder og enheder.",
     "instructionsHelp": "Skriv klare trin-for-trin instruktioner. Tryk Enter for at gå til næste trin.",
-    "tagsHelp": "Skriv tags og klik på forslag for at tilføje. Valgte tags er blå, nye tags har stiplet kant.",
+    "tagsHelp": "Skriv tags og klik på forslag for at tilføje. Tags på opskriften er udfyldte, nye tags har stiplet kant.",
     "tagsAndCategories": "Tags og kategorier",
     "categoriesHelp": "Vælg måltidskategorier for denne opskrift.",
     "category": {
@@ -156,6 +197,16 @@
     "fat": "Fedt (g)",
     "carbs": "Kulhydrater (g)",
     "protein": "Protein (g)",
+    "provenance": "Oprindelse",
+    "provenanceHelp": "Hvor denne opskrift kommer fra.",
+    "originCountry": "Land",
+    "originCountryPlaceholder": "Intet land",
+    "originRegion": "Region",
+    "originRegionPlaceholder": "f.eks. Sicilien",
+    "cuisines": "Køkkener",
+    "cuisinesHelp": "Vælg fra din installations liste. Flere giver mening ved en fusionsret.",
+    "provenanceNote": "Note",
+    "provenanceNotePlaceholder": "Et par sætninger om, hvor denne ret kommer fra …",
     "servings": "Portioner",
     "cookingTimes": "Tilberedningstider",
     "optional": "(valgfrit)",
@@ -168,7 +219,8 @@
     "uploading": "Uploader...",
     "clickToUpload": "Klik for at uploade eller træk og slip",
     "pasteToUpload": "for at indsætte",
-    "imageFormats": "PNG, JPG, WEBP op til 5 MB"
+    "imageFormats": "PNG, JPG, WEBP op til 5 MB",
+    "discardChangesConfirm": "Du har ændringer, der ikke er gemt. Vil du kassere dem og forlade siden?"
   },
   "gallery": {
     "addImage": "Tilføj billede",
@@ -220,6 +272,23 @@
     "stepPlaceholder": "Trin {number}: Beskriv trinnet...",
     "stepPlaceholderShort": "Trin {number}"
   },
+  "stepIngredients": {
+    "rowLabel": "Tilknyttede ingredienser",
+    "addLabel": "Tilknyt ingrediens",
+    "pickerLabel": "Tilknyt en ingrediens til dette trin",
+    "shareLabel": "Ændr andelen af {name}",
+    "share": {
+      "full": "Hele linjen",
+      "half": "Halvdelen",
+      "third": "En tredjedel",
+      "quarter": "En fjerdedel",
+      "custom": "Tilpasset…",
+      "amount": "Mængde…"
+    },
+    "customShareLabel": "Tilpasset andel",
+    "customAmountLabel": "Mængde",
+    "removeLabel": "Fjern {name}"
+  },
   "ingredientInput": {
     "placeholder": "f.eks. 2 dl mel"
   },
@@ -231,12 +300,6 @@
     "ariaLabel": "Hold skærm tændt"
   },
   "toasts": {
-    "processingBoth": "Behandler tags og allergener",
-    "processingTags": "Genererer tags",
-    "processingAllergies": "Registrerer allergener",
-    "bothComplete": "Tags og allergener opdateret",
-    "tagsComplete": "Tags genereret",
-    "allergiesComplete": "Allergener registreret",
     "imported": "Opskrift importeret",
     "converted": "Mål konverteret",
     "convertedDescription": "Opskrift konverteret til {system}-enheder",
@@ -262,6 +325,83 @@
     "stepCounter": "{current} / {total}",
     "swipeSteps": "Swipe for at navigere mellem trin",
     "swipeIngredients": "Swipe til venstre for ingredienser",
-    "swipeBackToSteps": "Swipe til højre for trin"
+    "swipeBackToSteps": "Swipe til højre for trin",
+    "readyAt": "Klar omkring {time}",
+    "timers": "Timere",
+    "nextStep": "Næste trin"
+  },
+  "enrichment": {
+    "failed": "Berigelse mislykkedes",
+    "states": {
+      "queued": "I kø",
+      "processing": "I gang",
+      "succeeded": "Fuldført",
+      "failed": "Sidste forsøg mislykkedes"
+    },
+    "kinds": {
+      "auto-tagging": "Automatiske tags",
+      "allergy-detection": "Allergiregistrering",
+      "auto-categorization": "Automatisk kategorisering",
+      "nutrition-estimation": "Estimering af næringsindhold",
+      "recipe-provenance": "Opskriftens oprindelse",
+      "ingredient-linking": "Ingredienstilknytning",
+      "image-generation": "Billedgenerering"
+    }
+  },
+  "provenance": {
+    "title": "Oprindelse",
+    "region": "Region",
+    "cuisines": "Køkkener",
+    "inferring": "Finder ud af, hvor denne opskrift kommer fra …",
+    "noInfo": "Ingen oprindelsesoplysninger endnu",
+    "inferWithAI": "Find ud af det med AI"
+  },
+  "import": {
+    "alreadyExists": "Du har allerede denne opskrift",
+    "openExisting": "Åbn"
+  },
+  "glanceBar": {
+    "totalTime": "Samlet tid",
+    "servings": "{count, plural, one {portion} other {portioner}}"
+  },
+  "cookingTime": {
+    "title": "Tilberedningstid",
+    "prep": "Forberedelse",
+    "cook": "Tilberedning",
+    "other": "Anden tid",
+    "total": "I alt"
+  },
+  "cookbooks": {
+    "addCookbook": "Tilføj kogebog",
+    "createTitle": "Ny kogebog",
+    "editTitle": "Rediger kogebog",
+    "titleLabel": "Titel",
+    "titlePlaceholder": "fx Hverdagsmiddage",
+    "options": "Kogebogsindstillinger",
+    "deleteTitle": "Slet kogebog",
+    "deleteConfirm": "Er du sikker på, at du vil slette \"{title}\"?",
+    "deleteKeepsRecipes": "Opskrifterne i den bliver i dit bibliotek.",
+    "recipeCount": "{count, plural, one {# opskrift} other {# opskrifter}}",
+    "empty": "Ingen opskrifter endnu",
+    "singular": "Kogebog",
+    "notFound": "Kogebogen blev ikke fundet",
+    "notFoundHint": "Den er måske slettet, eller den er ikke synlig for dig.",
+    "emptyHint": "Tilføj opskrifter fra en opskrifts handlingsmenu.",
+    "panelTitle": "Tilføj til kogebog",
+    "newWithRecipe": "Ny kogebog med denne opskrift",
+    "noneEditable": "Der er ingen kogebøger, du kan redigere.",
+    "cardTitle": "I kogebøger",
+    "removeFromCookbook": "Fjern fra kogebog",
+    "noMatchingMembers": "Der er ingen opskrifter i denne kogebog, der matcher dine filtre.",
+    "membersLabel": "Opskrifter i denne kogebog",
+    "showMore": "Vis flere",
+    "willBeCreated": "Oprettes, når du gemmer",
+    "manage": "Administrer",
+    "addRecipes": "Tilføj opskrifter",
+    "addRecipesTitle": "Tilføj opskrifter til {title}",
+    "searchRecipes": "Søg opskrifter",
+    "noRecipesToAdd": "Ingen opskrifter fundet.",
+    "addCount": "{count, plural, one {Tilføj # opskrift} other {Tilføj # opskrifter}}",
+    "everythingAlreadyIn": "Alle opskrifter er allerede i denne kogebog."
   }
 }

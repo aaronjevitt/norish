@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 
-// Mock CalDAV calendar sync functions
+// Mock CalDAV bulk sync entry points
 export const syncAllFutureItems = vi.fn().mockResolvedValue({
   totalSynced: 0,
   totalFailed: 0,
@@ -11,10 +11,7 @@ export const retryFailedSyncs = vi.fn().mockResolvedValue({
   totalFailed: 0,
 });
 
-export const initCaldavSync = vi.fn();
-
 export default {
   syncAllFutureItems,
   retryFailedSyncs,
-  initCaldavSync,
 };

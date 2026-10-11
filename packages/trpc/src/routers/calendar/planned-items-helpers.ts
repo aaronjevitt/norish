@@ -13,7 +13,7 @@ import { trpcLogger as log } from "@norish/shared-server/logger";
 import { PlannedItemDeleteInputSchema } from "@norish/shared/contracts/zod";
 
 import type { CreateItemInput, PlannedRecipeListItem } from "./planned-items-openapi-types";
-import { calendarEmitter } from "./emitter";
+import { publishCalendarItemEvent } from "./publish";
 
 export type CalendarProcedureContext = {
   user: { id: string };
@@ -130,9 +130,11 @@ export async function listPlannedRecipesByRange(
 }
 
 export async function createCalendarItem(ctx: CalendarProcedureContext, input: CreateItemInput) {
-  const { date, slot, itemType, recipeId, title } = input;
+  const { id, date, slot, itemType, recipeId, title } = input;
 
   const newItem = await createPlannedItem({
+    // Client-minted id when supplied; drizzle falls back to its default when undefined (ADR-0003).
+    id,
     userId: ctx.user.id,
     date,
     slot,
@@ -158,11 +160,11 @@ export async function createCalendarItem(ctx: CalendarProcedureContext, input: C
     calories: itemWithRecipe?.calories ?? null,
   });
 
-  calendarEmitter.emitToHousehold(ctx.householdKey, "itemCreated", {
-    item: itemPayload,
-  });
+  await publishCalendarItemEvent("itemCreated", { item: itemPayload }, ctx.householdKey);
 
-  return { id: newItem.id };
+  // The item rides the response so the actor's own caches converge without
+  // waiting on the realtime echo; the REST route's output schema keeps `id`.
+  return { id: newItem.id, item: itemPayload };
 }
 
 export async function deleteCalendarItem(
@@ -189,11 +191,11 @@ export async function deleteCalendarItem(
     return { success: true, stale: true };
   }
 
-  calendarEmitter.emitToHousehold(ctx.householdKey, "itemDeleted", {
-    itemId,
-    date: item.date,
-    slot: item.slot,
-  });
+  await publishCalendarItemEvent(
+    "itemDeleted",
+    { itemId, date: item.date, slot: item.slot },
+    ctx.householdKey
+  );
 
   return { success: true, stale: false };
 }

@@ -7,6 +7,7 @@ import { parseOIDCClaims, processClaimsForUser } from "@norish/auth/claim-proces
 
 // Mock dependencies
 const mockSetUserAdminStatus = vi.fn();
+const mockIsUserServerOwner = vi.fn();
 const mockGetUserById = vi.fn();
 const mockGetHouseholdForUser = vi.fn();
 const mockFindOrCreateHouseholdByName = vi.fn();
@@ -15,6 +16,7 @@ const mockGetUsersByHouseholdId = vi.fn();
 
 vi.mock("@norish/db/repositories/users", () => ({
   setUserAdminStatus: (...args: unknown[]) => mockSetUserAdminStatus(...args),
+  isUserServerOwner: (...args: unknown[]) => mockIsUserServerOwner(...args),
   getUserById: (...args: unknown[]) => mockGetUserById(...args),
 }));
 
@@ -25,19 +27,16 @@ vi.mock("@norish/db/repositories/households", () => ({
   getUsersByHouseholdId: (...args: unknown[]) => mockGetUsersByHouseholdId(...args),
 }));
 
-vi.mock("@norish/db/cached-household", () => ({
+vi.mock("@norish/shared-server/cache/household", () => ({
   invalidateHouseholdCacheForUsers: vi.fn(),
 }));
 
-vi.mock("@norish/trpc/connection-manager", () => ({
+vi.mock("@norish/shared-server/realtime/connection", () => ({
   emitConnectionInvalidation: vi.fn(),
 }));
 
-vi.mock("@norish/trpc/routers/households/emitter", () => ({
-  householdEmitter: {
-    emit: vi.fn(),
-    emitToHousehold: vi.fn(),
-  },
+vi.mock("@norish/shared-server/realtime/households", () => ({
+  households: { publish: vi.fn(async () => undefined) },
 }));
 
 vi.mock("@norish/shared-server/logger", () => ({
@@ -267,6 +266,7 @@ describe("processClaimsForUser", () => {
       version: 1,
     });
     mockSetUserAdminStatus.mockResolvedValue(undefined);
+    mockIsUserServerOwner.mockResolvedValue(false);
     mockGetUsersByHouseholdId.mockResolvedValue([]);
     mockGetUserById.mockResolvedValue({
       id: "user-123",
@@ -333,6 +333,24 @@ describe("processClaimsForUser", () => {
       await processClaimsForUser(userId, profile2, enabledConfig);
 
       expect(mockSetUserAdminStatus).toHaveBeenLastCalledWith(userId, false);
+    });
+
+    it("should not revoke admin from the server owner when the admin group is absent", async () => {
+      mockIsUserServerOwner.mockResolvedValue(true);
+      const profile = { groups: ["users"] };
+
+      await processClaimsForUser(userId, profile, enabledConfig);
+
+      expect(mockSetUserAdminStatus).not.toHaveBeenCalled();
+    });
+
+    it("should still grant admin to the server owner when the admin group is present", async () => {
+      mockIsUserServerOwner.mockResolvedValue(true);
+      const profile = { groups: ["norish_admin"] };
+
+      await processClaimsForUser(userId, profile, enabledConfig);
+
+      expect(mockSetUserAdminStatus).toHaveBeenCalledWith(userId, true);
     });
 
     it("should join user to household when claim present and user has no household", async () => {

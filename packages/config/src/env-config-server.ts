@@ -3,6 +3,8 @@ import path from "node:path";
 import { config } from "dotenv";
 import { z } from "zod";
 
+import { DEFAULT_YT_DLP_VERSION } from "./zod/server-config";
+
 // Import server-only to ensure this file is only used on the server
 // Using dynamic import wrapped in IIFE for compatibility
 (async () => {
@@ -102,6 +104,17 @@ const ServerConfigSchema = z.object({
     .pipe(z.array(z.string())),
   UPLOADS_DIR: z.string().default(defaultUploadsDir),
 
+  // Auth endpoint rate limiting. Defaults are the production values; they are
+  // overridable so a harness driving many sessions against one server (the
+  // browser E2E stack reuses a single server across a whole project) is not
+  // throttled into failures that say nothing about the code under test.
+  AUTH_RATE_LIMIT_ENABLED: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
+  AUTH_RATE_LIMIT_WINDOW: z.coerce.number().int().positive().default(60),
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+
   // During build, allow placeholder DB URL so server-only modules can be imported
   // without requiring runtime secrets. Runtime still enforces a real URL.
   DATABASE_URL: isBuild
@@ -160,7 +173,7 @@ const ServerConfigSchema = z.object({
   // AI Provider Configuration
   AI_PROVIDER: z.enum(["openai", "ollama", "lm-studio", "generic-openai"]).default("openai"),
   AI_ENDPOINT: z.string().optional(),
-  AI_MODEL: z.string().default("gpt-5-mini"),
+  AI_MODEL: z.string().default("gpt-6-luna"),
   AI_API_KEY: z.string().optional(),
   AI_TEMPERATURE: z.coerce.number().min(0).max(2).default(1.0),
   AI_MAX_TOKENS: z.coerce.number().default(10000),
@@ -174,7 +187,7 @@ const ServerConfigSchema = z.object({
     .default(false),
   VIDEO_MAX_LENGTH_SECONDS: z.coerce.number().default(120),
   YT_DLP_PROXY: z.string().optional(),
-  YT_DLP_VERSION: z.string().default("2025.11.12"),
+  YT_DLP_VERSION: z.string().default(DEFAULT_YT_DLP_VERSION),
   YT_DLP_BIN_DIR: z.string().default(defaultYtDlpBinDir),
 
   // Transcription Configuration (separate from AI_PROVIDER)
@@ -189,17 +202,15 @@ const ServerConfigSchema = z.object({
   CONTENT_INDICATORS: z.string().optional(),
   CONTENT_INGREDIENTS: z.string().optional(),
 
-  CHROME_WS_ENDPOINT: z
+  // The Obscura CDP server that renders pages for URL imports. Not necessarily
+  // a raw browser WebSocket URL — it is whatever Playwright's CDP connection
+  // accepts, which the shipped `obscura` service answers on its default port.
+  OBSCURA_ENDPOINT: z
     .string()
-    .min(1, "CHROME_WS_ENDPOINT is required for web scraping")
-    .default("ws://chrome-headless:3000"),
+    .min(1, "OBSCURA_ENDPOINT is required for web scraping")
+    .default("ws://obscura:9222"),
 
   PARSER_API_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
-  LEGACY_RECIPE_PARSER_ROLLBACK: z
-    .string()
-    .transform((val) => val === "true" || val === "1")
-    .pipe(z.boolean())
-    .default(false),
 
   // Scheduler Configuration
   SCHEDULER_CLEANUP_MONTHS: z.coerce.number().default(3),

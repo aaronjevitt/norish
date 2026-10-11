@@ -4,7 +4,7 @@ import { Slot } from "@norish/shared/contracts";
 
 export function MealIcon({
   slot,
-  className = "h-4 w-4 shrink-0 text-default-500",
+  className = "h-4 w-4 shrink-0 text-muted",
 }: {
   slot: Slot;
   className?: string;

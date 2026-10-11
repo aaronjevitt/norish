@@ -5,24 +5,25 @@
  * Connection management is handled by @norish/queue/redis/bullmq module.
  */
 
-import type { DefaultJobOptions, WorkerOptions } from "bullmq";
+import type { DefaultJobOptions, Job, Processor, WorkerOptions } from "bullmq";
+
+import type { JobRetentionConfig } from "@norish/config/zod/server-config";
 
 /**
  * Queue names for all background job queues
  */
-export const QUEUE_NAMES = {
-  RECIPE_IMPORT: "recipe-import",
-  IMAGE_IMPORT: "image-recipe-import",
-  PASTE_IMPORT: "paste-recipe-import",
-  CALDAV_SYNC: "caldav-sync",
-  SCHEDULED_TASKS: "scheduled-tasks",
-  NUTRITION_ESTIMATION: "nutrition-estimation",
-  AUTO_TAGGING: "auto-tagging",
-  AUTO_CATEGORIZATION: "auto-categorization",
-  ALLERGY_DETECTION: "allergy-detection",
-} as const;
+import type { QueueName } from "./queue-names";
+import { createLazyWorker, stopLazyWorker } from "./lazy-worker-manager";
+import { QUEUE_NAMES } from "./queue-names";
+import { getBullClient } from "./redis/bullmq";
 
-export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
+export { QUEUE_NAMES };
+export type { QueueName };
+
+export interface LazyWorkerController {
+  start: () => Promise<void>;
+  stop: () => Promise<void>;
+}
 
 /**
  * Base worker options shared across all workers.
@@ -53,6 +54,10 @@ export const STALLED_INTERVAL = {
   [QUEUE_NAMES.AUTO_TAGGING]: 60_000, // 1 min - background enhancement
   [QUEUE_NAMES.AUTO_CATEGORIZATION]: 60_000, // 1 min - background enhancement
   [QUEUE_NAMES.ALLERGY_DETECTION]: 60_000, // 1 min - background enhancement
+  [QUEUE_NAMES.RECIPE_PROVENANCE]: 60_000, // 1 min - background enhancement
+  [QUEUE_NAMES.INGREDIENT_LINKING]: 60_000, // 1 min - background enhancement
+  [QUEUE_NAMES.IMAGE_GENERATION]: 60_000, // 1 min - background enhancement
+  [QUEUE_NAMES.STORE_LOOKUP]: 60_000, // 1 min - always-on, one visit at a time
 } as const;
 
 /**
@@ -68,9 +73,88 @@ export const WORKER_CONCURRENCY = {
   [QUEUE_NAMES.AUTO_TAGGING]: 2,
   [QUEUE_NAMES.AUTO_CATEGORIZATION]: 2,
   [QUEUE_NAMES.ALLERGY_DETECTION]: 2,
+  [QUEUE_NAMES.RECIPE_PROVENANCE]: 2,
+  [QUEUE_NAMES.INGREDIENT_LINKING]: 2,
+  // Image APIs are billed per call and rate-limited hard, so a library sweep
+  // must trickle rather than burst: 1, not the 2 the other enrichment
+  // queues run at.
+  [QUEUE_NAMES.IMAGE_GENERATION]: 1,
+  // One visit at a time, paced inside the processor: this is the whole
+  // good-citizen fence in front of somebody else's supermarket. Raising it,
+  // or adding a second queue that races this one at the same shop, undoes it.
+  [QUEUE_NAMES.STORE_LOOKUP]: 1,
 } as const;
 
+/**
+ * Define the standard lifecycle and configuration for an on-demand worker.
+ *
+ * Queue-specific modules own only their processor and failure policy. Redis,
+ * stalled recovery, concurrency, registration, and shutdown stay consistent.
+ */
+export function defineLazyWorker<T>(
+  queueName: QueueName,
+  processor: Processor<T>,
+  onFailed?: (job: Job<T> | undefined, error: Error) => void | Promise<void>
+): LazyWorkerController {
+  return {
+    start: () =>
+      createLazyWorker(
+        queueName,
+        processor,
+        {
+          connection: getBullClient(),
+          ...baseWorkerOptions,
+          stalledInterval: STALLED_INTERVAL[queueName],
+          concurrency: WORKER_CONCURRENCY[queueName],
+        },
+        onFailed
+      ),
+    stop: () => stopLazyWorker(queueName),
+  };
+}
+
 export const RECIPE_IMPORT_PROCESSING_TIMEOUT_MS = 30 * 60 * 1000;
+
+/**
+ * Active jobs running longer than this are flagged as "hanging" in the
+ * admin job monitor. Imports have a 30-min hard timeout, so 10 min already
+ * signals something is off before BullMQ gives up.
+ */
+export const HANGING_THRESHOLD_MS: Record<QueueName, number> = {
+  [QUEUE_NAMES.RECIPE_IMPORT]: 10 * 60_000,
+  [QUEUE_NAMES.IMAGE_IMPORT]: 10 * 60_000,
+  [QUEUE_NAMES.PASTE_IMPORT]: 10 * 60_000,
+  [QUEUE_NAMES.CALDAV_SYNC]: 15 * 60_000,
+  [QUEUE_NAMES.SCHEDULED_TASKS]: 60 * 60_000,
+  [QUEUE_NAMES.NUTRITION_ESTIMATION]: 15 * 60_000,
+  [QUEUE_NAMES.AUTO_TAGGING]: 15 * 60_000,
+  [QUEUE_NAMES.AUTO_CATEGORIZATION]: 15 * 60_000,
+  [QUEUE_NAMES.ALLERGY_DETECTION]: 15 * 60_000,
+  [QUEUE_NAMES.RECIPE_PROVENANCE]: 15 * 60_000,
+  [QUEUE_NAMES.INGREDIENT_LINKING]: 15 * 60_000,
+  [QUEUE_NAMES.IMAGE_GENERATION]: 15 * 60_000,
+  [QUEUE_NAMES.STORE_LOOKUP]: 10 * 60_000,
+};
+
+export type QueueRemovalOptions = Pick<DefaultJobOptions, "removeOnComplete" | "removeOnFail">;
+
+/**
+ * Build removeOnComplete/removeOnFail options from the admin-configured
+ * job retention. Applied to all queues at initialization; jobs keep the
+ * options they were enqueued with, so changes require a restart and only
+ * affect new jobs.
+ */
+export function buildRemovalOptions(retention: JobRetentionConfig): QueueRemovalOptions {
+  const age = retention.maxAgeDays * 86_400;
+
+  return {
+    removeOnComplete: { count: retention.keepCompleted, age },
+    removeOnFail: { count: retention.keepFailed, age },
+  };
+}
+
+/** Fallback retention when the config cannot be read: keep 100 jobs / 7 days. */
+const FALLBACK_REMOVAL = { count: 100, age: 604_800 } as const;
 
 export const recipeImportJobOptions: DefaultJobOptions = {
   attempts: 3,
@@ -78,8 +162,8 @@ export const recipeImportJobOptions: DefaultJobOptions = {
     type: "exponential",
     delay: 2000, // 2s, 4s, 8s
   },
-  removeOnComplete: true,
-  removeOnFail: true,
+  removeOnComplete: FALLBACK_REMOVAL,
+  removeOnFail: FALLBACK_REMOVAL,
 };
 
 export const imageImportJobOptions: DefaultJobOptions = {
@@ -92,7 +176,7 @@ export const imageImportJobOptions: DefaultJobOptions = {
     age: 3600,
     count: 500,
   },
-  removeOnFail: true,
+  removeOnFail: FALLBACK_REMOVAL,
 };
 
 export const pasteImportJobOptions: DefaultJobOptions = {
@@ -105,7 +189,7 @@ export const pasteImportJobOptions: DefaultJobOptions = {
     age: 3600,
     count: 1000,
   },
-  removeOnFail: true,
+  removeOnFail: FALLBACK_REMOVAL,
 };
 
 export const caldavSyncJobOptions: DefaultJobOptions = {
@@ -150,7 +234,7 @@ export const nutritionEstimationJobOptions: DefaultJobOptions = {
     age: 3600,
     count: 500,
   },
-  removeOnFail: true,
+  removeOnFail: FALLBACK_REMOVAL,
 };
 
 export const autoTaggingJobOptions: DefaultJobOptions = {
@@ -163,7 +247,7 @@ export const autoTaggingJobOptions: DefaultJobOptions = {
     age: 3600,
     count: 500,
   },
-  removeOnFail: true,
+  removeOnFail: FALLBACK_REMOVAL,
 };
 
 export const autoCategorizationJobOptions: DefaultJobOptions = {
@@ -176,7 +260,7 @@ export const autoCategorizationJobOptions: DefaultJobOptions = {
     age: 3600,
     count: 500,
   },
-  removeOnFail: true,
+  removeOnFail: FALLBACK_REMOVAL,
 };
 
 export const allergyDetectionJobOptions: DefaultJobOptions = {
@@ -189,5 +273,56 @@ export const allergyDetectionJobOptions: DefaultJobOptions = {
     age: 3600,
     count: 500,
   },
-  removeOnFail: true,
+  removeOnFail: FALLBACK_REMOVAL,
+};
+
+export const recipeProvenanceJobOptions: DefaultJobOptions = {
+  attempts: 3,
+  backoff: {
+    type: "exponential",
+    delay: 2000, // 2s, 4s, 8s
+  },
+  removeOnComplete: {
+    age: 3600,
+    count: 500,
+  },
+  removeOnFail: FALLBACK_REMOVAL,
+};
+
+export const ingredientLinkingJobOptions: DefaultJobOptions = {
+  attempts: 3,
+  backoff: {
+    type: "exponential",
+    delay: 2000, // 2s, 4s, 8s
+  },
+  removeOnComplete: {
+    age: 3600,
+    count: 500,
+  },
+  removeOnFail: FALLBACK_REMOVAL,
+};
+
+/**
+ * A shop that is down is down; a lookup that failed is retried once and then
+ * left alone, because the grocery it was for is unpriced rather than broken.
+ * **Never add `delay` when enqueuing on this queue** — see the producer.
+ */
+export const storeLookupJobOptions: DefaultJobOptions = {
+  attempts: 2,
+  backoff: { type: "exponential", delay: 10_000 },
+  removeOnComplete: { age: 3600, count: 500 },
+  removeOnFail: FALLBACK_REMOVAL,
+};
+
+export const imageGenerationJobOptions: DefaultJobOptions = {
+  attempts: 3,
+  backoff: {
+    type: "exponential",
+    delay: 2000, // 2s, 4s, 8s
+  },
+  removeOnComplete: {
+    age: 3600,
+    count: 500,
+  },
+  removeOnFail: FALLBACK_REMOVAL,
 };

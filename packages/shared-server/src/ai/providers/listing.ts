@@ -7,7 +7,8 @@ import { Ollama } from "ollama";
 import type { TranscriptionProvider } from "@norish/config/zod/server-config";
 import { aiLogger } from "@norish/shared-server/logger";
 
-import type { AIProvider, AvailableModel } from "./types";
+import type { AIProvider, AvailableModel } from "../runtime/types";
+import { normalizeOllamaEndpoint, normalizeOpenAICompatibleEndpoint } from "../runtime/endpoints";
 
 // ============================================================================
 // Constants
@@ -15,6 +16,56 @@ import type { AIProvider, AvailableModel } from "./types";
 
 /** Keywords for identifying audio/transcription models. */
 const AUDIO_MODEL_KEYWORDS = ["whisper", "audio", "speech", "transcri", "voice"];
+
+/** How each provider is named back to the administrator who configured it. */
+const PROVIDER_LABELS: Record<string, string> = {
+  openai: "OpenAI",
+  azure: "Azure OpenAI",
+  anthropic: "Anthropic",
+  google: "Google",
+  mistral: "Mistral",
+  deepseek: "DeepSeek",
+  perplexity: "Perplexity",
+  groq: "Groq",
+  ollama: "Ollama",
+  "lm-studio": "LM Studio",
+  "generic-openai": "The endpoint",
+};
+
+function providerLabel(provider: string): string {
+  return PROVIDER_LABELS[provider] ?? provider;
+}
+
+/**
+ * A provider that was asked and refused, or could not be reached at all.
+ *
+ * Distinct from the empty list, which means "there is nothing to ask with yet".
+ * Collapsing the two is how a rejected API key came to look identical to a
+ * broken feature: the administrator sees an empty dropdown either way and has
+ * nothing to act on.
+ *
+ * Carries the parts as well as a sentence, because the sentence the reader sees
+ * is the UI's to write in their language.
+ */
+export class ModelListingError extends Error {
+  readonly provider: string;
+
+  constructor(
+    provider: string,
+    readonly status?: number,
+    readonly statusText?: string
+  ) {
+    const label = providerLabel(provider);
+
+    super(
+      status
+        ? `${label} refused the model list request (${status}${statusText ? ` ${statusText}` : ""})`
+        : `Could not reach ${label} to list models`
+    );
+    this.provider = label;
+    this.name = "ModelListingError";
+  }
+}
 
 /**
  * Check if a model ID/name matches audio model keywords.
@@ -69,7 +120,7 @@ async function fetchModelsRaw(options: FetchModelsOptions): Promise<RawModel[]> 
     if (!response.ok) {
       aiLogger.debug({ status: response.status, provider }, `${provider} models request failed`);
 
-      return [];
+      throw new ModelListingError(provider, response.status, response.statusText);
     }
 
     const data = await response.json();
@@ -82,9 +133,13 @@ async function fetchModelsRaw(options: FetchModelsOptions): Promise<RawModel[]> 
 
     return Array.isArray(models) ? (models as RawModel[]) : [];
   } catch (error) {
+    if (error instanceof ModelListingError) {
+      throw error;
+    }
+
     aiLogger.debug({ err: error, provider }, `Failed to list ${provider} models`);
 
-    return [];
+    throw new ModelListingError(provider);
   }
 }
 
@@ -129,7 +184,11 @@ const providerConfigs: Record<string, ProviderConfig> = {
     mapper: (m) => ({
       id: m.id,
       name: m.id,
-      supportsVision: m.id.includes("gpt-4") || m.id.includes("gpt-5") || m.id.includes("o1"),
+      supportsVision:
+        m.id.includes("gpt-4") ||
+        m.id.includes("gpt-5") ||
+        m.id.includes("gpt-6") ||
+        m.id.includes("o1"),
     }),
   },
 
@@ -252,8 +311,7 @@ function isVisionModel(name: string, families?: string[]): boolean {
  */
 export async function listOllamaModels(endpoint: string): Promise<AvailableModel[]> {
   try {
-    const host = endpoint.replace(/\/+$/, "").replace(/\/api$/, "");
-    const client = new Ollama({ host });
+    const client = new Ollama({ host: normalizeOllamaEndpoint(endpoint) });
     const response = await client.list();
 
     return response.models.map((m) => ({
@@ -261,8 +319,10 @@ export async function listOllamaModels(endpoint: string): Promise<AvailableModel
       name: m.name,
       supportsVision: isVisionModel(m.name, m.details?.families),
     }));
-  } catch {
-    return [];
+  } catch (error) {
+    aiLogger.debug({ err: error }, "Failed to list Ollama models");
+
+    throw new ModelListingError("ollama");
   }
 }
 
@@ -277,12 +337,6 @@ export async function listOpenAICompatibleModels(
   endpoint: string,
   apiKey?: string
 ): Promise<AvailableModel[]> {
-  let baseUrl = endpoint.replace(/\/+$/, "");
-
-  if (baseUrl.endsWith("/v1")) {
-    baseUrl = baseUrl.slice(0, -3);
-  }
-
   const headers: Record<string, string> = {};
 
   if (apiKey) {
@@ -290,10 +344,10 @@ export async function listOpenAICompatibleModels(
   }
 
   const models = await fetchModelsRaw({
-    url: `${baseUrl}/v1/models`,
+    url: `${normalizeOpenAICompatibleEndpoint(endpoint)}/models`,
     headers,
     timeout: 5000,
-    provider: "OpenAI-compatible",
+    provider: "generic-openai",
   });
 
   return models.map((m) => ({
@@ -383,7 +437,7 @@ export async function listOpenAITranscriptionModels(apiKey: string): Promise<Ava
   const models = await fetchModelsRaw({
     url: "https://api.openai.com/v1/models",
     headers: { Authorization: `Bearer ${apiKey}` },
-    provider: "OpenAI",
+    provider: "openai",
   });
 
   return models
@@ -399,7 +453,7 @@ export async function listGroqTranscriptionModels(apiKey: string): Promise<Avail
   const models = await fetchModelsRaw({
     url: "https://api.groq.com/openai/v1/models",
     headers: { Authorization: `Bearer ${apiKey}` },
-    provider: "Groq",
+    provider: "groq",
   });
 
   return models
@@ -415,12 +469,6 @@ export async function listOpenAICompatibleTranscriptionModels(
   endpoint: string,
   apiKey?: string
 ): Promise<AvailableModel[]> {
-  let baseUrl = endpoint.replace(/\/+$/, "");
-
-  if (baseUrl.endsWith("/v1")) {
-    baseUrl = baseUrl.slice(0, -3);
-  }
-
   const headers: Record<string, string> = {};
 
   if (apiKey) {
@@ -428,10 +476,10 @@ export async function listOpenAICompatibleTranscriptionModels(
   }
 
   const models = await fetchModelsRaw({
-    url: `${baseUrl}/v1/models`,
+    url: `${normalizeOpenAICompatibleEndpoint(endpoint)}/models`,
     headers,
     timeout: 5000,
-    provider: "OpenAI-compatible",
+    provider: "generic-openai",
   });
 
   // Prefer audio models, but return all if none found

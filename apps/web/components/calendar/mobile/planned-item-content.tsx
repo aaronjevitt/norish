@@ -43,7 +43,7 @@ export const PlannedItemContent = memo(function PlannedItemContent({
           {title || t("untitled")}
         </span>
 
-        {subtitle && <span className="text-default-400 truncate text-xs">{subtitle}</span>}
+        {subtitle && <span className="text-muted truncate text-xs">{subtitle}</span>}
       </div>
     </div>
   );

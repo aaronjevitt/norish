@@ -1,18 +1,17 @@
 import { TRPCError } from "@trpc/server";
 
-import type { SubscriptionMultiplexer } from "@norish/queue/redis/subscription-multiplexer";
 import type { FullRecipeDTO, HouseholdWithUsersNamesDto, User } from "@norish/shared/contracts";
 import type { RecipeShareDto } from "@norish/shared/contracts/dto/recipe-shares";
-import type { OperationId } from "@norish/shared/contracts/realtime-envelope";
+import type { OperationId } from "@norish/shared/contracts/realtime/envelope";
 import { isUserServerAdmin } from "@norish/db";
-import { getCachedHouseholdForUser } from "@norish/db/cached-household";
 import { getActiveRecipeShareByToken } from "@norish/db/repositories/recipe-shares";
 import { getRecipeFull } from "@norish/db/repositories/recipes";
-import { getOrCreateMultiplexer } from "@norish/queue/redis/subscription-multiplexer";
+import { getCachedHouseholdForUser } from "@norish/shared-server/cache/household";
 import { runWithOperationContext } from "@norish/shared-server/lib/operation-context";
 import { ResolveSharedRecipeInputSchema } from "@norish/shared/contracts/zod/recipe-shares";
 
 import type { Context } from "./context";
+import { withIdempotency } from "./idempotency-middleware";
 import { middleware, publicProcedure } from "./trpc";
 
 /**
@@ -37,14 +36,6 @@ const withAuth = middleware(async ({ ctx, next }) => {
   const householdKey = household?.id ?? user.id;
   const isServerAdmin = user.isServerAdmin ?? false;
 
-  // Get or create the subscription multiplexer for this WebSocket connection
-  // The multiplexer consolidates all Redis subscriptions into a single connection
-  let multiplexer: SubscriptionMultiplexer | null = ctx.multiplexer;
-
-  if (!multiplexer && ctx.connectionId) {
-    multiplexer = getOrCreateMultiplexer(ctx.connectionId, user.id, householdKey);
-  }
-
   const operationId = ctx.operationId ?? undefined;
 
   return runWithOperationContext({ operationId }, () =>
@@ -57,8 +48,7 @@ const withAuth = middleware(async ({ ctx, next }) => {
         userIds: allUserIds,
         householdUserIds: householdUserIds.length > 0 ? householdUserIds : null,
         isServerAdmin,
-        multiplexer,
-        operationId: ctx.operationId,
+        operationId: ctx.operationId ?? null,
       },
     })
   );
@@ -69,8 +59,15 @@ const withAuth = middleware(async ({ ctx, next }) => {
  * - User must be logged in
  * - Household context available (ctx.household, ctx.householdKey, ctx.userIds)
  * - Use canAccessResource from @norish/auth/permissions for permission checks
+ *
+ * `withIdempotency` runs first: any mutation carrying an `x-operation-id` is
+ * executed at most once, and a duplicate replay returns the stored response
+ * (ADR-0002). Claims are scoped by the session user id (populated on the base
+ * context before auth), so a cache hit only short-circuits for the same user;
+ * an expired/absent session keys differently and falls through to `withAuth`.
+ * Queries and mutations without the header pass straight through.
  */
-export const authedProcedure = publicProcedure.use(withAuth);
+export const authedProcedure = publicProcedure.use(withIdempotency).use(withAuth);
 
 export type SharedRecipeProcedureContext = Context & {
   sharedRecipe: {
@@ -114,7 +111,6 @@ export type AuthedProcedureContext = Context & {
   userIds: string[];
   householdUserIds: string[] | null;
   isServerAdmin: boolean;
-  multiplexer: SubscriptionMultiplexer | null;
   operationId: OperationId | null;
 };
 

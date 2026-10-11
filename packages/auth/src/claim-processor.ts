@@ -1,17 +1,17 @@
 import type { OIDCClaimConfig } from "@norish/config/zod/server-config";
-import type { HouseholdUserInfo } from "@norish/trpc/routers/households/types";
-import { invalidateHouseholdCacheForUsers } from "@norish/db/cached-household";
+import type { HouseholdUserInfo } from "@norish/shared/contracts/realtime/households";
 import {
   addUserToHousehold,
   findOrCreateHouseholdByName,
   getHouseholdForUser,
   getUsersByHouseholdId,
 } from "@norish/db/repositories/households";
-import { getUserById, setUserAdminStatus } from "@norish/db/repositories/users";
-import { getPublisherClient } from "@norish/queue/redis/client";
+import { getUserById, isUserServerOwner, setUserAdminStatus } from "@norish/db/repositories/users";
+import { invalidateHouseholdCacheForUsers } from "@norish/shared-server/cache/household";
 import { authLogger } from "@norish/shared-server/logger";
-import { emitConnectionInvalidation } from "@norish/trpc/connection-manager";
-import { householdEmitter } from "@norish/trpc/routers/households/emitter";
+import { emitConnectionInvalidation } from "@norish/shared-server/realtime/connection";
+import { households } from "@norish/shared-server/realtime/households";
+import { getPublisherClient } from "@norish/shared-server/redis/client";
 
 // Redis key prefix and TTL for OIDC profiles during auth flow
 const OIDC_PROFILE_PREFIX = "oidc:profile:";
@@ -236,6 +236,31 @@ export function parseOIDCClaims(
 }
 
 /**
+ * Sync admin status from the claim, without ever demoting the server owner.
+ *
+ * The very first user is created as owner and admin at once, and the account
+ * hook that lands us here fires on that same sign-in: an unguarded sync would
+ * strip admin straight back off whenever the token carries no admin group,
+ * leaving the owner of a fresh server marked as a plain member.
+ */
+async function syncAdminStatus(userId: string, isAdmin: boolean): Promise<void> {
+  if (isAdmin) {
+    await setUserAdminStatus(userId, true);
+    authLogger.info({ userId }, "User granted admin via OIDC claim");
+
+    return;
+  }
+
+  if (await isUserServerOwner(userId)) {
+    authLogger.debug({ userId }, "Server owner keeps admin despite absent OIDC admin claim");
+
+    return;
+  }
+
+  await setUserAdminStatus(userId, false);
+}
+
+/**
  * Process OIDC claims for a user after login
  * - Only processes if claim mapping is enabled
  * - Updates admin status on every login
@@ -262,12 +287,7 @@ export async function processClaimsForUser(
     "Processing OIDC claims for user"
   );
 
-  // Always sync admin status based on claims
-  await setUserAdminStatus(userId, claims.isAdmin);
-
-  if (claims.isAdmin) {
-    authLogger.info({ userId }, "User granted admin via OIDC claim");
-  }
+  await syncAdminStatus(userId, claims.isAdmin);
 
   // Only process household if user has a claim and is not already in a household
   if (claims.householdName) {
@@ -314,7 +334,7 @@ export async function processClaimsForUser(
     } as HouseholdUserInfo;
 
     // Notify existing household members about the new user
-    householdEmitter.emitToHousehold(household.id, "userJoined", { user: userInfo });
+    await households.publish("userJoined", { user: userInfo }, { householdKey: household.id });
 
     // Invalidate cache for all affected users
     await invalidateHouseholdCacheForUsers([userId, ...existingMemberIds]);

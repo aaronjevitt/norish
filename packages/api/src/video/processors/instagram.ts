@@ -1,21 +1,17 @@
+import type { RecipeVerdict } from "@norish/api/parser/import-triage";
 import type { FullRecipeInsertDTO } from "@norish/shared/contracts/dto/recipe";
 import type { SiteAuthTokenDecryptedDto } from "@norish/shared/contracts/dto/site-auth-tokens";
-import { extractRecipeWithAI } from "@norish/api/ai/recipe-parser";
-import { transcribeAudio } from "@norish/api/ai/transcriber";
-import { fetchViaPlaywright } from "@norish/api/parser/fetch";
+import { fetchRenderedPage } from "@norish/api/parser/fetch";
+import { judgeRecipe } from "@norish/api/parser/import-triage";
+import { extractRecipeWithAI } from "@norish/api/parser/recipe-extraction";
 import { extractRecipeFromVideo } from "@norish/api/video/normalizer";
+import { transcribe } from "@norish/shared-server/ai/runtime/runtime";
 import { videoLogger as log } from "@norish/shared-server/logger";
 import { downloadImage } from "@norish/shared-server/media/storage";
 
 import type { VideoMetadata, VideoProcessorContext } from "../types";
 import { BaseVideoProcessor } from "../base-processor";
-
-/**
- * Check if metadata indicates an image post (no video content).
- */
-function isImagePost(metadata: VideoMetadata): boolean {
-  return !metadata.duration || metadata.duration === 0;
-}
+import { isMediaUnavailable } from "../errors";
 
 /**
  * Extract caption/description from Instagram/Facebook page HTML.
@@ -63,6 +59,42 @@ function extractCaptionFromHtml(html: string): string {
 }
 
 /**
+ * Whether a caption may hold a recipe worth extracting from, given import
+ * triage's verdict on it (ADR-0035). Only a clear "no" refuses; anything
+ * else triage said proceeds, and with no verdict the character count that
+ * has always stood in for the question decides, against the floor the call
+ * site names. An empty caption holds nothing either way.
+ */
+function captionMayHoldRecipe(
+  caption: string,
+  verdict: RecipeVerdict | null,
+  minLength: number
+): boolean {
+  if (caption.length === 0) return false;
+
+  return verdict === null ? caption.length >= minLength : verdict !== "no";
+}
+
+/**
+ * Whether a caption clearly holds a recipe: the bar for paying a language
+ * model extraction on it before the audio is transcribed. Only a clear
+ * "yes" clears it by verdict; an unclear one leaves the length rule to
+ * decide, as it did before there was a Decision Model, and a clear "no"
+ * goes straight to the audio.
+ */
+function captionClearlyHoldsRecipe(
+  caption: string,
+  verdict: RecipeVerdict | null,
+  minLength: number
+): boolean {
+  if (caption.length === 0) return false;
+  if (verdict === "yes") return true;
+  if (verdict === "no") return false;
+
+  return caption.length >= minLength;
+}
+
+/**
  * Instagram video processor.
  * For images: OCR + description merged, sent to AI.
  * For videos: Try description first, fallback to transcription.
@@ -71,17 +103,34 @@ export class InstagramProcessor extends BaseVideoProcessor {
   readonly name: string = "InstagramProcessor";
 
   async process(context: VideoProcessorContext): Promise<FullRecipeInsertDTO> {
-    const { url, recipeId, allergies, tokens } = context;
+    const { url, recipeId, tokens } = context;
 
     log.info({ url }, "Processing Instagram post");
 
     const metadata = await this.getMetadata(url, tokens);
 
-    if (isImagePost(metadata)) {
-      return this.processImagePost(url, recipeId, metadata, allergies, tokens);
+    if (metadata.videoStream === "absent") {
+      return this.processImagePost(url, recipeId, metadata, tokens);
     }
 
-    return this.processVideoPost(url, recipeId, metadata, allergies, tokens);
+    if (metadata.videoStream === "present") {
+      return this.processVideoPost(url, recipeId, metadata, tokens);
+    }
+
+    // An Unclassified Post: yt-dlp said nothing either way, so the video path is
+    // a guess worth making. It is only worth taking back if there turned out to
+    // be no media here — a failing transcription or AI provider is a real
+    // failure, and quietly answering it with a caption-only recipe would hide
+    // the outage behind a thin recipe.
+    try {
+      return await this.processVideoPost(url, recipeId, metadata, tokens);
+    } catch (err) {
+      if (!isMediaUnavailable(err)) throw err;
+
+      log.info({ url, err }, "Unclassified Instagram post had no media, trying caption");
+
+      return this.processImagePost(url, recipeId, metadata, tokens);
+    }
   }
 
   /**
@@ -92,44 +141,45 @@ export class InstagramProcessor extends BaseVideoProcessor {
     url: string,
     recipeId: string,
     metadata: VideoMetadata,
-    allergies?: string[],
     tokens?: SiteAuthTokenDecryptedDto[]
   ): Promise<FullRecipeInsertDTO> {
     log.info({ url }, "Detected Instagram image post");
 
     let description = metadata.description?.trim() || "";
+    let holdsRecipe = captionMayHoldRecipe(description, await judgeRecipe(description), 50);
 
-    // If yt-dlp returned empty description, try fetching via Playwright
-    if (description.length < 50) {
-      log.info({ url }, "Description too short, attempting Playwright scrape");
+    // If yt-dlp returned no usable caption, render the post and read its caption
+    if (!holdsRecipe) {
+      log.info({ url }, "Description holds no recipe, rendering the post in Obscura");
       try {
-        const html = await fetchViaPlaywright(url, tokens);
+        const html = await fetchRenderedPage(url, tokens);
 
         if (html) {
           description = extractCaptionFromHtml(html);
           log.info(
             { url, descriptionLength: description.length },
-            "Extracted caption via Playwright"
+            "Extracted caption from the rendered page"
           );
+          holdsRecipe = captionMayHoldRecipe(description, await judgeRecipe(description), 50);
         }
       } catch (err) {
-        log.warn({ url, err }, "Failed to fetch page via Playwright");
+        log.warn({ url, err }, "Failed to render the post in Obscura");
       }
     }
 
-    if (!description || description.length < 50) {
+    if (!holdsRecipe) {
       throw new Error("Instagram image posts are only supported if the caption contains a recipe");
     }
 
     // Use AI to extract recipe from description
-    const result = await extractRecipeWithAI(description, recipeId, url, allergies);
+    let recipe;
 
-    if (!result.success) {
-      log.warn({ url, error: result.error }, "AI extraction failed for Instagram image post");
+    try {
+      recipe = await extractRecipeWithAI(description, recipeId, url);
+    } catch (error) {
+      log.warn({ url, err: error }, "AI extraction failed for Instagram image post");
       throw new Error("Instagram image posts are only supported if the caption contains a recipe");
     }
-
-    const recipe = result.data;
 
     // Download thumbnail as recipe image
     if (metadata.thumbnail) {
@@ -159,7 +209,6 @@ export class InstagramProcessor extends BaseVideoProcessor {
     url: string,
     recipeId: string,
     metadata: VideoMetadata,
-    allergies?: string[],
     tokens?: SiteAuthTokenDecryptedDto[]
   ): Promise<FullRecipeInsertDTO> {
     let audioPath: string | null = null;
@@ -173,33 +222,37 @@ export class InstagramProcessor extends BaseVideoProcessor {
       // Download video file
       videoPath = await this.downloadAndConvertVideo(url, tokens);
 
-      // Try extraction from description first
+      // Try extraction from description first, when the caption clearly
+      // holds a recipe: a clear "yes" where there is a Decision Model, the
+      // length otherwise. Cheaper than paying for a transcription that the
+      // caption already answers. The one verdict serves both places the
+      // caption is weighed, so it is asked once.
       const descriptionText = metadata.description?.trim() || "";
+      const verdict = await judgeRecipe(descriptionText);
 
-      if (descriptionText.length > 200) {
+      if (captionClearlyHoldsRecipe(descriptionText, verdict, 201)) {
         log.info(
           { url, contentLength: descriptionText.length },
           "Trying extraction from description first"
         );
 
-        const result = await extractRecipeFromVideo(
-          descriptionText,
-          metadata,
-          recipeId,
-          url,
-          allergies
-        );
+        // A failed description extraction is not terminal: the audio itself
+        // is still there to transcribe.
+        try {
+          const recipe = await extractRecipeFromVideo(descriptionText, metadata, recipeId, url);
 
-        if (result.success) {
           log.info({ url }, "Successfully extracted recipe from description");
           const savedVideo = videoPath
             ? await this.saveVideo(videoPath, recipeId, metadata.duration)
             : null;
 
-          return this.addVideoToRecipe(result.data, savedVideo);
+          return this.addVideoToRecipe(recipe, savedVideo);
+        } catch (descriptionExtractionError) {
+          log.info(
+            { url, err: descriptionExtractionError },
+            "Description extraction failed, falling back to transcription"
+          );
         }
-
-        log.info({ url }, "Description extraction failed, falling back to transcription");
       }
 
       // Fall back to audio transcription
@@ -212,15 +265,16 @@ export class InstagramProcessor extends BaseVideoProcessor {
           "Audio download failed, attempting description extraction"
         );
 
-        if (descriptionText.length >= 50) {
-          const result = await extractRecipeWithAI(descriptionText, recipeId, url, allergies);
-
-          if (result.success) {
+        if (captionMayHoldRecipe(descriptionText, verdict, 50)) {
+          try {
+            const recipe = await extractRecipeWithAI(descriptionText, recipeId, url);
             const savedVideo = videoPath
               ? await this.saveVideo(videoPath, recipeId, metadata.duration)
               : null;
 
-            return this.addVideoToRecipe(result.data, savedVideo);
+            return this.addVideoToRecipe(recipe, savedVideo);
+          } catch (descriptionError) {
+            log.warn({ url, err: descriptionError }, "Description extraction failed too");
           }
         }
 
@@ -228,33 +282,20 @@ export class InstagramProcessor extends BaseVideoProcessor {
       }
 
       log.info({ url }, "Starting audio transcription");
-      const transcriptionResult = await transcribeAudio(audioPath);
-
-      if (!transcriptionResult.success) {
-        throw new Error(transcriptionResult.error);
-      }
-
-      const transcript = transcriptionResult.data;
+      const transcript = await transcribe(audioPath);
 
       log.info({ url, transcriptLength: transcript.length }, "Audio transcribed");
 
       // Combine transcript with description
       const combinedText = [transcript, descriptionText].filter(Boolean).join("\n\n---\n\n");
 
-      const result = await extractRecipeFromVideo(combinedText, metadata, recipeId, url, allergies);
-
-      if (!result.success) {
-        throw new Error(
-          result.error ||
-            "No recipe found in video. The video may not contain a recipe or the content was not clear enough to extract."
-        );
-      }
+      const recipe = await extractRecipeFromVideo(combinedText, metadata, recipeId, url);
 
       const savedVideo = videoPath
         ? await this.saveVideo(videoPath, recipeId, metadata.duration)
         : null;
 
-      return this.addVideoToRecipe(result.data, savedVideo);
+      return this.addVideoToRecipe(recipe, savedVideo);
     } finally {
       await this.cleanup(audioPath);
       if (videoPath?.includes("video-temp")) {

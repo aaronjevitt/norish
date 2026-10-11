@@ -69,7 +69,7 @@ export function RecurrenceSuggestion({
       <RecurrencePill
         className={
           isDetected
-            ? "!bg-default-100 !text-default-600 dark:!bg-default-50 dark:!text-default-700 border-2 border-dashed opacity-70 transition-opacity hover:opacity-100"
+            ? "!bg-surface-secondary !text-muted dark:!bg-surface-secondary dark:!text-foreground border-2 border-dashed opacity-70 transition-opacity hover:opacity-100"
             : ""
         }
         recurringGrocery={mockRecurring}

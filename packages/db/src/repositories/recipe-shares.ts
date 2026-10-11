@@ -11,7 +11,7 @@ import type {
   RecipeShareSummaryDto,
   UpdateRecipeShareInputDto,
 } from "@norish/shared/contracts/dto/recipe-shares";
-import { hashToken, safeDecrypt } from "@norish/auth/crypto";
+import { hashToken, safeDecrypt } from "@norish/config/crypto";
 import { db } from "@norish/db/drizzle";
 import { users } from "@norish/db/schema/auth";
 import { recipeShares } from "@norish/db/schema/recipe-shares";

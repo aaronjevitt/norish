@@ -71,14 +71,12 @@ export async function syncPlannedItem(
     throw new Error("CalDAV not configured or disabled");
   }
 
-  // Check if we need to update an existing event
+  // An item we have already synced keeps its event: writing over the same uid
+  // is what makes a move or a retitle land on the existing entry instead of
+  // adding a second one and orphaning the first.
   const syncStatus = await getCaldavSyncStatusByItemId(userId, itemId);
   const isNew = !syncStatus;
-
-  // If updating and title changed, delete old event first
-  if (syncStatus?.caldavEventUid && syncStatus.eventTitle !== eventTitle) {
-    await deletePlannedItem(userId, itemId);
-  }
+  const existingEventUid = syncStatus?.caldavEventUid ?? undefined;
 
   const client = new CalDavClient({
     serverUrl: config.serverUrl,
@@ -100,9 +98,11 @@ export async function syncPlannedItem(
     url,
   };
 
-  const created = await client.createEvent(eventInput);
+  const written = existingEventUid
+    ? await client.updateEvent({ ...eventInput, uid: existingEventUid })
+    : await client.createEvent(eventInput);
 
-  return { uid: created.uid, isNew };
+  return { uid: written.uid, isNew };
 }
 
 export async function deletePlannedItem(userId: string, itemId: string): Promise<void> {

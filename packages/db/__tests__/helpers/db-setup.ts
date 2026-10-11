@@ -18,6 +18,50 @@ import { dbLogger } from "@norish/db/logger";
 const { Client } = pg;
 
 let _container: StartedPostgreSqlContainer | null = null;
+let _containerPromise: Promise<StartedPostgreSqlContainer> | null = null;
+
+const CONNECTION_DRAIN_TIMEOUT_MS = 10_000;
+const CONNECTION_DRAIN_POLL_MS = 25;
+
+function quoteIdentifier(identifier: string): string {
+  return `"${identifier.replaceAll('"', '""')}"`;
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function countDatabaseConnections(client: pg.Client, testDbName: string): Promise<number> {
+  const result = await client.query<{ count: number | string }>(
+    `
+      SELECT COUNT(*)::int AS count
+      FROM pg_stat_activity
+      WHERE datname = $1
+        AND pid <> pg_backend_pid()
+    `,
+    [testDbName]
+  );
+
+  return Number(result.rows[0]?.count ?? 0);
+}
+
+async function waitForDatabaseConnectionsToDrain(
+  client: pg.Client,
+  testDbName: string,
+  timeoutMs = CONNECTION_DRAIN_TIMEOUT_MS
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() <= deadline) {
+    if ((await countDatabaseConnections(client, testDbName)) === 0) {
+      return true;
+    }
+
+    await sleep(CONNECTION_DRAIN_POLL_MS);
+  }
+
+  return (await countDatabaseConnections(client, testDbName)) === 0;
+}
 
 /**
  * Get or create PostgreSQL connection details
@@ -32,32 +76,8 @@ async function getPostgresConnection(): Promise<{
 }> {
   // Start a PostgreSQL container if not already running
   if (!_container) {
-    dbLogger.info("Starting PostgreSQL container for tests...");
-
-    try {
-      _container = await new PostgreSqlContainer("postgres:15-alpine")
-        .withExposedPorts(5432)
-        .withUsername("test")
-        .withPassword("test")
-        .withDatabase("postgres")
-        .withReuse() // Reuse container across test runs
-        .start();
-
-      dbLogger.info(
-        {
-          host: _container.getHost(),
-          port: _container.getPort(),
-          database: _container.getDatabase(),
-        },
-        "PostgreSQL container started"
-      );
-    } catch (error) {
-      dbLogger.error({ error }, "Failed to start PostgreSQL container");
-      throw new Error(
-        "Failed to start PostgreSQL container. Is Docker running?\n" +
-          "Run 'docker ps' to verify Docker is running."
-      );
-    }
+    _containerPromise ??= startPostgresContainer();
+    _container = await _containerPromise;
   }
 
   return {
@@ -67,6 +87,38 @@ async function getPostgresConnection(): Promise<{
     port: _container.getPort(),
     database: _container.getDatabase(),
   };
+}
+
+async function startPostgresContainer(): Promise<StartedPostgreSqlContainer> {
+  dbLogger.info("Starting PostgreSQL container for tests...");
+
+  try {
+    const container = await new PostgreSqlContainer("postgres:15-alpine")
+      .withExposedPorts(5432)
+      .withUsername("test")
+      .withPassword("test")
+      .withDatabase("postgres")
+      .withReuse() // Reuse container across test runs
+      .start();
+
+    dbLogger.info(
+      {
+        host: container.getHost(),
+        port: container.getPort(),
+        database: container.getDatabase(),
+      },
+      "PostgreSQL container started"
+    );
+
+    return container;
+  } catch (error) {
+    _containerPromise = null;
+    dbLogger.error({ error }, "Failed to start PostgreSQL container");
+    throw new Error(
+      "Failed to start PostgreSQL container. Is Docker running?\n" +
+        "Run 'docker ps' to verify Docker is running."
+    );
+  }
 }
 
 /**
@@ -88,10 +140,10 @@ export async function createTestDatabase(testDbName: string) {
     await adminClient.connect();
 
     // Drop the database if it exists (cleanup from previous failed runs)
-    await adminClient.query(`DROP DATABASE IF EXISTS "${testDbName}"`);
+    await adminClient.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(testDbName)}`);
 
     // Create the test database
-    await adminClient.query(`CREATE DATABASE "${testDbName}"`);
+    await adminClient.query(`CREATE DATABASE ${quoteIdentifier(testDbName)}`);
 
     dbLogger.info({ testDbName }, "Test database created");
   } finally {
@@ -120,16 +172,25 @@ export async function dropTestDatabase(testDbName: string) {
   try {
     await adminClient.connect();
 
-    // Terminate existing connections to the database
-    await adminClient.query(`
-      SELECT pg_terminate_backend(pg_stat_activity.pid)
-      FROM pg_stat_activity
-      WHERE pg_stat_activity.datname = '${testDbName}'
-        AND pid <> pg_backend_pid()
-    `);
+    // Give pools that were just closed a chance to finish their socket shutdown
+    // before force-terminating backends. Otherwise pg can emit late 57P01 errors.
+    const drained = await waitForDatabaseConnectionsToDrain(adminClient, testDbName);
+
+    if (!drained) {
+      await adminClient.query(
+        `
+          SELECT pg_terminate_backend(pg_stat_activity.pid)
+          FROM pg_stat_activity
+          WHERE pg_stat_activity.datname = $1
+            AND pid <> pg_backend_pid()
+        `,
+        [testDbName]
+      );
+      await waitForDatabaseConnectionsToDrain(adminClient, testDbName, CONNECTION_DRAIN_TIMEOUT_MS);
+    }
 
     // Drop the test database
-    await adminClient.query(`DROP DATABASE IF EXISTS "${testDbName}"`);
+    await adminClient.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(testDbName)}`);
 
     dbLogger.info({ testDbName }, "Test database dropped");
   } finally {
@@ -197,6 +258,7 @@ export async function stopPostgresContainer() {
     dbLogger.info("Stopping PostgreSQL container...");
     await _container.stop();
     _container = null;
+    _containerPromise = null;
     dbLogger.info("PostgreSQL container stopped");
   }
 }

@@ -13,6 +13,10 @@
       "description": "Gérez votre compte"
     },
     "logout": "Se déconnecter",
+    "signOutConfirm": {
+      "title": "Abandonner les modifications non synchronisées ?",
+      "description": "{count, plural, one {# modification effectuée hors ligne n'a pas encore atteint le serveur.} other {# modifications effectuées hors ligne n'ont pas encore atteint le serveur.}} En vous déconnectant, ce travail en attente sera définitivement abandonné et les données hors ligne de votre compte seront supprimées de cet appareil."
+    },
     "version": {
       "updateAvailable": "v{version} disponible"
     }
@@ -38,13 +42,22 @@
     "uploading": "Téléversement…",
     "uploadFile": "Téléverser un fichier",
     "dragDrop": "ou glisser-déposer",
-    "formats": ".melarecipes (Mela), .paprikarecipes (Paprika), .zip (export Mealie/Tandoor)",
+    "formats": ".norishrecipes (Norish), .melarecipes (Mela), .paprikarecipes (Paprika), .zip (export Mealie/Tandoor)",
+    "dropzoneLabel": "Téléverser un fichier d'archive de recettes",
     "uploadingFile": "Téléversement du fichier…",
     "processing": "Traitement : {details}",
     "complete": "Terminé : {details}",
     "imported": "{count} importés",
-    "skipped": "{count} ignorés",
-    "errors": "{count} erreurs",
-    "ofTotal": "{current} sur {total}"
+    "errors": "{count, plural, one {# erreur} other {# erreurs}}",
+    "ofTotal": "{current} sur {total}",
+    "progressLabel": "Progression de l'import",
+    "showNotes": "Afficher {count, plural, one {# note d'import} other {# notes d'import}}",
+    "hideNotes": "Masquer {count, plural, one {# note d'import} other {# notes d'import}}",
+    "toasts": {
+      "startTitle": "Import de recettes démarré",
+      "startDescription": "{count, plural, one {Import de # recette…} other {Import de # recettes…}}",
+      "completeTitle": "Import de recettes terminé",
+      "completeDescription": "{imported, plural, one {# recette importée} other {# recettes importées}}{notes, plural, =0 {} one {, # avec une note} other {, # avec notes}}{errors, plural, =0 {} one {, # erreur} other {, # erreurs}}"
+    }
   }
 }

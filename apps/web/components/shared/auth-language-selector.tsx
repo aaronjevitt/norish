@@ -2,14 +2,7 @@
 
 import { useLocaleCookie } from "@/hooks/user/use-locale-cookie";
 import { GlobeAltIcon } from "@heroicons/react/16/solid";
-import {
-  Button,
-  Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownTrigger,
-  Skeleton,
-} from "@heroui/react";
+import { Button, Dropdown, Label, Skeleton } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import type { Locale } from "@norish/i18n/config";
@@ -34,39 +27,37 @@ export function AuthLanguageSelector() {
   if (enabledLocales.length <= 1) {
     return null;
   }
-
   return (
-    <Dropdown placement="bottom">
-      <DropdownTrigger>
-        <Button
-          isIconOnly
-          aria-label={t("title")}
-          isLoading={isChanging}
-          radius="full"
-          size="sm"
-          variant="light"
-        >
-          <GlobeAltIcon className="size-5" />
-        </Button>
-      </DropdownTrigger>
-      <DropdownMenu
+    <Dropdown>
+      <Button
+        isIconOnly
         aria-label={t("title")}
-        selectedKeys={[locale]}
-        selectionMode="single"
-        onSelectionChange={(keys) => {
-          const selected = Array.from(keys)[0] as string;
-
-          if (selected && isValidLocale(selected)) {
-            changeLocale(selected as Locale);
-          }
-        }}
+        isPending={isChanging}
+        size="sm"
+        variant="tertiary"
       >
-        {enabledLocales.map((loc) => (
-          <DropdownItem key={loc.code}>{loc.name}</DropdownItem>
-        ))}
-      </DropdownMenu>
+        <GlobeAltIcon className="size-5" />
+      </Button>
+      <Dropdown.Popover className="bg-overlay" placement="bottom">
+        <Dropdown.Menu aria-label={t("title")}>
+          {enabledLocales.map((loc) => (
+            <Dropdown.Item
+              key={loc.code}
+              id={loc.code}
+              textValue={loc.name}
+              onPress={() => {
+                if (isValidLocale(loc.code)) {
+                  changeLocale(loc.code as Locale);
+                }
+              }}
+            >
+              {loc.code === locale ? <Dropdown.ItemIndicator /> : null}
+              <Label>{loc.name}</Label>
+            </Dropdown.Item>
+          ))}
+        </Dropdown.Menu>
+      </Dropdown.Popover>
     </Dropdown>
   );
 }
-
 export default AuthLanguageSelector;

@@ -2,69 +2,81 @@
 
 import { useEffect, useState } from "react";
 import { ArrowPathIcon, CheckIcon } from "@heroicons/react/16/solid";
-import { Button, Spinner, Textarea } from "@heroui/react";
+import { Button, Description, Label, Spinner, TextArea, TextField } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
+import type { PromptsConfigInput } from "@norish/config/zod/server-config";
 import { ServerConfigKeys } from "@norish/config/zod/server-config";
 
 import { useAdminSettingsContext } from "../context";
 
+/**
+ * Every administrator-editable prompt, one entry each. Adding a prompt is one
+ * row here (plus its three translation keys), not a hand-written state hook,
+ * load line, dirty clause, submit key and form block.
+ */
+const PROMPT_FIELDS = [
+  { key: "recipeExtraction", rows: 6 },
+  { key: "imageExtraction", rows: 6 },
+  { key: "unitConversion", rows: 4 },
+  { key: "nutritionEstimation", rows: 6 },
+  { key: "autoTagging", rows: 6 },
+  { key: "autoCategorization", rows: 6 },
+  { key: "allergyDetection", rows: 6 },
+  { key: "recipeProvenance", rows: 6 },
+  { key: "ingredientLinking", rows: 6 },
+  { key: "imageGenerationBrief", rows: 6 },
+  { key: "imageGenerationStyle", rows: 4 },
+] as const satisfies readonly { key: keyof PromptsConfigInput; rows: number }[];
+
+type PromptKey = (typeof PROMPT_FIELDS)[number]["key"];
+
+type PromptValues = Record<PromptKey, string>;
+
+const EMPTY_VALUES: PromptValues = Object.fromEntries(
+  PROMPT_FIELDS.map(({ key }) => [key, ""])
+) as PromptValues;
+
 interface PromptsFormProps {
   onDirtyChange?: (isDirty: boolean) => void;
 }
-
 export default function PromptsForm({ onDirtyChange }: PromptsFormProps) {
   const t = useTranslations("settings.admin.promptsConfig");
   const tActions = useTranslations("common.actions");
   const { prompts, isLoading, updatePrompts, restoreDefaultConfig } = useAdminSettingsContext();
-
-  const [recipeExtraction, setRecipeExtraction] = useState("");
-  const [unitConversion, setUnitConversion] = useState("");
-  const [nutritionEstimation, setNutritionEstimation] = useState("");
-  const [autoTagging, setAutoTagging] = useState("");
+  const [values, setValues] = useState<PromptValues>(EMPTY_VALUES);
   const [saving, setSaving] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Initialize from context
+  // Initialize from context. A prompt added after the stored config was
+  // written has no stored value; the loader falls back to the shipped file
+  // until an administrator saves one.
   useEffect(() => {
     if (prompts) {
-      setRecipeExtraction(prompts.recipeExtraction);
-      setUnitConversion(prompts.unitConversion);
-      setNutritionEstimation(prompts.nutritionEstimation);
-      setAutoTagging(prompts.autoTagging);
+      setValues(
+        Object.fromEntries(
+          PROMPT_FIELDS.map(({ key }) => [key, prompts[key] ?? ""])
+        ) as PromptValues
+      );
     }
   }, [prompts]);
 
   // Track changes
   useEffect(() => {
     if (prompts) {
-      const changed =
-        recipeExtraction !== prompts.recipeExtraction ||
-        unitConversion !== prompts.unitConversion ||
-        nutritionEstimation !== prompts.nutritionEstimation ||
-        autoTagging !== prompts.autoTagging;
-
-      setHasChanges(changed);
+      setHasChanges(PROMPT_FIELDS.some(({ key }) => values[key] !== (prompts[key] ?? "")));
     }
-  }, [recipeExtraction, unitConversion, nutritionEstimation, autoTagging, prompts]);
-
+  }, [values, prompts]);
   useEffect(() => {
     onDirtyChange?.(hasChanges);
   }, [hasChanges, onDirtyChange]);
-
   const handleSave = async () => {
     setSaving(true);
-    await updatePrompts({
-      recipeExtraction,
-      unitConversion,
-      nutritionEstimation,
-      autoTagging,
-    }).finally(() => {
+    await updatePrompts(values).finally(() => {
       setSaving(false);
     });
   };
-
   const handleRestoreDefaults = async () => {
     setRestoring(true);
     await restoreDefaultConfig(ServerConfigKeys.PROMPTS).finally(() => {
@@ -82,71 +94,26 @@ export default function PromptsForm({ onDirtyChange }: PromptsFormProps) {
 
   return (
     <div className="flex flex-col gap-6 p-2">
-      <div className="flex flex-col gap-2">
-        <Textarea
-          description={t("recipeExtractionDescription")}
-          label={t("recipeExtraction")}
-          maxRows={15}
-          minRows={6}
-          placeholder={t("recipeExtractionPlaceholder")}
-          value={recipeExtraction}
-          onValueChange={setRecipeExtraction}
-        />
-      </div>
+      {PROMPT_FIELDS.map(({ key, rows }) => (
+        <div key={key} className="flex flex-col gap-2">
+          <TextField
+            value={values[key]}
+            onChange={(value) => setValues((prev) => ({ ...prev, [key]: value }))}
+          >
+            <Label>{t(key)}</Label>
+            <TextArea placeholder={t(`${key}Placeholder`)} rows={rows} variant="secondary" />
+            <Description>{t(`${key}Description`)}</Description>
+          </TextField>
+        </div>
+      ))}
 
-      <div className="flex flex-col gap-2">
-        <Textarea
-          description={t("unitConversionDescription")}
-          label={t("unitConversion")}
-          maxRows={10}
-          minRows={4}
-          placeholder={t("unitConversionPlaceholder")}
-          value={unitConversion}
-          onValueChange={setUnitConversion}
-        />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Textarea
-          description={t("nutritionEstimationDescription")}
-          label={t("nutritionEstimation")}
-          maxRows={15}
-          minRows={6}
-          placeholder={t("nutritionEstimationPlaceholder")}
-          value={nutritionEstimation}
-          onValueChange={setNutritionEstimation}
-        />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Textarea
-          description={t("autoTaggingDescription")}
-          label={t("autoTagging")}
-          maxRows={15}
-          minRows={6}
-          placeholder={t("autoTaggingPlaceholder")}
-          value={autoTagging}
-          onValueChange={setAutoTagging}
-        />
-      </div>
-
-      <div className="flex items-center justify-between">
-        <Button
-          color="warning"
-          isLoading={restoring}
-          startContent={!restoring && <ArrowPathIcon className="h-5 w-5" />}
-          variant="flat"
-          onPress={handleRestoreDefaults}
-        >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button isPending={restoring} variant="tertiary" onPress={handleRestoreDefaults}>
+          {!restoring && <ArrowPathIcon className="h-5 w-5" />}
           {tActions("restoreDefaults")}
         </Button>
-        <Button
-          color="primary"
-          isDisabled={!hasChanges}
-          isLoading={saving}
-          startContent={<CheckIcon className="h-5 w-5" />}
-          onPress={handleSave}
-        >
+        <Button isDisabled={!hasChanges} isPending={saving} variant="primary" onPress={handleSave}>
+          {<CheckIcon className="h-5 w-5" />}
           {tActions("save")}
         </Button>
       </div>

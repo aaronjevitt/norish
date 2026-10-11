@@ -1,51 +1,61 @@
+import Link from "next/link";
 import ActionsMenu from "@/app/(app)/recipes/[id]/components/actions-menu";
 import AddToGroceries from "@/app/(app)/recipes/[id]/components/add-to-groceries-button";
-import AmountDisplayToggle from "@/app/(app)/recipes/[id]/components/amount-display-toggle";
+import CookbooksCard from "@/app/(app)/recipes/[id]/components/cookbooks-card";
+import CookingMode from "@/app/(app)/recipes/[id]/components/cookingmode";
 import IngredientsList from "@/app/(app)/recipes/[id]/components/ingredient-list";
+import IngredientsOptionsMenu from "@/app/(app)/recipes/[id]/components/ingredients-options-menu";
+import NotesCard from "@/app/(app)/recipes/[id]/components/notes-card";
+import NutritionCard from "@/app/(app)/recipes/[id]/components/nutrition-card";
+import ProvenanceCard from "@/app/(app)/recipes/[id]/components/provenance-card";
 import ServingsControl from "@/app/(app)/recipes/[id]/components/servings-control";
 import StepsList from "@/app/(app)/recipes/[id]/components/steps-list";
-import SystemConvertMenu from "@/app/(app)/recipes/[id]/components/system-convert-menu";
-import WakeLockToggle from "@/app/(app)/recipes/[id]/components/wake-lock-toggle";
-import { MOBILE_RECIPE_MEDIA_HEIGHT_STYLE } from "@/app/(app)/recipes/[id]/recipe-layout-constants";
-import { NutritionSection } from "@/components/recipes/nutrition-card";
+import CookingTimeCard from "@/components/recipes/cooking-time-card";
+import { ReadonlyRecipeMedia } from "@/components/recipes/readonly-recipe-sections";
+import RecipeHeaderMobile from "@/components/recipes/recipe-header-mobile";
 import {
-  ReadonlyRecipeMedia,
-  ReadonlyRecipeNotes,
-  ReadonlyRecipeSummary,
-} from "@/components/recipes/readonly-recipe-sections";
+  MOBILE_RECIPE_MEDIA_HEIGHT_STYLE,
+  RECIPE_HERO_CHROME_BUTTON_CLASS,
+  RECIPE_HERO_CHROME_OFFSET_CLASS,
+} from "@/components/recipes/recipe-layout-constants";
+import SourceCard from "@/components/recipes/source-card";
 import DoubleTapContainer from "@/components/shared/double-tap-container";
 import HeartButton from "@/components/shared/heart-button";
-import { useUserContext } from "@/context/user-context";
 import { useFavoritesMutation, useFavoritesQuery } from "@/hooks/favorites";
 import { useRatingQuery, useRatingsMutation } from "@/hooks/ratings";
+import { useBackDestination } from "@/hooks/use-back-destination";
+import { useHiddenItemVisibility } from "@/hooks/user/use-hidden-item-visibility";
 import { ArrowLeftIcon } from "@heroicons/react/16/solid";
-import { Card, CardBody, Divider, Link } from "@heroui/react";
+import { Card } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
-import {
-  getShowFavoritesPreference,
-  getShowRatingsPreference,
-} from "@norish/shared/lib/user-preferences";
 import StarRating from "@norish/ui/star-rating";
+import { cssFloatingDockContentClearance } from "@norish/web/config/css-tokens";
 
-import AuthorChip from "./components/author-chip";
 import { useRecipeContextRequired } from "./context";
 
+/**
+ * The phone's recipe page: a header on the page background, then one card
+ * per section in cooking order — Ingredients, Steps, Notes, Cooking Time,
+ * Nutrition, Provenance, Source, Rating. The order is fixed and reader-owned ordering is out of
+ * scope, so no reorder affordance is drawn. A section with nothing stored
+ * and nothing running renders no card at all, which is what makes a bare
+ * recipe a shorter page rather than a page of empty boxes.
+ *
+ * This reverses, on mobile only, what `recipe-page-desktop.tsx` still does —
+ * Recipe Provenance ahead of the ingredients, because where a dish comes from
+ * frames the recipe. On a phone the page follows the job instead, and
+ * reference material comes after the cooking.
+ */
 export default function RecipePageMobile() {
-  const {
-    recipe,
-    currentServings: _currentServings,
-    allergies,
-    allergySet,
-  } = useRecipeContextRequired();
+  const { recipe, currentServings, allergies, allergySet } = useRecipeContextRequired();
   const { isFavorite: checkFavorite } = useFavoritesQuery();
   const { toggleFavorite } = useFavoritesMutation();
   const { userRating, averageRating, isLoading: isRatingLoading } = useRatingQuery(recipe.id);
   const { rateRecipe, isRating } = useRatingsMutation();
-  const { user } = useUserContext();
   const t = useTranslations("recipes.detail");
-  const showRatings = getShowRatingsPreference(user);
-  const showFavorites = getShowFavoritesPreference(user);
+  const back = useBackDestination();
+  const { showRatings, showFavorites, showNutrition } = useHiddenItemVisibility();
 
   const isFavorite = checkFavorite(recipe.id);
   const handleToggleFavorite = () => toggleFavorite(recipe.id);
@@ -61,6 +71,11 @@ export default function RecipePageMobile() {
         className="relative w-full overflow-hidden"
         style={{ height: MOBILE_RECIPE_MEDIA_HEIGHT_STYLE }}
       >
+        {/* The photo runs out rather than stopping: it dissolves into the
+            page's own ground over its lower half, so the title reads as
+            continuing the picture instead of sitting on a lid dropped over
+            it. Drawn over the media rather than as a lightened image, so a
+            video and a carousel fade the same way a still does. */}
         <DoubleTapContainer
           className="h-full w-full"
           doubleTapEnabled={showFavorites}
@@ -68,131 +83,126 @@ export default function RecipePageMobile() {
             if (showFavorites) handleToggleFavorite();
           }}
         >
+          {/* Chrome floats on the photo as real objects — surface, border and
+              shadow — so the content below can start with the recipe rather
+              than with navigation (ADR-0020). */}
           <ReadonlyRecipeMedia
             aspectRatio="4/3"
-            bottomRightContent={
-              showFavorites ? (
-                <HeartButton
-                  showBackground
-                  isFavorite={isFavorite}
-                  size="lg"
-                  onToggle={handleToggleFavorite}
-                />
-              ) : null
-            }
+            chromeClassName={RECIPE_HERO_CHROME_OFFSET_CLASS}
             className="h-full rounded-none shadow-none"
+            expandControlSlot="topLeft"
             recipe={recipe}
             rounded={false}
+            showAuthorFallback={false}
             topLeftContent={
-              recipe?.author ? (
-                <div className="mt-[calc(2.75rem+env(safe-area-inset-top))]">
-                  <AuthorChip
-                    image={recipe.author.image}
-                    name={recipe.author.name}
-                    userId={recipe.author.id}
+              <Link
+                aria-label={back.label}
+                className={`${RECIPE_HERO_CHROME_BUTTON_CLASS} no-underline`}
+                href={back.href}
+              >
+                <ArrowLeftIcon className="size-5" />
+              </Link>
+            }
+            topRightContent={
+              <>
+                {showFavorites && (
+                  <HeartButton
+                    showBackground
+                    className={RECIPE_HERO_CHROME_BUTTON_CLASS}
+                    isFavorite={isFavorite}
+                    size="lg"
+                    onToggle={handleToggleFavorite}
                   />
-                </div>
-              ) : null
+                )}
+                <ActionsMenu buttonClassName={RECIPE_HERO_CHROME_BUTTON_CLASS} id={recipe.id} />
+              </>
             }
           />
         </DoubleTapContainer>
+
+        <div
+          aria-hidden
+          className="from-background via-background/45 pointer-events-none absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-20% via-55% to-transparent"
+        />
       </div>
 
-      {/* Unified Content Card - contains all sections */}
-      <Card
-        className="bg-content1 relative z-10 -mt-6 overflow-visible rounded-t-3xl"
-        radius="none"
-        shadow="sm"
+      {/* The header sits in the tail of that fade, on the page background;
+          only the sections below it are cards. The trailing padding clears the
+          floating cook pill, so the last card is never hidden behind it —
+          read off the row's own geometry rather than guessed, because a guess
+          stops clearing the pill on a phone with a home indicator. */}
+      <div
+        className="relative z-10 -mt-24 flex flex-col gap-4 px-4"
+        style={{ paddingBottom: cssFloatingDockContentClearance }}
       >
-        <CardBody className="space-y-6 px-4 py-5">
-          {/* Back link and Actions */}
-          <div className="flex items-center justify-between">
-            <div className="w-fit hover:underline">
-              <Link className="text-default-500 flex items-center gap-1 text-base" href="/">
-                <ArrowLeftIcon className="h-4 w-4" />
-                {t("backToRecipes")}
-              </Link>
-            </div>
-            <div className="flex-shrink-0">
-              <ActionsMenu id={recipe.id} />
-            </div>
-          </div>
+        {/* The Glance Bar restates what the sections below render, so it reads
+            the servings the ingredients are actually scaled to rather than the
+            stored figure — a bar disagreeing with the row under it is exactly
+            the bug a restating bar invites. */}
+        <RecipeHeaderMobile
+          allergies={allergies}
+          allergySet={allergySet}
+          recipe={{ ...recipe, servings: currentServings ?? recipe.servings }}
+          showCalories={showNutrition}
+        />
 
-          <ReadonlyRecipeSummary
-            allergies={allergies}
-            allergySet={allergySet}
-            recipe={recipe}
-            timeVariant="mobile"
-          />
-
-          <Divider />
-
-          {/* Ingredients Section */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
+        <Card className="rounded-2xl">
+          <Card.Content className="space-y-4 p-5">
+            {/* The same header shape the Nutrition card uses: the heading, the
+                stepper that scales what is under it, and the options that act
+                on it. Fractions-versus-decimals and the measurement system are
+                reached from the list rather than from the page's `⋯` menu,
+                because the list is what they change. */}
+            <div className="flex items-center justify-between gap-2">
               <h2 className="text-lg font-semibold">{t("ingredients")}</h2>
-              <div className="flex items-center gap-2">
-                <AmountDisplayToggle />
-                <ServingsControl />
-                {recipe.systemUsed && <SystemConvertMenu />}
+              <div className="flex shrink-0 items-center gap-1">
+                {recipe.servings ? <ServingsControl /> : null}
+                <IngredientsOptionsMenu />
               </div>
             </div>
 
-            <div className="-mx-1">
-              <IngredientsList />
-            </div>
+            <IngredientsList />
 
-            {/* Add to groceries button - below ingredients */}
             <AddToGroceries recipeId={recipe.id} />
-          </div>
+          </Card.Content>
+        </Card>
 
-          <Divider />
+        <Card className="rounded-2xl">
+          <Card.Content className="space-y-4 p-5 text-left">
+            <h2 className="text-lg font-semibold">{t("steps")}</h2>
+            <StepsList />
+          </Card.Content>
+        </Card>
 
-          {/* Notes */}
-          {recipe.notes && (
-            <>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold">{t("notes")}</h2>
-                </div>
-                <div>
-                  <ReadonlyRecipeNotes notes={recipe.notes} />
-                </div>
-              </div>
-              <Divider />
-            </>
-          )}
+        <NotesCard />
 
-          {/* Steps Section */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">{t("steps")}</h2>
-              <WakeLockToggle />
-            </div>
+        <CookingTimeCard recipe={recipe} />
 
-            <div className="-mx-1">
-              <StepsList />
-            </div>
+        <NutritionCard />
 
-            {/* Rating Section */}
-            {showRatings && (
-              <div className="bg-default-100 -mx-1 flex flex-col items-center gap-4 rounded-xl py-6">
-                <p className="text-default-600 font-medium">{t("ratingPrompt")}</p>
-                <StarRating
-                  isLoading={isRating || isRatingLoading}
-                  value={userRating ?? averageRating}
-                  onChange={handleRateRecipe}
-                />
-              </div>
-            )}
-          </div>
+        <ProvenanceCard />
 
-          {/* Nutrition Section */}
-          <NutritionSection />
-        </CardBody>
-      </Card>
+        <SourceCard recipe={recipe} />
 
-      <div className="pb-5" />
+        {/* The cookbooks this recipe is filed into, last on the page. */}
+        <CookbooksCard />
+
+        {showRatings && (
+          <Card className="rounded-2xl">
+            <Card.Content className="flex flex-col items-center gap-4 p-5">
+              <p className="text-muted font-medium">{t("ratingPrompt")}</p>
+              <StarRating
+                isLoading={isRating || isRatingLoading}
+                value={userRating ?? averageRating}
+                onChange={handleRateRecipe}
+              />
+            </Card.Content>
+          </Card>
+        )}
+      </div>
+
+      {/* Out of the content flow entirely, so it never scrolls away. */}
+      <CookingMode floating />
     </div>
   );
 }

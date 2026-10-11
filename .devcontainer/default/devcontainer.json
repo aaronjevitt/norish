@@ -18,7 +18,7 @@
     "norish-devcontainer",
     "db",
     "redis",
-    "chrome-headless"
+    "obscura"
   ],
   "initializeCommand": "bash .devcontainer/make_hostip_env_for_expo.sh", // Script that gets host ip and saves it to .devcontainer/.env REACT_NATIVE_PACKAGER_HOSTNAME, necessary for expo in devcontainer
   "shutdownAction": "stopCompose",
@@ -26,7 +26,7 @@
   "containerEnv": {
     "AUTH_URL": "http://localhost:3000",
     "DATABASE_URL": "postgres://postgres:norish@db:5432/norish",
-    "CHROME_WS_ENDPOINT": "ws://chrome-headless:3003",
+    "OBSCURA_ENDPOINT": "ws://obscura:9222",
     "REDIS_URL": "redis://redis:6379"
     // "REACT_NATIVE_PACKAGER_HOSTNAME": "Your host local ip", // Optiional: Use only if the automatic approach is not working for you for some reason, this takes precedence over the .env file 
   },

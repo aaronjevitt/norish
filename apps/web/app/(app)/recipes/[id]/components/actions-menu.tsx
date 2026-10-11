@@ -2,7 +2,8 @@
 
 import React, { useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { MiniCalendar, MiniGroceries } from "@/components/Panel/consumers";
+import { CookbookIconSolid } from "@/components/cookbooks/cookbook-icon";
+import { MiniCalendar, MiniCookbooks, MiniGroceries } from "@/components/Panel/consumers";
 import { DeleteRecipeModal } from "@/components/shared/delete-recipe-modal";
 import { usePermissionsContext } from "@/context/permissions-context";
 import { useRecipesContext } from "@/context/recipes-context";
@@ -17,24 +18,27 @@ import {
   SparklesIcon,
   TrashIcon,
 } from "@heroicons/react/16/solid";
-import {
-  Button,
-  Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownTrigger,
-  useDisclosure,
-} from "@heroui/react";
+import { Button, Dropdown, Label, useOverlayState } from "@heroui/react";
 import { useTranslations } from "next-intl";
+import { twMerge } from "tailwind-merge";
 
-import { cssAIGradientText, cssAIIconColor, cssButtonPill } from "@norish/web/config/css-tokens";
+import type { RecipeEnrichmentKind } from "@norish/shared/lib/recipe-enrichment";
+import {
+  cssAIGradientText,
+  cssAIIconColor,
+  cssButtonPill,
+  cssButtonPillDanger,
+} from "@norish/web/config/css-tokens";
 
 import { useRecipeContextRequired } from "../context";
 import RecipeSharePanel from "./recipe-share-panel";
 import { useWakeLockContext } from "./wake-lock-context";
 
-type Props = { id: string };
-
+type Props = {
+  id: string;
+  /** Lets a caller draw the trigger as chrome floating on the recipe photo. */
+  buttonClassName?: string;
+};
 type MenuItem = {
   key: string;
   label: string;
@@ -44,37 +48,33 @@ type MenuItem = {
   labelClassName?: string;
   iconClassName?: string;
   isDisabled?: boolean;
+  /** Secondary line under the label, e.g. a quiet enrichment failure. */
+  description?: string;
+  descriptionClassName?: string;
 };
-
-export default function ActionsMenu({ id }: Props) {
+export default function ActionsMenu({ id, buttonClassName }: Props) {
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
   const [openCalendar, setOpenCalendar] = React.useState(false);
   const [openGroceries, setOpenGroceries] = React.useState(false);
+  const [openCookbooks, setOpenCookbooks] = React.useState(false);
   const [openSharePanel, setOpenSharePanel] = React.useState(false);
+
   const {
     isOpen: isDeleteModalOpen,
-    onOpen: onDeleteModalOpen,
-    onClose: onDeleteModalClose,
-  } = useDisclosure();
+    open: onDeleteModalOpen,
+    close: onDeleteModalClose,
+  } = useOverlayState();
   const router = useRouter();
-  const { canEditRecipe, canDeleteRecipe, isAutoTaggingEnabled, isAIEnabled } =
-    usePermissionsContext();
+
+  const { canEditRecipe, canDeleteRecipe, isAIEnabled } = usePermissionsContext();
   const { deleteRecipe } = useRecipesContext();
-  const {
-    recipe,
-    isAutoTagging,
-    triggerAutoTag,
-    isCategorizing,
-    triggerAutoCategorize,
-    isDetectingAllergies,
-    triggerAllergyDetection,
-    isEstimatingNutrition,
-    estimateNutrition,
-  } = useRecipeContextRequired();
+  const { recipe, enrichment } = useRecipeContextRequired();
+
   const { allergies } = useActiveAllergies();
   const { isSupported, isActive, toggle } = useWakeLockContext();
-  const t = useTranslations("recipes.actions");
 
+  const t = useTranslations("recipes.actions");
+  const tEnrichment = useTranslations("recipes.enrichment");
   const canEdit = recipe.userId ? canEditRecipe(recipe.userId) : true;
   const canDelete = recipe.userId ? canDeleteRecipe(recipe.userId) : true;
 
@@ -102,8 +102,15 @@ export default function ActionsMenu({ id }: Props) {
         icon: <ShoppingCartIcon className="size-4" />,
         onPress: () => setOpenGroceries(true),
       },
+      {
+        // Filing needs only view on the recipe and edit on the cookbook, so
+        // this is offered to every reader who can see the page (ADR-0027).
+        key: "cookbooks",
+        label: t("cookbooks"),
+        icon: <CookbookIconSolid className="size-4" />,
+        onPress: () => setOpenCookbooks(true),
+      },
     ];
-
     if (canEdit) {
       items.push({
         key: "share",
@@ -111,7 +118,6 @@ export default function ActionsMenu({ id }: Props) {
         icon: <ShareIcon className="size-4" />,
         onPress: () => setOpenSharePanel(true),
       });
-
       items.push({
         key: "edit",
         label: t("edit"),
@@ -119,7 +125,6 @@ export default function ActionsMenu({ id }: Props) {
         onPress: () => router.push(`/recipes/edit/${id}`),
       });
     }
-
     if (isSupported) {
       items.push({
         key: "wake-lock",
@@ -127,73 +132,102 @@ export default function ActionsMenu({ id }: Props) {
         icon: <DevicePhoneMobileIcon className="size-4" />,
         onPress: toggle,
         labelClassName: isActive ? "text-success" : "",
-        iconClassName: isActive ? "text-success" : "text-default-400",
+        iconClassName: isActive ? "text-success" : "text-muted",
       });
     }
-
-    if (isAutoTaggingEnabled && canEdit) {
-      items.push({
-        key: "auto-tag",
-        label: isAutoTagging ? t("autoTagging") : t("autoTag"),
-        icon: <SparklesIcon className="size-4" />,
-        onPress: triggerAutoTag,
-        labelClassName: cssAIGradientText,
-        iconClassName: cssAIIconColor,
-        isDisabled: isAutoTagging,
-      });
-    }
-
+    // Manual Recipe Enrichment: shown on AI enablement and edit permission alone.
+    // The administrator's automatic switches decide what runs on creation, not
+    // whether an editor may ask for it.
     if (isAIEnabled && canEdit) {
-      items.push({
-        key: "auto-categorize",
-        label: t("autoCategorize"),
-        icon: <SparklesIcon className="size-4" />,
-        onPress: () => triggerAutoCategorize(),
-        labelClassName: cssAIGradientText,
-        iconClassName: cssAIIconColor,
-        isDisabled: isCategorizing,
-      });
+      // Every kind renders the same way, so the states read consistently
+      // and a quiet automatic failure is still discoverable here.
+      const enrichmentActions: {
+        kind: RecipeEnrichmentKind;
+        key: string;
+        idleLabel: string;
+        busyLabel: string;
+        show?: boolean;
+      }[] = [
+        {
+          kind: "auto-tagging",
+          key: "auto-tag",
+          idleLabel: t("autoTag"),
+          busyLabel: t("autoTagging"),
+        },
+        {
+          kind: "auto-categorization",
+          key: "auto-categorize",
+          idleLabel: t("autoCategorize"),
+          busyLabel: t("autoCategorizing"),
+        },
+        {
+          kind: "allergy-detection",
+          key: "detect-allergies",
+          idleLabel: t("detectAllergies"),
+          busyLabel: t("detectingAllergies"),
+          // Allergy detection needs something to look for.
+          show: allergies.length > 0,
+        },
+        {
+          kind: "nutrition-estimation",
+          key: "estimate-nutrition",
+          idleLabel: t("estimateNutrition"),
+          busyLabel: t("estimatingNutrition"),
+        },
+        {
+          kind: "recipe-provenance",
+          key: "infer-provenance",
+          idleLabel: t("inferProvenance"),
+          busyLabel: t("inferringProvenance"),
+        },
+        {
+          kind: "ingredient-linking",
+          key: "link-ingredients",
+          idleLabel: t("linkIngredients"),
+          busyLabel: t("linkingIngredients"),
+        },
+        {
+          // Unguarded and destructive by decision (ADR-0025): it runs on a
+          // recipe that already has a photograph and replaces the primary.
+          kind: "image-generation",
+          key: "generate-image",
+          idleLabel: t("generateImage"),
+          busyLabel: t("generatingImage"),
+        },
+      ];
+
+      for (const action of enrichmentActions) {
+        if (action.show === false) continue;
+
+        const state = enrichment.states[action.kind];
+        const isBusy = state === "queued" || state === "processing";
+
+        items.push({
+          key: action.key,
+          label: isBusy ? action.busyLabel : action.idleLabel,
+          icon: <SparklesIcon className="size-4" />,
+          onPress: () => enrichment.request(action.kind),
+          labelClassName: cssAIGradientText,
+          iconClassName: cssAIIconColor,
+          // A failed run stays visible and re-runnable; only an in-flight one
+          // is disabled.
+          description: state === "idle" ? undefined : tEnrichment(`states.${state}`),
+          descriptionClassName: state === "failed" ? "text-danger" : "text-muted",
+          isDisabled: isBusy,
+        });
+      }
     }
-
-    // Show allergy detection when AI is enabled, user can edit, and allergies are configured
-    const hasAllergies = allergies.length > 0;
-
-    if (isAIEnabled && canEdit && hasAllergies) {
-      items.push({
-        key: "detect-allergies",
-        label: isDetectingAllergies ? t("detectingAllergies") : t("detectAllergies"),
-        icon: <SparklesIcon className="size-4" />,
-        onPress: triggerAllergyDetection,
-        labelClassName: cssAIGradientText,
-        iconClassName: cssAIIconColor,
-        isDisabled: isDetectingAllergies,
-      });
-    }
-
-    // Show nutrition estimation when AI is enabled and user can edit
-    if (isAIEnabled && canEdit) {
-      items.push({
-        key: "estimate-nutrition",
-        label: isEstimatingNutrition ? t("estimatingNutrition") : t("estimateNutrition"),
-        icon: <SparklesIcon className="size-4" />,
-        onPress: estimateNutrition,
-        labelClassName: cssAIGradientText,
-        iconClassName: cssAIIconColor,
-        isDisabled: isEstimatingNutrition,
-      });
-    }
-
     if (canDelete) {
       items.push({
         key: "delete",
         label: t("delete"),
         icon: <TrashIcon className="size-4" />,
         onPress: handleDeleteClick,
+        className: cssButtonPillDanger,
         labelClassName: "text-danger",
         iconClassName: "text-danger",
       });
     }
-
     return items;
   }, [
     canEdit,
@@ -205,77 +239,78 @@ export default function ActionsMenu({ id }: Props) {
     isActive,
     toggle,
     t,
-    isAutoTaggingEnabled,
-    isAutoTagging,
-    triggerAutoTag,
+    tEnrichment,
     isAIEnabled,
     allergies,
-    isDetectingAllergies,
-    triggerAllergyDetection,
-    isEstimatingNutrition,
-    estimateNutrition,
-    isCategorizing,
-    triggerAutoCategorize,
+    enrichment,
   ]);
-
   return (
     <>
-      <Dropdown
-        classNames={{ content: "z-[500]" }}
-        isOpen={isDropdownOpen}
-        onOpenChange={setIsDropdownOpen}
-      >
-        <DropdownTrigger>
-          <Button
-            isIconOnly
-            aria-label={t("actionsLabel")}
-            className="transition active:scale-95"
-            size="sm"
-            variant="light"
-          >
-            <EllipsisHorizontalIcon className="text-default-500 h-5 w-5" />
-          </Button>
-        </DropdownTrigger>
-
-        <DropdownMenu
+      <Dropdown isOpen={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+        <Button
+          isIconOnly
           aria-label={t("actionsLabel")}
-          classNames={{
-            base: "max-h-[min(24rem,calc(100vh-6rem))] overflow-y-auto scrollbar-hide",
-            list: "gap-1",
-          }}
-          items={menuItems}
+          className={twMerge("transition active:scale-95", buttonClassName)}
+          size="sm"
+          variant="tertiary"
         >
-          {(item: MenuItem) => (
-            <DropdownItem
-              key={item.key}
-              className="py-1 data-[focus=true]:bg-transparent data-[hover=true]:bg-transparent"
-            >
-              <Button
-                className={`w-full justify-start bg-transparent ${cssButtonPill} ${item.className ?? ""}`}
-                isDisabled={item.isDisabled}
-                radius="full"
-                size="md"
-                startContent={
-                  <span className={item.iconClassName ?? "text-default-400"}>{item.icon}</span>
-                }
-                variant="light"
-                onPress={() => {
-                  setIsDropdownOpen(false);
-                  item.onPress();
-                }}
+          <EllipsisHorizontalIcon className="text-muted h-5 w-5" />
+        </Button>
+
+        <Dropdown.Popover className="bg-overlay z-[500]">
+          <Dropdown.Menu
+            aria-label={t("actionsLabel")}
+            className="scrollbar-hide max-h-[min(24rem,calc(100vh-6rem))] overflow-y-auto"
+            items={menuItems}
+          >
+            {(item: MenuItem) => (
+              <Dropdown.Item
+                id={item.key}
+                key={item.key}
+                className="py-1 data-[focus=true]:bg-transparent data-[hovered=true]:bg-transparent"
+                textValue={item.label}
               >
-                <span className={`text-sm font-medium ${item.labelClassName ?? ""}`}>
-                  {item.label}
-                </span>
-              </Button>
-            </DropdownItem>
-          )}
-        </DropdownMenu>
+                <Button
+                  className={twMerge(
+                    "w-full justify-start bg-transparent",
+                    cssButtonPill,
+                    // An item's own pill wins over the neutral one — a danger
+                    // row hovers danger, not surface.
+                    item.className
+                  )}
+                  isDisabled={item.isDisabled}
+                  size="md"
+                  onPress={() => {
+                    setIsDropdownOpen(false);
+                    item.onPress();
+                  }}
+                  variant="tertiary"
+                >
+                  {<span className={item.iconClassName ?? "text-muted"}>{item.icon}</span>}
+                  <span className="flex flex-col items-start">
+                    {/* The class goes on the Label itself: `.label` sets its own
+                        colour, so a colour inherited from a wrapper never lands. */}
+                    <Label className={twMerge("text-sm font-medium", item.labelClassName)}>
+                      {item.label}
+                    </Label>
+                    {item.description && (
+                      <span className={`${item.descriptionClassName ?? "text-muted"} text-xs`}>
+                        {item.description}
+                      </span>
+                    )}
+                  </span>
+                </Button>
+              </Dropdown.Item>
+            )}
+          </Dropdown.Menu>
+        </Dropdown.Popover>
       </Dropdown>
 
       <MiniGroceries open={openGroceries} recipeId={id} onOpenChange={setOpenGroceries} />
 
       <MiniCalendar open={openCalendar} recipeId={id} onOpenChange={setOpenCalendar} />
+
+      <MiniCookbooks open={openCookbooks} recipeId={id} onOpenChange={setOpenCookbooks} />
 
       <RecipeSharePanel open={openSharePanel} onOpenChange={setOpenSharePanel} />
 

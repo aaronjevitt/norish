@@ -15,7 +15,10 @@ export const ServerConfigKeys = {
   RECURRENCE_CONFIG: "recurrence_config",
   AI_CONFIG: "ai_config",
   VIDEO_CONFIG: "video_config",
+  IMAGE_GENERATION_CONFIG: "image_generation_config",
+  DECISION_CONFIG: "decision_config",
   SCHEDULER_CLEANUP_MONTHS: "scheduler_cleanup_months",
+  JOB_RETENTION: "job_retention",
   RECIPE_PERMISSION_POLICY: "recipe_permission_policy",
   PROMPTS: "prompts",
   LOCALE_CONFIG: "locale_config",
@@ -120,18 +123,39 @@ export type TimerKeywordsInput = z.infer<typeof TimerKeywordsInputSchema>;
 // Prompts Schema
 // ============================================================================
 
+/**
+ * The stored prompts row holds only administrator overrides: a field is
+ * present exactly when the administrator's prompt differs from the shipped
+ * default. Defaults live in the shipped prompt files and are merged in at
+ * read time, so a new release's prompts reach every deployment that never
+ * customized them.
+ *
+ * `isOverridden` is the pre-0.20 row-level flag. It froze all prompts after
+ * any save; rows still carrying it are pruned to real overrides at boot, and
+ * it is never written again.
+ */
 export const PromptsConfigSchema = z.object({
-  recipeExtraction: z.string(),
-  unitConversion: z.string(),
-  nutritionEstimation: z.string(),
-  autoTagging: z.string(),
-  isOverridden: z.boolean().default(false),
+  recipeExtraction: z.string().optional(),
+  unitConversion: z.string().optional(),
+  nutritionEstimation: z.string().optional(),
+  autoTagging: z.string().optional(),
+  recipeProvenance: z.string().optional(),
+  ingredientLinking: z.string().optional(),
+  imageExtraction: z.string().optional(),
+  autoCategorization: z.string().optional(),
+  allergyDetection: z.string().optional(),
+  imageGenerationBrief: z.string().optional(),
+  imageGenerationStyle: z.string().optional(),
+  isOverridden: z.boolean().optional(),
 });
 
 export type PromptsConfig = z.infer<typeof PromptsConfigSchema>;
 
 export const PromptsConfigInputSchema = PromptsConfigSchema.omit({ isOverridden: true });
 export type PromptsConfigInput = z.infer<typeof PromptsConfigInputSchema>;
+
+/** One text per prompt, nothing missing: the shape of shipped defaults and of the merged admin view. */
+export type PromptValues = Required<PromptsConfigInput>;
 
 // ============================================================================
 // i18n Locale Configuration Schema
@@ -231,6 +255,10 @@ export const AIProviderSchema = z.enum([
 
 export type AIProvider = z.infer<typeof AIProviderSchema>;
 
+/**
+ * Legacy auto-tagging mode. Superseded by the independent `automaticEnrichment.autoTagging`
+ * switch plus `tagStrategy`; still accepted on read so stored config migrates in place.
+ */
 export const AutoTaggingModeSchema = z.enum([
   "disabled",
   "predefined",
@@ -240,7 +268,64 @@ export const AutoTaggingModeSchema = z.enum([
 
 export type AutoTaggingMode = z.infer<typeof AutoTaggingModeSchema>;
 
-export const AIConfigSchema = z.object({
+/** How auto-tagging picks tag names. Independent of whether auto-tagging runs automatically. */
+export const TagStrategySchema = z.enum(["predefined", "predefined_db", "freeform"]);
+
+export type TagStrategy = z.infer<typeof TagStrategySchema>;
+
+/**
+ * How provenance inference picks Cuisine names: `existing` restricts it to the
+ * administrator's current vocabulary, `extend` permits it to add rows.
+ *
+ * The tag strategy's value names are deliberately not reused — that enum has
+ * three values and its `predefined` mode names a compile-time list with no
+ * cuisine equivalent. Like the tag strategy, this is independent of whether the
+ * kind runs automatically: how names are picked and whether the kind runs are
+ * orthogonal axes.
+ */
+export const CuisineStrategySchema = z.enum(["existing", "extend"]);
+
+export type CuisineStrategy = z.infer<typeof CuisineStrategySchema>;
+
+/**
+ * One independent switch per Recipe Enrichment kind. Each only decides whether the
+ * kind is enrolled automatically for a newly usable recipe; Manual Recipe Enrichment
+ * stays available whenever AI is enabled.
+ */
+export const AutomaticEnrichmentSchema = z.object({
+  autoTagging: z.boolean(),
+  allergyDetection: z.boolean(),
+  autoCategorization: z.boolean(),
+  nutritionEstimation: z.boolean(),
+  recipeProvenance: z.boolean(),
+  ingredientLinking: z.boolean(),
+  imageGeneration: z.boolean(),
+});
+
+export type AutomaticEnrichmentConfig = z.infer<typeof AutomaticEnrichmentSchema>;
+
+/**
+ * Auto-tagging and allergy detection keep the effective enabledness of the settings
+ * they replace. Auto-categorization, nutrition estimation, and Recipe Provenance are
+ * newly automatic, so they stay off until an administrator opts in — an upgrade must
+ * not silently spend AI.
+ */
+export const DEFAULT_AUTOMATIC_ENRICHMENT: AutomaticEnrichmentConfig = {
+  autoTagging: false,
+  allergyDetection: true,
+  autoCategorization: false,
+  nutritionEstimation: false,
+  recipeProvenance: false,
+  ingredientLinking: false,
+  imageGeneration: false,
+};
+
+export const DEFAULT_TAG_STRATEGY: TagStrategy = "predefined";
+
+/** Restrictive by default: an administrator opts in to letting AI mint Cuisines. */
+export const DEFAULT_CUISINE_STRATEGY: CuisineStrategy = "existing";
+
+export const AIConfigInputSchema = z.object({
   enabled: z.boolean(),
   provider: AIProviderSchema,
   endpoint: z.url("Endpoint must be a valid URL").optional(),
@@ -250,12 +335,67 @@ export const AIConfigSchema = z.object({
   temperature: z.number().min(0).max(2),
   maxTokens: z.number().int().positive(),
   timeoutMs: z.number().int().positive().optional().default(300000),
-  autoTagAllergies: z.boolean().default(true),
   alwaysUseAI: z.boolean().default(false),
-  autoTaggingMode: AutoTaggingModeSchema.default("disabled"),
+  tagStrategy: TagStrategySchema.optional(),
+  cuisineStrategy: CuisineStrategySchema.optional(),
+  automaticEnrichment: AutomaticEnrichmentSchema.partial().optional(),
+  /** @deprecated Migrated into `automaticEnrichment.autoTagging` + `tagStrategy`. */
+  autoTaggingMode: AutoTaggingModeSchema.optional(),
+  /** @deprecated Migrated into `automaticEnrichment.allergyDetection`. */
+  autoTagAllergies: z.boolean().optional(),
 });
 
-export type AIConfig = z.infer<typeof AIConfigSchema>;
+/**
+ * The canonical AI configuration contract. Stored config written before the
+ * unified enrichment flow still parses: legacy fields migrate without changing
+ * effective enabledness, and canonical values always win over legacy ones.
+ */
+export const AIConfigSchema = AIConfigInputSchema.transform(
+  ({
+    autoTaggingMode,
+    autoTagAllergies,
+    tagStrategy,
+    cuisineStrategy,
+    automaticEnrichment,
+    ...rest
+  }) => {
+    const legacyAutoTaggingOn =
+      autoTaggingMode === undefined ? undefined : autoTaggingMode !== "disabled";
+    const legacyStrategy =
+      autoTaggingMode === undefined || autoTaggingMode === "disabled" ? undefined : autoTaggingMode;
+
+    return {
+      ...rest,
+      tagStrategy: tagStrategy ?? legacyStrategy ?? DEFAULT_TAG_STRATEGY,
+      cuisineStrategy: cuisineStrategy ?? DEFAULT_CUISINE_STRATEGY,
+      automaticEnrichment: {
+        autoTagging:
+          automaticEnrichment?.autoTagging ??
+          legacyAutoTaggingOn ??
+          DEFAULT_AUTOMATIC_ENRICHMENT.autoTagging,
+        allergyDetection:
+          automaticEnrichment?.allergyDetection ??
+          autoTagAllergies ??
+          DEFAULT_AUTOMATIC_ENRICHMENT.allergyDetection,
+        autoCategorization:
+          automaticEnrichment?.autoCategorization ??
+          DEFAULT_AUTOMATIC_ENRICHMENT.autoCategorization,
+        nutritionEstimation:
+          automaticEnrichment?.nutritionEstimation ??
+          DEFAULT_AUTOMATIC_ENRICHMENT.nutritionEstimation,
+        recipeProvenance:
+          automaticEnrichment?.recipeProvenance ?? DEFAULT_AUTOMATIC_ENRICHMENT.recipeProvenance,
+        ingredientLinking:
+          automaticEnrichment?.ingredientLinking ?? DEFAULT_AUTOMATIC_ENRICHMENT.ingredientLinking,
+        imageGeneration:
+          automaticEnrichment?.imageGeneration ?? DEFAULT_AUTOMATIC_ENRICHMENT.imageGeneration,
+      },
+    };
+  }
+);
+
+export type AIConfig = z.output<typeof AIConfigSchema>;
+export type AIConfigInput = z.input<typeof AIConfigSchema>;
 
 // ============================================================================
 // Video Configuration Schema (includes transcription settings)
@@ -320,11 +460,28 @@ export function transcriptionProviderSupportsModelListing(
   return (TRANSCRIPTION_PROVIDERS_WITH_MODEL_LISTING as readonly string[]).includes(provider);
 }
 
+/**
+ * yt-dlp release Norish ships against.
+ *
+ * The single source for the `YT_DLP_VERSION` default, which is what a
+ * development server downloads on its first import. The Docker build takes the
+ * same value through its `YT_DLP_VERSION` build arg and must be moved with it;
+ * a repo-invariant test pins the two together.
+ *
+ * It is not what the admin screen shows. That is a report of the binary the
+ * server is actually running, asked of the binary - quoting this constant there
+ * is how the UI came to name a release the server had not used for two
+ * upgrades.
+ *
+ * Sites that break as a site changes (Instagram most of all) are fixed in yt-dlp
+ * releases, so this trails the newest release rather than leading it.
+ */
+export const DEFAULT_YT_DLP_VERSION = "2026.08.19";
+
 export const VideoConfigSchema = z.object({
   enabled: z.boolean(),
   maxLengthSeconds: z.number().int().positive(),
   maxVideoFileSize: z.number().int().positive(), // Max video file size in bytes
-  ytDlpVersion: z.string().min(1),
   ytDlpProxy: z.string().optional(),
   // Transcription settings (required for video processing)
   transcriptionProvider: TranscriptionProviderSchema,
@@ -336,10 +493,265 @@ export const VideoConfigSchema = z.object({
 export type VideoConfig = z.infer<typeof VideoConfigSchema>;
 
 // ============================================================================
+// Image Generation Configuration Schema
+// ============================================================================
+
+/**
+ * Providers whose installed AI SDK package exposes an image model, plus
+ * `disabled` (ADR-0024). Anthropic, Mistral, DeepSeek, Groq and Perplexity
+ * expose none, which is why Image Generation reads its own provider block
+ * rather than the server's. Ollama joined when the AI SDK line moved to 7:
+ * `ai-sdk-ollama` 4 exposes an image model for Ollama's experimental image
+ * models. This is a fact about the installed provider packages, not about any
+ * model — re-check it when the AI SDK line moves.
+ */
+export const ImageGenerationProviderSchema = z.enum([
+  "openai",
+  "google",
+  "azure",
+  "ollama",
+  "lm-studio",
+  "generic-openai",
+  "disabled",
+]);
+
+export type ImageGenerationProvider = z.infer<typeof ImageGenerationProviderSchema>;
+
+/** All enabled (non-disabled) image generation providers. */
+export const IMAGE_GENERATION_PROVIDERS_ENABLED = [
+  "openai",
+  "google",
+  "azure",
+  "ollama",
+  "lm-studio",
+  "generic-openai",
+] as const satisfies readonly ImageGenerationProvider[];
+
+/** Cloud providers that require an API key. */
+export const IMAGE_GENERATION_PROVIDERS_CLOUD = [
+  "openai",
+  "google",
+  "azure",
+] as const satisfies readonly ImageGenerationProvider[];
+
+/** Providers that require an endpoint URL. Azure's is optional, as in the AI block. */
+export const IMAGE_GENERATION_PROVIDERS_NEED_ENDPOINT = [
+  "ollama",
+  "lm-studio",
+  "generic-openai",
+] as const satisfies readonly ImageGenerationProvider[];
+
+/** Check if provider is a cloud provider (requires API key). */
+export function isCloudImageGenerationProvider(provider: ImageGenerationProvider): boolean {
+  return (IMAGE_GENERATION_PROVIDERS_CLOUD as readonly string[]).includes(provider);
+}
+
+/** Check if provider needs an endpoint URL. */
+export function imageGenerationProviderNeedsEndpoint(provider: ImageGenerationProvider): boolean {
+  return (IMAGE_GENERATION_PROVIDERS_NEED_ENDPOINT as readonly string[]).includes(provider);
+}
+
+/**
+ * The Image Generation block: its own provider, model, endpoint and key,
+ * following transcription's shape (ADR-0024). Deliberately no timeout — the
+ * existing AI timeout governs every model request (ADR-0015). Ships
+ * unconfigured: no stored row means no image provider.
+ */
+export const ImageGenerationConfigSchema = z.object({
+  provider: ImageGenerationProviderSchema,
+  model: z.string().optional(),
+  endpoint: z.url("Endpoint must be a valid URL").optional(),
+  apiKey: z.string().optional(),
+});
+
+export type ImageGenerationConfig = z.infer<typeof ImageGenerationConfigSchema>;
+
+/**
+ * The endpoint and key one image request runs with: the block's own values,
+ * falling back to the AI configuration when the provider matches — so a
+ * matching key is never typed twice, and a differing provider never borrows
+ * credentials that would not work.
+ */
+export function resolveImageGenerationSettings(
+  imageConfig: Pick<ImageGenerationConfig, "provider" | "endpoint" | "apiKey">,
+  aiConfig: { provider: string; endpoint?: string; apiKey?: string } | null | undefined
+): { endpoint?: string; apiKey?: string } {
+  const providerMatches = aiConfig?.provider === imageConfig.provider;
+
+  return {
+    endpoint: imageConfig.endpoint || (providerMatches ? aiConfig?.endpoint : undefined),
+    apiKey: imageConfig.apiKey || (providerMatches ? aiConfig?.apiKey : undefined),
+  };
+}
+
+/**
+ * Whether the stored Image Generation block can serve a request at all.
+ * One definition, shared by the coordinator's skip, the manual request's
+ * refusal, and the runtime's configuration error — so "no image provider
+ * configured" means the same thing everywhere.
+ */
+export function isImageGenerationConfigValid(
+  imageConfig: ImageGenerationConfig | null | undefined,
+  aiConfig: { provider: string; endpoint?: string; apiKey?: string } | null | undefined
+): boolean {
+  if (!imageConfig || imageConfig.provider === "disabled") return false;
+  if (!imageConfig.model?.trim()) return false;
+
+  const { endpoint, apiKey } = resolveImageGenerationSettings(imageConfig, aiConfig);
+
+  if (isCloudImageGenerationProvider(imageConfig.provider) && !apiKey) return false;
+  if (imageGenerationProviderNeedsEndpoint(imageConfig.provider) && !endpoint) return false;
+
+  return true;
+}
+
+// ============================================================================
+// Decision Model Configuration Schema (ADR-0035)
+// ============================================================================
+
+/**
+ * The providers that can answer a Decision, plus `disabled`. One real member
+ * on purpose: Vercel's AI Gateway also serves Jev, and when that is wanted it
+ * is a second member and a base URL, not a redesign. The enum exists so the
+ * admin form reads like its two sibling blocks and so `disabled` is a stored
+ * fact rather than an absent key.
+ */
+export const DecisionProviderSchema = z.enum(["typesafe", "disabled"]);
+
+export type DecisionProvider = z.infer<typeof DecisionProviderSchema>;
+
+/**
+ * What the Decision Model does for a household, each an administrator's
+ * choice from one list. Import triage is deliberately not here: it serves
+ * Norish's own import algorithm and is not a household preference.
+ */
+export const DecisionUseSchema = z.enum([
+  "autoCategorization",
+  "autoTagging",
+  "allergyDetection",
+  "recipeProvenance",
+  "groceryLinking",
+  "validateEnrichments",
+]);
+
+export type DecisionUse = z.infer<typeof DecisionUseSchema>;
+
+/** Every use, in the order the form lists them — and the default selection. */
+export const DECISION_USES: readonly DecisionUse[] = DecisionUseSchema.options;
+
+/** `jev-latest` follows TypeSafe's newest release. */
+export const DEFAULT_DECISION_MODEL = "jev-latest";
+
+/** TypeSafe's base URL; overridable for a proxy or gateway. */
+export const DEFAULT_DECISION_ENDPOINT = "https://api.typesafe.ai/v1";
+
+/**
+ * The Decision Model block: its own provider, key, model and endpoint,
+ * following the Image Generation shape (ADR-0024, ADR-0035), plus the list
+ * of uses an administrator has selected. No fallback to the AI
+ * configuration's key — the provider never matches — and no timeout, because
+ * the one AI timeout governs a Decision (ADR-0015). Ships unconfigured: no
+ * stored row means no Decision Model.
+ *
+ * `uses` absent means every use, so a block stored before a use existed gains
+ * it, and a use added in a later release is on for everyone until an
+ * administrator deselects it.
+ */
+export const DecisionConfigSchema = z.object({
+  provider: DecisionProviderSchema,
+  apiKey: z.string().optional(),
+  model: z.string().optional(),
+  endpoint: z.url("Endpoint must be a valid URL").optional(),
+  uses: z.array(DecisionUseSchema).optional(),
+});
+
+export type DecisionConfig = z.infer<typeof DecisionConfigSchema>;
+
+/**
+ * The settings one Decision runs with: the stored values with the model and
+ * endpoint defaults filled in. Blank strings count as unset.
+ */
+export function resolveDecisionSettings(
+  config: Pick<DecisionConfig, "provider" | "apiKey" | "model" | "endpoint">
+): { provider: DecisionProvider; apiKey?: string; model: string; endpoint: string } {
+  return {
+    provider: config.provider,
+    apiKey: config.apiKey || undefined,
+    model: config.model?.trim() || DEFAULT_DECISION_MODEL,
+    endpoint: config.endpoint?.trim() || DEFAULT_DECISION_ENDPOINT,
+  };
+}
+
+/**
+ * Whether the stored Decision block can serve a request at all: a provider is
+ * selected and the key it needs is present. One definition, shared by the
+ * loader's one-question getters, the runtime's configuration error and the
+ * admin form.
+ */
+export function isDecisionConfigValid(
+  config: DecisionConfig | null | undefined
+): config is ConfiguredDecisionConfig {
+  if (!config || config.provider === "disabled") return false;
+
+  return !!config.apiKey;
+}
+
+/** A Decision block that can serve a request: a real provider and its key. */
+export type ConfiguredDecisionConfig = DecisionConfig & {
+  provider: Exclude<DecisionProvider, "disabled">;
+  apiKey: string;
+};
+
+/**
+ * The `uses` list to store for a selection: `undefined` when every use is
+ * selected, so a saved block keeps meaning "every use" and a use added in a
+ * later release is on for it, exactly as for a block that never stored a
+ * list; the selection itself otherwise.
+ */
+export function selectedDecisionUses(selected: readonly DecisionUse[]): DecisionUse[] | undefined {
+  const chosen = new Set(selected);
+
+  if (DECISION_USES.every((use) => chosen.has(use))) return undefined;
+
+  return DECISION_USES.filter((use) => chosen.has(use));
+}
+
+/**
+ * Whether a stored (and valid) block has this use selected. A block with no
+ * `uses` list means every use.
+ */
+export function isDecisionUseSelected(
+  config: DecisionConfig | null | undefined,
+  use: DecisionUse
+): boolean {
+  if (!isDecisionConfigValid(config)) return false;
+
+  return config.uses === undefined || config.uses.includes(use);
+}
+
+// ============================================================================
 // Scheduler Configuration Schema
 // ============================================================================
 
 export const SchedulerCleanupMonthsSchema = z.number().int().min(1).max(24);
+
+// ============================================================================
+// Job Retention Schema (BullMQ removeOnComplete/removeOnFail)
+// ============================================================================
+
+export const JobRetentionConfigSchema = z.object({
+  keepCompleted: z.number().int().min(10).max(5000).default(100),
+  keepFailed: z.number().int().min(10).max(5000).default(100),
+  maxAgeDays: z.number().int().min(1).max(90).default(7),
+});
+
+export type JobRetentionConfig = z.infer<typeof JobRetentionConfigSchema>;
+
+export const DEFAULT_JOB_RETENTION: JobRetentionConfig = {
+  keepCompleted: 100,
+  keepFailed: 100,
+  maxAgeDays: 7,
+};
 
 // ============================================================================
 // Recipe Permission Policy Schema
@@ -463,8 +875,14 @@ export function getSchemaForConfigKey(key: ServerConfigKey): z.ZodType {
       return AIConfigSchema;
     case ServerConfigKeys.VIDEO_CONFIG:
       return VideoConfigSchema;
+    case ServerConfigKeys.IMAGE_GENERATION_CONFIG:
+      return ImageGenerationConfigSchema;
+    case ServerConfigKeys.DECISION_CONFIG:
+      return DecisionConfigSchema;
     case ServerConfigKeys.SCHEDULER_CLEANUP_MONTHS:
       return SchedulerCleanupMonthsSchema;
+    case ServerConfigKeys.JOB_RETENTION:
+      return JobRetentionConfigSchema;
     case ServerConfigKeys.RECIPE_PERMISSION_POLICY:
       return RecipePermissionPolicySchema;
     case ServerConfigKeys.PROMPTS:
@@ -509,6 +927,8 @@ export const SENSITIVE_CONFIG_KEYS: ServerConfigKey[] = [
   ServerConfigKeys.AUTH_PROVIDER_GOOGLE,
   ServerConfigKeys.AI_CONFIG,
   ServerConfigKeys.VIDEO_CONFIG,
+  ServerConfigKeys.IMAGE_GENERATION_CONFIG,
+  ServerConfigKeys.DECISION_CONFIG,
 ];
 
 /**
@@ -518,4 +938,6 @@ export const RESTART_REQUIRED_KEYS: ServerConfigKey[] = [
   ServerConfigKeys.AUTH_PROVIDER_OIDC,
   ServerConfigKeys.AUTH_PROVIDER_GITHUB,
   ServerConfigKeys.AUTH_PROVIDER_GOOGLE,
+  // Retention is read once at queue initialization
+  ServerConfigKeys.JOB_RETENTION,
 ];

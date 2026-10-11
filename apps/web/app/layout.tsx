@@ -4,9 +4,8 @@ import RegisterServiceWorker from "@/components/register-service-worker";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 
-import { fontSans } from "@norish/web/config/fonts";
-
 import { appMetadata, appViewport } from "./metadata";
+import { AppThemeProvider } from "./providers/theme-provider";
 
 export const metadata = appMetadata;
 export const viewport = appViewport;
@@ -20,12 +19,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <head>
         <meta content="yes" name="apple-mobile-web-app-capable" />
       </head>
-      <body
-        className={`bg-background text-foreground min-h-dvh font-sans antialiased ${fontSans.variable}`}
-      >
-        <NextIntlClientProvider locale={locale} messages={messages}>
-          {children}
-        </NextIntlClientProvider>
+      <body className="bg-background text-foreground min-h-dvh font-sans antialiased">
+        <AppThemeProvider>
+          <NextIntlClientProvider locale={locale} messages={messages}>
+            {children}
+          </NextIntlClientProvider>
+        </AppThemeProvider>
         <RegisterServiceWorker />
       </body>
     </html>

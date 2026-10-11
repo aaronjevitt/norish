@@ -12,6 +12,8 @@
     "apply": "Applica",
     "reset": "Reimposta",
     "clear": "Cancella",
+    "selectAll": "Seleziona tutto",
+    "deselectAll": "Deseleziona tutto",
     "confirm": "Conferma",
     "back": "Indietro",
     "next": "Avanti",
@@ -28,11 +30,12 @@
     "test": "Test",
     "format": "Formato",
     "restoreDefaults": "Ripristina predefiniti",
-    "saveChanges": "Salva modifiche",
-    "revealSecret": "Mostra segreto",
-    "hideSecret": "Nascondi segreto",
-    "enterNewValue": "Inserisci nuovo valore",
-    "cancelEditing": "Annulla modifica"
+    "saveChanges": "Salva modifiche"
+  },
+  "secret": {
+    "reveal": "Mostra segreto",
+    "hide": "Nascondi segreto",
+    "keepsCurrent": "Lascia vuoto per mantenere il valore salvato."
   },
   "status": {
     "loading": "Caricamento...",
@@ -46,6 +49,7 @@
   "filters": {
     "title": "Filtri",
     "search": "Cerca",
+    "searchIn": "Cerca in",
     "sort": "Ordina",
     "mode": "Modalità",
     "modeAll": "Tutti",
@@ -92,19 +96,21 @@
   },
   "connection": {
     "connecting": "Connessione a Norish...",
-    "syncing": "Sincronizzazione in corso, attendere...",
     "checkInternet": "Controlla la tua connessione internet",
-    "gettingUpdates": "Un momento mentre recuperiamo gli ultimi aggiornamenti",
     "offlineBanner": "Sei offline, visualizzazione dei dati memorizzati nella cache",
-    "serverUnreachableBanner": "Impossibile raggiungere il server Norish, visualizzazione dei dati memorizzati nella cache"
+    "serverUnreachableBanner": "Impossibile raggiungere il server Norish, visualizzazione dei dati memorizzati nella cache",
+    "live": "Connesso",
+    "offline": "Offline",
+    "openDetails": "Connection details"
   },
   "language": {
     "title": "Lingua"
   },
   "notFound": {
     "code": "404",
-    "title": "Pagina non trovata",
-    "message": "Ops! Nora non ha trovato quello che stai cercando.\nLa pagina potrebbe essere stata spostata o non esiste."
+    "title": "Nora è confusa.",
+    "message": "Sta annusando in giro per capire dove volevi andare.",
+    "imageAlt": "Nora con aria confusa"
   },
   "import": {
     "url": {
@@ -113,6 +119,9 @@
       "placeholder": "https://esempio.com/la-tua-ricetta",
       "failed": "Importazione della ricetta non riuscita",
       "failedWithAI": "Importazione della ricetta con IA non riuscita"
+    },
+    "clipboard": {
+      "title": "Importare una ricetta dal link che hai copiato?"
     },
     "paste": {
       "title": "Importa da testo incollato",
@@ -155,6 +164,7 @@
     "heading": "Inizia una riga con <strong>#</strong> per un titolo",
     "bold": "Racchiudi tra <strong>**doppi asterischi**</strong> per il grassetto",
     "recipeLink": "Digita <strong>/nome ricetta</strong> per collegare un'altra ricetta",
+    "ingredientMention": "Digita <strong>@</strong> per collegare un ingrediente al passaggio — la parola resta nella frase, il collegamento diventa un'etichetta sotto",
     "helpAriaLabel": "Aiuto formattazione"
   },
   "tagInput": {
@@ -213,5 +223,74 @@
     "notification_body": "{label} è pronto!",
     "notifications_disabled": "Le notifiche sono disabilitate",
     "notifications_disabled_hint": "Abilita le notifiche nelle impostazioni del browser per ricevere avvisi quando i timer terminano in background."
+  },
+  "offlineStatus": {
+    "title": "Connection & offline",
+    "connection": {
+      "heading": "Connection",
+      "live": "Live",
+      "offline": "Offline",
+      "forced": "Offline (forced)",
+      "liveDescription": "Connected to Norish. Changes sync as you make them.",
+      "offlineDescription": "Can't reach Norish. Showing cached data; changes are queued and sync when you're back.",
+      "forcedDescription": "Offline is forced for development. The backend is reachable but every request is blocked.",
+      "devBadge": "dev"
+    },
+    "cache": {
+      "heading": "Offline cache",
+      "recipes": "Recipes",
+      "cookbooks": "Libri di cucina",
+      "groceries": "Groceries",
+      "stores": "Stores",
+      "planned": "This week",
+      "dataAge": "Data from {when}",
+      "dataAgeUnknown": "Not warmed yet",
+      "wipe": "Clear cached data",
+      "wipeConfirmBody": "Remove the offline copy of your recipes, groceries, stores and plan? Your queued changes are kept.",
+      "wipeConfirmOfflineBody": "You're offline — clearing now leaves nothing to show until you reconnect. Your queued changes are kept.",
+      "wipeConfirm": "Clear",
+      "wipeCancel": "Keep"
+    },
+    "outbox": {
+      "heading": "Queued changes",
+      "empty": "Nothing queued — everything's synced.",
+      "pending": "{count, plural, =0 {No changes waiting} one {# change waiting} other {# changes waiting}}",
+      "syncing": "{count, plural, =0 {Syncing} one {Syncing # change} other {Syncing # changes}}",
+      "syncNow": "Sync now",
+      "retryAll": "Retry all",
+      "discardAll": "Discard all",
+      "discardConfirmBody": "{count, plural, one {Permanently discard # queued change? It won't be sent.} other {Permanently discard # queued changes? They won't be sent.}}",
+      "discardConfirm": "Discard",
+      "discardCancel": "Keep",
+      "status": {
+        "pending": "Syncing",
+        "parked": "Needs attention",
+        "conflicted": "Conflict"
+      }
+    },
+    "devToggle": {
+      "heading": "Developer",
+      "force": "Force offline",
+      "description": "Blocks the backend transport to exercise the offline runtime. Dev builds only.",
+      "on": "On",
+      "off": "Off"
+    }
+  },
+  "offlineFallback": {
+    "title": "Anche Nora è offline.",
+    "body": "Questa pagina non è salvata per l'uso offline — le pagine visitate di recente sono ancora qui.",
+    "backOnlineTitle": "Nora ha trovato la connessione!",
+    "backOnlineBody": "Norish è di nuovo raggiungibile — riprova a caricare questa pagina.",
+    "retry": "Riprova",
+    "home": "Apri Norish"
+  },
+  "queuedOffline": {
+    "title": "Sei offline",
+    "description": "In coda: Norish completerà automaticamente quando tornerai online."
+  },
+  "storageUnavailable": {
+    "title": "Avvio non riuscito",
+    "description": "Norish non è riuscita a leggere l'archivio sicuro e non sa a quale server appartiene questa app. Non è stato modificato nulla. Riprova o riavvia l'app.",
+    "detailsLabel": "Dettagli tecnici"
   }
 }

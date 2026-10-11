@@ -1,45 +1,81 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { SettingRow, SwitchRow } from "@/app/(app)/settings/components/setting-row";
+import SettingsSwitch from "@/app/(app)/settings/components/settings-switch";
 import SecretInput from "@/components/shared/secret-input";
 import { useAvailableModelsQuery } from "@/hooks/admin";
 import { BeakerIcon, CheckIcon, XMarkIcon } from "@heroicons/react/16/solid";
 import {
-  Autocomplete,
-  AutocompleteItem,
   Button,
+  ComboBox,
+  Description,
   Input,
+  Label,
+  ListBox,
   Select,
-  SelectItem,
   Slider,
-  Switch,
+  TextField,
 } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
-import type { AIConfig, AutoTaggingMode } from "@norish/config/zod/server-config";
-import { ServerConfigKeys } from "@norish/config/zod/server-config";
+import type {
+  AIConfig,
+  AutomaticEnrichmentConfig,
+  CuisineStrategy,
+  TagStrategy,
+} from "@norish/config/zod/server-config";
+import {
+  DEFAULT_AUTOMATIC_ENRICHMENT,
+  DEFAULT_CUISINE_STRATEGY,
+  DEFAULT_TAG_STRATEGY,
+  ServerConfigKeys,
+} from "@norish/config/zod/server-config";
 
 import { useAdminSettingsContext } from "../context";
+import ModelListingEmptyState from "./model-listing-empty-state";
 
 interface AIConfigFormProps {
   onDirtyChange?: (isDirty: boolean) => void;
 }
-
 type AvailableModel = {
   id: string;
   supportsVision?: boolean;
 };
-
 type ModelOption = {
   value: string;
   supportsVision?: boolean;
 };
+const PROVIDER_OPTIONS: Array<AIConfig["provider"]> = [
+  "openai",
+  "azure",
+  "anthropic",
+  "google",
+  "mistral",
+  "deepseek",
+  "perplexity",
+  "groq",
+  "ollama",
+  "lm-studio",
+  "generic-openai",
+];
+const TAG_STRATEGY_OPTIONS: TagStrategy[] = ["predefined", "predefined_db", "freeform"];
+const CUISINE_STRATEGY_OPTIONS: CuisineStrategy[] = ["existing", "extend"];
 
+/** One switch per Recipe Enrichment kind, in the order the docs describe them. */
+const AUTOMATIC_ENRICHMENT_KEYS = [
+  "autoTagging",
+  "allergyDetection",
+  "autoCategorization",
+  "nutritionEstimation",
+  "recipeProvenance",
+  "ingredientLinking",
+  "imageGeneration",
+] as const satisfies readonly (keyof AutomaticEnrichmentConfig)[];
 export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
   const t = useTranslations("settings.admin.aiConfig");
   const tActions = useTranslations("common.actions");
   const { aiConfig, updateAIConfig, testAIEndpoint, fetchConfigSecret } = useAdminSettingsContext();
-
   const [enabled, setEnabled] = useState(aiConfig?.enabled ?? false);
   const [provider, setProvider] = useState(aiConfig?.provider ?? "openai");
   const [endpoint, setEndpoint] = useState(aiConfig?.endpoint ?? "");
@@ -49,13 +85,21 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
   const [temperature, setTemperature] = useState(aiConfig?.temperature ?? 0);
   const [maxTokens, setMaxTokens] = useState(aiConfig?.maxTokens ?? 10000);
   const [timeoutMs, setTimeoutMs] = useState(aiConfig?.timeoutMs ?? 300000);
-  const [autoTagAllergies, setAutoTagAllergies] = useState(aiConfig?.autoTagAllergies ?? true);
   const [alwaysUseAI, setAlwaysUseAI] = useState(aiConfig?.alwaysUseAI ?? false);
-  const [autoTaggingMode, setAutoTaggingMode] = useState<AutoTaggingMode>(
-    aiConfig?.autoTaggingMode ?? "disabled"
+  const [tagStrategy, setTagStrategy] = useState<TagStrategy>(
+    aiConfig?.tagStrategy ?? DEFAULT_TAG_STRATEGY
+  );
+  const [cuisineStrategy, setCuisineStrategy] = useState<CuisineStrategy>(
+    aiConfig?.cuisineStrategy ?? DEFAULT_CUISINE_STRATEGY
+  );
+  const [automaticEnrichment, setAutomaticEnrichment] = useState<AutomaticEnrichmentConfig>(
+    aiConfig?.automaticEnrichment ?? DEFAULT_AUTOMATIC_ENRICHMENT
   );
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    error?: string;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Fetch available models from the provider
@@ -80,7 +124,6 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
   // API key is only considered "configured" if the saved config matches the current provider
   // This prevents validation from passing when switching between providers
   const isApiKeyConfigured = !!aiConfig?.apiKey && aiConfig?.provider === provider;
-
   const canFetchModels =
     enabled &&
     (cloudProviders.includes(provider)
@@ -89,7 +132,11 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
         ? endpoint
         : endpoint); // generic-openai needs endpoint
 
-  const { models: availableModels, isLoading: isLoadingModels } = useAvailableModelsQuery({
+  const {
+    models: availableModels,
+    refusal: modelRefusal,
+    isLoading: isLoadingModels,
+  } = useAvailableModelsQuery({
     provider: provider as AIConfig["provider"],
     endpoint: endpoint || undefined,
     apiKey: apiKey || undefined,
@@ -105,9 +152,11 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
 
     // Add current model if not in list (allows keeping custom/typed values)
     if (model && !options.some((o: ModelOption) => o.value === model)) {
-      options.unshift({ value: model, supportsVision: undefined });
+      options.unshift({
+        value: model,
+        supportsVision: undefined,
+      });
     }
-
     return options;
   }, [availableModels, model]);
 
@@ -120,12 +169,13 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
 
     // Add current vision model if not in list
     if (visionModel && !options.some((o: ModelOption) => o.value === visionModel)) {
-      options.unshift({ value: visionModel, supportsVision: undefined });
+      options.unshift({
+        value: visionModel,
+        supportsVision: undefined,
+      });
     }
-
     return options;
   }, [availableModels, visionModel]);
-
   useEffect(() => {
     if (aiConfig) {
       setEnabled(aiConfig.enabled);
@@ -136,9 +186,10 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
       setTemperature(aiConfig.temperature);
       setMaxTokens(aiConfig.maxTokens);
       setTimeoutMs(aiConfig.timeoutMs ?? 300000);
-      setAutoTagAllergies(aiConfig.autoTagAllergies ?? true);
       setAlwaysUseAI(aiConfig.alwaysUseAI ?? false);
-      setAutoTaggingMode(aiConfig.autoTaggingMode ?? "disabled");
+      setTagStrategy(aiConfig.tagStrategy ?? DEFAULT_TAG_STRATEGY);
+      setCuisineStrategy(aiConfig.cuisineStrategy ?? DEFAULT_CUISINE_STRATEGY);
+      setAutomaticEnrichment(aiConfig.automaticEnrichment ?? DEFAULT_AUTOMATIC_ENRICHMENT);
     }
   }, [aiConfig]);
 
@@ -147,12 +198,10 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
     (model ?? "").trim() !== "" &&
     (!needsEndpoint || (endpoint ?? "").trim() !== "") &&
     (!needsApiKey || (apiKey ?? "").trim() !== "" || isApiKeyConfigured);
-
   const canEnable = !enabled || hasValidConfig;
   const showValidationWarning = enabled && !hasValidConfig;
   const hasChanges = useMemo(() => {
     if (!aiConfig) return false;
-
     return (
       enabled !== aiConfig.enabled ||
       provider !== aiConfig.provider ||
@@ -162,9 +211,14 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
       temperature !== aiConfig.temperature ||
       maxTokens !== aiConfig.maxTokens ||
       timeoutMs !== (aiConfig.timeoutMs ?? 300000) ||
-      autoTagAllergies !== (aiConfig.autoTagAllergies ?? true) ||
       alwaysUseAI !== (aiConfig.alwaysUseAI ?? false) ||
-      autoTaggingMode !== (aiConfig.autoTaggingMode ?? "disabled") ||
+      tagStrategy !== (aiConfig.tagStrategy ?? DEFAULT_TAG_STRATEGY) ||
+      cuisineStrategy !== (aiConfig.cuisineStrategy ?? DEFAULT_CUISINE_STRATEGY) ||
+      AUTOMATIC_ENRICHMENT_KEYS.some(
+        (key) =>
+          automaticEnrichment[key] !==
+          (aiConfig.automaticEnrichment?.[key] ?? DEFAULT_AUTOMATIC_ENRICHMENT[key])
+      ) ||
       apiKey.trim() !== ""
     );
   }, [
@@ -177,19 +231,39 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
     temperature,
     maxTokens,
     timeoutMs,
-    autoTagAllergies,
     alwaysUseAI,
-    autoTaggingMode,
+    tagStrategy,
+    cuisineStrategy,
+    automaticEnrichment,
     apiKey,
   ]);
-
   useEffect(() => {
     onDirtyChange?.(hasChanges);
   }, [hasChanges, onDirtyChange]);
-
   const handleRevealApiKey = useCallback(async () => {
     return await fetchConfigSecret(ServerConfigKeys.AI_CONFIG, "apiKey");
   }, [fetchConfigSecret]);
+
+  /**
+   * The stored record read as the list the picker selects over. A column of
+   * switches read as separate decisions; which kinds are allowed to run unasked
+   * is one. Every kind belongs here — one left out of the list is not merely
+   * unreachable, it is rewritten to its default the moment any other kind is
+   * toggled, because the picker rebuilds the whole record from this list.
+   */
+  const selectedEnrichmentKinds = useMemo(
+    () => AUTOMATIC_ENRICHMENT_KEYS.filter((key) => automaticEnrichment[key]),
+    [automaticEnrichment]
+  );
+  const handleEnrichmentKindsChange = useCallback((chosen: string[]) => {
+    const selected = new Set(chosen);
+
+    setAutomaticEnrichment(
+      Object.fromEntries(
+        AUTOMATIC_ENRICHMENT_KEYS.map((key) => [key, selected.has(key)])
+      ) as AutomaticEnrichmentConfig
+    );
+  }, []);
 
   // Clear model fields when provider changes to avoid invalid model selection
   const handleProviderChange = (newProvider: AIConfig["provider"]) => {
@@ -209,14 +283,12 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
         "perplexity",
         "groq",
       ];
-
       if (newCloudProviders.includes(newProvider)) {
         setEndpoint("");
       }
       // Azure keeps endpoint as optional (for custom resource URL)
     }
   };
-
   const handleTest = async () => {
     setTesting(true);
     setTestResult(null);
@@ -226,16 +298,13 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
         endpoint: endpoint || undefined,
         apiKey: apiKey || undefined,
       });
-
       setTestResult(result);
     } finally {
       setTesting(false);
     }
   };
-
   const handleSave = async () => {
     if (enabled && !hasValidConfig) return;
-
     setSaving(true);
     try {
       await updateAIConfig({
@@ -248,24 +317,23 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
         temperature,
         maxTokens,
         timeoutMs,
-        autoTagAllergies,
         alwaysUseAI,
-        autoTaggingMode: autoTaggingMode as AIConfig["autoTaggingMode"],
+        tagStrategy,
+        cuisineStrategy,
+        automaticEnrichment,
       });
+      // Saved keys live on the server, not in the form: a key left in state
+      // reads as an unsaved change on every later render.
+      setApiKey("");
     } finally {
       setSaving(false);
     }
   };
-
   return (
     <div className="flex flex-col gap-4 p-2">
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col gap-1">
-          <span className="font-medium">{t("enableAI")}</span>
-          <span className="text-default-500 text-base">{t("enableAIDescription")}</span>
-        </div>
-        <Switch color="success" isSelected={enabled} onValueChange={setEnabled} />
-      </div>
+      <SwitchRow description={t("enableAIDescription")} title={t("enableAI")}>
+        <SettingsSwitch color="success" isSelected={enabled} onValueChange={setEnabled} />
+      </SwitchRow>
 
       {showValidationWarning && (
         <div className="text-warning bg-warning/10 rounded-lg p-3 text-base">
@@ -274,45 +342,57 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
       )}
 
       <Select
+        variant="secondary"
         isDisabled={!enabled}
-        label={t("provider")}
-        selectedKeys={[provider]}
-        onSelectionChange={(keys) =>
-          handleProviderChange(Array.from(keys)[0] as AIConfig["provider"])
-        }
+        placeholder={t("provider")}
+        value={provider}
+        onChange={(selected) => {
+          if (typeof selected === "string") {
+            handleProviderChange(selected as AIConfig["provider"]);
+          }
+        }}
       >
-        <SelectItem key="openai">{t("providers.openai")}</SelectItem>
-        <SelectItem key="azure">{t("providers.azure")}</SelectItem>
-        <SelectItem key="anthropic">{t("providers.anthropic")}</SelectItem>
-        <SelectItem key="google">{t("providers.google")}</SelectItem>
-        <SelectItem key="mistral">{t("providers.mistral")}</SelectItem>
-        <SelectItem key="deepseek">{t("providers.deepseek")}</SelectItem>
-        <SelectItem key="perplexity">{t("providers.perplexity")}</SelectItem>
-        <SelectItem key="groq">{t("providers.groq")}</SelectItem>
-        <SelectItem key="ollama">{t("providers.ollama")}</SelectItem>
-        <SelectItem key="lm-studio">{t("providers.lmStudio")}</SelectItem>
-        <SelectItem key="generic-openai">{t("providers.genericOpenai")}</SelectItem>
+        <Label>{t("provider")}</Label>
+        <Select.Trigger>
+          <Select.Value />
+          <Select.Indicator />
+        </Select.Trigger>
+        <Select.Popover>
+          <ListBox>
+            {PROVIDER_OPTIONS.map((option) => {
+              const label =
+                option === "lm-studio"
+                  ? t("providers.lmStudio")
+                  : option === "generic-openai"
+                    ? t("providers.genericOpenai")
+                    : t(`providers.${option}` as Parameters<typeof t>[0]);
+
+              return (
+                <ListBox.Item key={option} id={option} textValue={label}>
+                  {label}
+                </ListBox.Item>
+              );
+            })}
+          </ListBox>
+        </Select.Popover>
       </Select>
 
       {needsEndpoint && (
-        <Input
-          isDisabled={!enabled}
-          label={t("endpointUrl")}
-          placeholder={provider === "ollama" ? "http://localhost:11434" : "http://localhost:1234"}
-          value={endpoint}
-          onValueChange={setEndpoint}
-        />
+        <TextField isDisabled={!enabled} value={endpoint} onChange={setEndpoint}>
+          <Label>{t("endpointUrl")}</Label>
+          <Input
+            variant="secondary"
+            placeholder={provider === "ollama" ? "http://localhost:11434" : "http://localhost:1234"}
+          />
+        </TextField>
       )}
 
       {supportsOptionalEndpoint && (
-        <Input
-          description={t("azureEndpointDescription")}
-          isDisabled={!enabled}
-          label={t("azureEndpoint")}
-          placeholder="https://your-resource.openai.azure.com"
-          value={endpoint}
-          onValueChange={setEndpoint}
-        />
+        <TextField isDisabled={!enabled} value={endpoint} onChange={setEndpoint}>
+          <Label>{t("azureEndpoint")}</Label>
+          <Input variant="secondary" placeholder="https://your-resource.openai.azure.com" />
+          <Description>{t("azureEndpointDescription")}</Description>
+        </TextField>
       )}
 
       {needsApiKey && (
@@ -327,53 +407,77 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
         />
       )}
 
-      <Autocomplete
+      <ComboBox
         allowsCustomValue
-        defaultItems={modelOptions}
         inputValue={model}
         isDisabled={!enabled || !canFetchModels}
-        isLoading={isLoadingModels}
-        label={t("model")}
         onInputChange={setModel}
         onSelectionChange={(key) => key && setModel(key as string)}
       >
-        {(item: ModelOption) => (
-          <AutocompleteItem key={item.value} textValue={item.value}>
-            <div className="flex items-center justify-between gap-2">
-              <span>{item.value}</span>
-              {item.supportsVision && (
-                <span className="text-success-500 text-xs">{t("vision")}</span>
-              )}
-            </div>
-          </AutocompleteItem>
-        )}
-      </Autocomplete>
+        <Label>{t("model")}</Label>
+        <ComboBox.InputGroup>
+          <Input variant="secondary" placeholder={t("model")} />
+          <ComboBox.Trigger />
+        </ComboBox.InputGroup>
+        <ComboBox.Popover>
+          <ListBox
+            renderEmptyState={() => (
+              <ModelListingEmptyState isLoading={isLoadingModels} refusal={modelRefusal} />
+            )}
+          >
+            {modelOptions.map((item) => (
+              <ListBox.Item key={item.value} id={item.value} textValue={item.value}>
+                <div className="flex items-center justify-between gap-2">
+                  <span>{item.value}</span>
+                  {item.supportsVision && (
+                    <span className="text-success text-xs">{t("vision")}</span>
+                  )}
+                </div>
+              </ListBox.Item>
+            ))}
+          </ListBox>
+        </ComboBox.Popover>
+      </ComboBox>
 
-      <Autocomplete
+      <ComboBox
         allowsCustomValue
-        defaultItems={visionModelOptions}
-        description={t("visionModelDescription")}
         inputValue={visionModel}
         isDisabled={!enabled || !canFetchModels}
-        isLoading={isLoadingModels}
-        label={t("visionModel")}
         onInputChange={setVisionModel}
         onSelectionChange={(key) => key && setVisionModel(key as string)}
       >
-        {(item: ModelOption) => (
-          <AutocompleteItem key={item.value} textValue={item.value}>
-            <div className="flex items-center justify-between gap-2">
-              <span>{item.value}</span>
-              {item.supportsVision && (
-                <span className="text-success-500 text-xs">{t("vision")}</span>
-              )}
-            </div>
-          </AutocompleteItem>
-        )}
-      </Autocomplete>
+        <Label>{t("visionModel")}</Label>
+        <ComboBox.InputGroup>
+          <Input variant="secondary" placeholder={t("visionModel")} />
+          <ComboBox.Trigger />
+        </ComboBox.InputGroup>
+        <Description>{t("visionModelDescription")}</Description>
+        <ComboBox.Popover>
+          <ListBox
+            renderEmptyState={() => (
+              <ModelListingEmptyState isLoading={isLoadingModels} refusal={modelRefusal} />
+            )}
+          >
+            {visionModelOptions.map((item) => (
+              <ListBox.Item key={item.value} id={item.value} textValue={item.value}>
+                <div className="flex items-center justify-between gap-2">
+                  <span>{item.value}</span>
+                  {item.supportsVision && (
+                    <span className="text-success text-xs">{t("vision")}</span>
+                  )}
+                </div>
+              </ListBox.Item>
+            ))}
+          </ListBox>
+        </ComboBox.Popover>
+      </ComboBox>
 
       <div className="flex flex-col gap-2">
-        <label className="text-sm font-medium">{t("temperature", { value: temperature })}</label>
+        <label className="text-sm font-medium">
+          {t("temperature", {
+            value: temperature,
+          })}
+        </label>
         <Slider
           aria-label="Temperature"
           className="max-w-md"
@@ -383,70 +487,168 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
           step={0.1}
           value={temperature}
           onChange={(v) => setTemperature(v as number)}
-        />
-        <span className="text-default-500 text-xs">{t("temperatureHint")}</span>
+        >
+          <Slider.Track>
+            <Slider.Fill />
+            <Slider.Thumb />
+          </Slider.Track>
+        </Slider>
+        <span className="text-muted text-xs">{t("temperatureHint")}</span>
       </div>
 
-      <Input
+      <TextField
         isDisabled={!enabled}
-        label={t("maxTokens")}
         type="number"
         value={maxTokens.toString()}
-        onValueChange={(v) => setMaxTokens(parseInt(v) || 10000)}
-      />
+        onChange={(value) => setMaxTokens(parseInt(value) || 10000)}
+      >
+        <Label>{t("maxTokens")}</Label>
+        <Input variant="secondary" />
+      </TextField>
 
-      <Input
+      <TextField
         isDisabled={!enabled}
-        label={t("requestTimeout")}
         type="number"
         value={timeoutMs.toString()}
-        onValueChange={(v) => setTimeoutMs(parseInt(v) || 300000)}
-      />
+        onChange={(value) => setTimeoutMs(parseInt(value) || 300000)}
+      >
+        <Label>{t("requestTimeout")}</Label>
+        <Input variant="secondary" />
+      </TextField>
 
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col gap-1">
-          <span className="font-medium">{t("autoTagAllergies")}</span>
-          <span className="text-default-500 text-base">{t("autoTagAllergiesDescription")}</span>
-        </div>
-        <Switch
-          color="success"
-          isDisabled={!enabled}
-          isSelected={autoTagAllergies}
-          onValueChange={setAutoTagAllergies}
-        />
-      </div>
-
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col gap-1">
-          <span className="font-medium">{t("alwaysUseAI")}</span>
-          <span className="text-default-500 text-base">{t("alwaysUseAIDescription")}</span>
-        </div>
-        <Switch
+      <SwitchRow description={t("alwaysUseAIDescription")} title={t("alwaysUseAI")}>
+        <SettingsSwitch
           color="success"
           isDisabled={!enabled}
           isSelected={alwaysUseAI}
           onValueChange={setAlwaysUseAI}
         />
-      </div>
+      </SwitchRow>
+
+      <SettingRow
+        description={t("automaticEnrichmentDescription")}
+        title={t("automaticEnrichment")}
+      >
+        <Select
+          aria-label={t("automaticEnrichment")}
+          className="w-full sm:w-80"
+          isDisabled={!enabled}
+          placeholder={t("automaticEnrichmentPlaceholder")}
+          selectionMode="multiple"
+          value={selectedEnrichmentKinds}
+          variant="secondary"
+          onChange={(selected) => handleEnrichmentKindsChange(selected.map(String))}
+        >
+          <Label className="sr-only">{t("automaticEnrichment")}</Label>
+          <Select.Trigger>
+            {/* A flex child will not shrink past its text without `min-w-0`,
+                which is what let the joined list push the trigger wide enough
+                to be cut off by the panel instead of clipped by the field. */}
+            <Select.Value className="min-w-0">
+              {({ defaultChildren, isPlaceholder }) =>
+                isPlaceholder ? (
+                  defaultChildren
+                ) : (
+                  // Seven names joined read as a paragraph inside the trigger;
+                  // one clipped line says as much and keeps the row a row.
+                  <span className="block truncate">
+                    {selectedEnrichmentKinds
+                      .map((key) => t(`automaticEnrichmentKinds.${key}`))
+                      .join(", ")}
+                  </span>
+                )
+              }
+            </Select.Value>
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox selectionMode="multiple">
+              {AUTOMATIC_ENRICHMENT_KEYS.map((key) => (
+                <ListBox.Item key={key} id={key} textValue={t(`automaticEnrichmentKinds.${key}`)}>
+                  <div className="flex flex-col">
+                    <span>{t(`automaticEnrichmentKinds.${key}`)}</span>
+                    <span className="text-muted text-xs">
+                      {t(`automaticEnrichmentKinds.${key}Description`)}
+                    </span>
+                  </div>
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
+      </SettingRow>
 
       <Select
-        description={t("autoTaggingModeDescription")}
+        variant="secondary"
         isDisabled={!enabled}
-        label={t("autoTaggingMode")}
-        selectedKeys={[autoTaggingMode]}
-        onSelectionChange={(keys) => setAutoTaggingMode(Array.from(keys)[0] as AutoTaggingMode)}
+        placeholder={t("tagStrategy")}
+        value={tagStrategy}
+        onChange={(selected) => {
+          if (typeof selected === "string") {
+            setTagStrategy(selected as TagStrategy);
+          }
+        }}
       >
-        <SelectItem key="disabled">{t("autoTaggingModes.disabled")}</SelectItem>
-        <SelectItem key="predefined">{t("autoTaggingModes.predefined")}</SelectItem>
-        <SelectItem key="predefined_db">{t("autoTaggingModes.predefinedDb")}</SelectItem>
-        <SelectItem key="freeform">{t("autoTaggingModes.freeform")}</SelectItem>
+        <Label>{t("tagStrategy")}</Label>
+        <Select.Trigger>
+          <Select.Value />
+          <Select.Indicator />
+        </Select.Trigger>
+        <span className="text-muted px-1 text-xs">{t("tagStrategyDescription")}</span>
+        <Select.Popover>
+          <ListBox>
+            {TAG_STRATEGY_OPTIONS.map((option) => {
+              const label =
+                option === "predefined_db"
+                  ? t("tagStrategies.predefinedDb")
+                  : t(`tagStrategies.${option}` as Parameters<typeof t>[0]);
+
+              return (
+                <ListBox.Item key={option} id={option} textValue={label}>
+                  {label}
+                </ListBox.Item>
+              );
+            })}
+          </ListBox>
+        </Select.Popover>
+      </Select>
+
+      <Select
+        variant="secondary"
+        isDisabled={!enabled}
+        placeholder={t("cuisineStrategy")}
+        value={cuisineStrategy}
+        onChange={(selected) => {
+          if (typeof selected === "string") {
+            setCuisineStrategy(selected as CuisineStrategy);
+          }
+        }}
+      >
+        <Label>{t("cuisineStrategy")}</Label>
+        <Select.Trigger>
+          <Select.Value />
+          <Select.Indicator />
+        </Select.Trigger>
+        <span className="text-muted px-1 text-xs">{t("cuisineStrategyDescription")}</span>
+        <Select.Popover>
+          <ListBox>
+            {CUISINE_STRATEGY_OPTIONS.map((option) => {
+              const label = t(`cuisineStrategies.${option}`);
+
+              return (
+                <ListBox.Item key={option} id={option} textValue={label}>
+                  {label}
+                </ListBox.Item>
+              );
+            })}
+          </ListBox>
+        </Select.Popover>
       </Select>
 
       {testResult && (
         <div
-          className={`flex items-center gap-2 rounded-lg p-2 ${
-            testResult.success ? "bg-success-100 text-success-700" : "bg-danger-100 text-danger-700"
-          }`}
+          className={`flex items-center gap-2 rounded-lg p-2 ${testResult.success ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}`}
         >
           {testResult.success ? (
             <>
@@ -462,23 +664,18 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-2 pt-2">
-        <Button
-          isDisabled={!enabled}
-          isLoading={testing}
-          startContent={<BeakerIcon className="h-5 w-5" />}
-          variant="flat"
-          onPress={handleTest}
-        >
+      <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+        <Button isDisabled={!enabled} onPress={handleTest} variant="tertiary" isPending={testing}>
+          {<BeakerIcon className="h-5 w-5" />}
           {t("testConnection")}
         </Button>
         <Button
-          color="primary"
           isDisabled={!canEnable || !hasChanges}
-          isLoading={saving}
-          startContent={<CheckIcon className="h-5 w-5" />}
           onPress={handleSave}
+          variant="primary"
+          isPending={saving}
         >
+          {<CheckIcon className="h-5 w-5" />}
           {tActions("save")}
         </Button>
       </div>

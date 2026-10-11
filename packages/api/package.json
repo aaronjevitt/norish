@@ -1,25 +1,23 @@
 {
   "name": "@norish/api",
-  "version": "0.18.1-beta",
+  "version": "0.24.0-beta",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
     "./parser": "./src/parser/index.ts",
+    "./recipes/enrichment-listener": "./src/recipes/enrichment-listener.ts",
     "./*": "./src/*.ts"
   },
   "scripts": {
     "build": "rm -rf dist && pnpm exec tsc -p tsconfig.json --noCheck",
     "lint": "eslint --flag unstable_native_nodejs_ts_config",
-    "format": "prettier --check . --ignore-path ../../.gitignore",
+    "format": "prettier --check . --ignore-path ../../.gitignore --ignore-path .prettierignore",
     "typecheck": "pnpm exec tsc --noEmit --noCheck",
     "clean": "git clean -xdf .cache .turbo node_modules dist",
     "test": "vitest run --config ./vitest.config.ts"
   },
   "dependencies": {
-    "@ai-sdk/azure": "^3.0.49",
-    "@ai-sdk/groq": "^3.0.31",
-    "@ai-sdk/openai": "^3.0.48",
     "@norish/auth": "workspace:*",
     "@norish/config": "workspace:*",
     "@norish/db": "workspace:*",
@@ -29,19 +27,15 @@
     "@norish/shared-server": "workspace:*",
     "@norish/trpc": "workspace:*",
     "@trpc/server": "catalog:",
-    "ai": "^6.0.140",
     "cheerio": "1.2.0",
     "drizzle-orm": "catalog:",
     "ffmpeg-static": "^5.3.0",
     "html-entities": "catalog:",
     "ioredis": "catalog:",
-    "microdata-node": "2.0.0",
     "mime": "4.1.0",
     "next": "catalog:",
-    "openai": "6.22.0",
-    "playwright-core": "npm:rebrowser-playwright-core@^1.52.0",
+    "playwright-core": "^1.62.1",
     "superjson": "catalog:",
-    "yt-dlp-wrap": "^2.3.12",
     "zod": "catalog:"
   },
   "devDependencies": {

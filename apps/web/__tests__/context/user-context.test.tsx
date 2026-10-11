@@ -15,7 +15,8 @@ vi.mock("@/app/providers/trpc-provider", () => ({
   useTRPC: mockUseTRPC,
 }));
 
-vi.mock("@tanstack/react-query", () => ({
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
   useQuery: mockUseQuery,
 }));
 

@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useArchiveImportContext } from "@/context/archive-import-context";
 import { useArchiveImportMutation } from "@/hooks/archive";
-import { Progress } from "@heroui/react";
+import { ProgressBar } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 export default function ArchiveImporter() {
@@ -12,8 +12,7 @@ export default function ArchiveImporter() {
   const {
     current,
     imported,
-    skipped,
-    skippedItems,
+    notes,
     total,
     errors: progressErrors,
     isImporting,
@@ -22,7 +21,7 @@ export default function ArchiveImporter() {
   const { startImport, isStarting } = useArchiveImportMutation();
   const [dragActive, setDragActive] = useState(false);
   const [localErrors, setLocalErrors] = useState<{ file: string; error: string }[]>([]);
-  const [showSkipped, setShowSkipped] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const uploadFile = useCallback(
@@ -77,7 +76,7 @@ export default function ArchiveImporter() {
 
       return () => clearTimeout(timer);
     }
-  }, [isComplete, skippedItems.length, clearImport]);
+  }, [isComplete, notes.length, clearImport]);
 
   // Combine local errors with progress errors
   const allErrors = [
@@ -85,35 +84,36 @@ export default function ArchiveImporter() {
     ...progressErrors.map((e) => ({ file: e.file, error: e.error })),
   ];
 
-  // Status message
+  // Status message. The counts are phrased as their own messages and joined
+  // into the `{details}` slot the `processing`/`complete` strings expose.
+  const countParts = () => {
+    const parts: string[] = [];
+
+    if (imported > 0) parts.push(t("imported", { count: imported }));
+    if (progressErrors.length > 0) parts.push(t("errors", { count: progressErrors.length }));
+
+    return parts;
+  };
+
   let status = "";
 
   if (isStarting) {
     status = t("uploadingFile");
   } else if (isImporting && total > 0) {
-    const parts = [`${current} of ${total}`];
+    const details = [t("ofTotal", { current, total }), ...countParts()].join(", ");
 
-    if (imported > 0) parts.push(`${imported} imported`);
-    if (skipped > 0) parts.push(`${skipped} skipped`);
-    if (progressErrors.length > 0) parts.push(`${progressErrors.length} errors`);
-    status = `Processing: ${parts.join(", ")}`;
+    status = t("processing", { details });
   } else if (isComplete) {
-    // Import complete - show appropriate message
-    const parts: string[] = [];
-
-    if (imported > 0) parts.push(`${imported} imported`);
-    if (skipped > 0) parts.push(`${skipped} skipped`);
-    if (progressErrors.length > 0) parts.push(`${progressErrors.length} errors`);
-    status = `Complete: ${parts.join(", ")}`;
+    status = t("complete", { details: countParts().join(", ") });
   }
 
   return (
     <div className="col-span-full">
       <div
-        aria-label="Upload a recipe archive file"
+        aria-label={t("dropzoneLabel")}
         className={[
           "mt-2 flex justify-center rounded-lg border border-dashed px-6 py-10 transition-colors",
-          dragActive ? "border-primary/60 bg-primary/5" : "border-default-200",
+          dragActive ? "border-accent/60 bg-accent/5" : "border-border",
         ].join(" ")}
         role="button"
         tabIndex={0}
@@ -131,7 +131,7 @@ export default function ArchiveImporter() {
         <div className="text-center">
           <svg
             aria-hidden="true"
-            className="text-default-400 mx-auto size-12"
+            className="text-muted mx-auto size-12"
             fill="currentColor"
             viewBox="0 0 24 24"
           >
@@ -141,16 +141,16 @@ export default function ArchiveImporter() {
               fillRule="evenodd"
             />
           </svg>
-          <div className="text-default-500 mt-4 flex items-center justify-center gap-1 text-sm">
+          <div className="text-muted mt-4 flex items-center justify-center gap-1 text-sm">
             <label
-              className="text-primary focus-within:outline-primary hover:text-primary-400 relative cursor-pointer rounded-md bg-transparent font-semibold focus-within:outline-2 focus-within:outline-offset-2"
+              className="text-accent focus-within:outline-primary hover:text-accent relative cursor-pointer rounded-md bg-transparent font-semibold focus-within:outline-2 focus-within:outline-offset-2"
               htmlFor="archive-file-upload"
             >
               <span>{isUploading ? t("uploading") : t("uploadFile")}</span>
               <input
                 key={isComplete ? "reset" : "active"}
                 ref={inputRef}
-                accept=".melarecipes,.paprikarecipes,.zip"
+                accept=".norishrecipes,.melarecipes,.paprikarecipes,.zip"
                 className="sr-only"
                 disabled={isStarting || isImporting}
                 id="archive-file-upload"
@@ -161,40 +161,41 @@ export default function ArchiveImporter() {
             </label>
             <p className="pl-1">{t("dragDrop")}</p>
           </div>
-          <p className="text-default-500 text-xs">{t("formats")}</p>
+          <p className="text-muted text-xs">{t("formats")}</p>
         </div>
       </div>
 
       <div className="mt-3 space-y-2">
-        {/* Progress bar when importing or just completed */}
+        {/* ProgressBar bar when importing or just completed */}
         {(isImporting || isComplete) && total > 0 && (
-          <Progress
-            aria-label="Import progress"
+          <ProgressBar
+            aria-label={t("progressLabel")}
             className="w-full"
-            color={isComplete ? (progressErrors.length > 0 ? "warning" : "success") : "primary"}
+            color={isComplete ? (progressErrors.length > 0 ? "warning" : "success") : "accent"}
             size="sm"
             value={(current / total) * 100}
           />
         )}
 
-        {status && <div className="text-default-600 text-base">{status}</div>}
+        {status && <div className="text-muted text-base">{status}</div>}
 
-        {/* Show skipped recipes with toggle */}
-        {isComplete && skippedItems.length > 0 && (
-          <div className="text-default-500 text-sm">
+        {/* Recipes that landed, minus something the archive carried */}
+        {isComplete && notes.length > 0 && (
+          <div className="text-muted text-sm">
             <button
-              className="hover:text-default-700 underline underline-offset-2"
+              className="hover:text-foreground underline underline-offset-2"
               type="button"
-              onClick={() => setShowSkipped(!showSkipped)}
+              onClick={() => setShowNotes(!showNotes)}
             >
-              {showSkipped ? "Hide" : "Show"} {skippedItems.length} skipped recipe
-              {skippedItems.length !== 1 ? "s" : ""}
+              {showNotes
+                ? t("hideNotes", { count: notes.length })
+                : t("showNotes", { count: notes.length })}
             </button>
-            {showSkipped && (
+            {showNotes && (
               <ul className="mt-1 list-disc pl-4">
-                {skippedItems.map((s, i) => (
+                {notes.map((entry, i) => (
                   <li key={i}>
-                    {s.file}: {s.reason}
+                    {entry.file}: {entry.note}
                   </li>
                 ))}
               </ul>

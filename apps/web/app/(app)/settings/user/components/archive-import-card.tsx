@@ -1,7 +1,7 @@
 "use client";
 
 import ArchiveImporter from "@/components/navbar/archive-importer";
-import { Card, CardBody, CardHeader } from "@heroui/react";
+import { Card } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 export default function ArchiveImportCard() {
@@ -9,15 +9,15 @@ export default function ArchiveImportCard() {
 
   return (
     <Card>
-      <CardHeader>
+      <Card.Header>
         <div>
           <h2 className="text-lg font-semibold">{t("title")}</h2>
-          <p className="text-default-500 mt-1 text-base">{t("description")}</p>
+          <p className="text-muted mt-1 text-base">{t("description")}</p>
         </div>
-      </CardHeader>
-      <CardBody>
+      </Card.Header>
+      <Card.Content>
         <ArchiveImporter />
-      </CardBody>
+      </Card.Content>
     </Card>
   );
 }

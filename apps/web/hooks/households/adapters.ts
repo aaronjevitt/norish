@@ -2,7 +2,7 @@
 
 import { useUserContext } from "@/context/user-context";
 import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
-import { addToast } from "@heroui/react";
+import { toast } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import { useUser } from "@norish/shared-react/hooks/use-user";
@@ -24,12 +24,9 @@ export function useHouseholdToastAdapter() {
 
   return {
     showKickedToast: () => {
-      addToast({
-        title: "Removed from household",
+      toast("Removed from household", {
         description: "You have been removed from the household by an admin.",
-        color: "warning",
-        shouldShowTimeoutProgress: true,
-        radius: "full",
+        variant: "warning",
       });
     },
     showErrorToast: (reason: string) => {

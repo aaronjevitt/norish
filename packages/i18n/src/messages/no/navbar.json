@@ -1,0 +1,63 @@
+{
+  "userMenu": {
+    "newRecipe": {
+      "title": "Ny oppskrift",
+      "description": "Skriv din egen oppskrift"
+    },
+    "importUrl": {
+      "title": "Importer fra URL",
+      "description": "Lim inn en oppskriftlenke"
+    },
+    "settings": {
+      "title": "Innstillinger",
+      "description": "Administrer kontoen din"
+    },
+    "logout": "Logg ut",
+    "signOutConfirm": {
+      "title": "Forkaste usynkroniserte endringer?",
+      "description": "{count, plural, one {# endring gjort frakoblet har ennå ikke nådd serveren.} other {# endringer gjort frakoblet har ennå ikke nådd serveren.}} Når du logger ut, forkastes dette ventende arbeidet permanent, og kontoens frakoblede data fjernes fra denne enheten."
+    },
+    "version": {
+      "updateAvailable": "v{version} tilgjengelig"
+    }
+  },
+  "theme": {
+    "title": "Tema",
+    "loading": "Laster…",
+    "light": "Lyst tema",
+    "dark": "Mørkt tema",
+    "system": "Systemstandard"
+  },
+  "nav": {
+    "home": "Oppskrifter",
+    "calendar": "Kalender",
+    "groceries": "Handleliste"
+  },
+  "mobile": {
+    "searchPlaceholder": "Søk oppskrifter...",
+    "toggleSearch": "Slå søking på/av",
+    "goBack": "Gå tilbake"
+  },
+  "archiveImporter": {
+    "uploading": "Laster opp…",
+    "uploadFile": "Last opp en fil",
+    "dragDrop": "eller dra og slipp",
+    "formats": ".norishrecipes (Norish), .melarecipes (Mela), .paprikarecipes (Paprika), .zip (Mealie/Tandoor)",
+    "dropzoneLabel": "Last opp en oppskriftsarkivfil",
+    "uploadingFile": "Laster opp fil…",
+    "processing": "Behandler: {details}",
+    "complete": "Ferdig: {details}",
+    "imported": "{count} importert",
+    "errors": "{count, plural, one {# feil} other {# feil}}",
+    "ofTotal": "{current} av {total}",
+    "progressLabel": "Importfremdrift",
+    "showNotes": "Vis {count, plural, one {# importnotat} other {# importnotater}}",
+    "hideNotes": "Skjul {count, plural, one {# importnotat} other {# importnotater}}",
+    "toasts": {
+      "startTitle": "Import av oppskrifter startet",
+      "startDescription": "{count, plural, one {Importerer # oppskrift…} other {Importerer # oppskrifter…}}",
+      "completeTitle": "Import av oppskrifter fullført",
+      "completeDescription": "{imported, plural, one {Importerte # oppskrift} other {Importerte # oppskrifter}}{notes, plural, =0 {} one {, # med et notat} other {, # med notater}}{errors, plural, =0 {} other {, # feil}}"
+    }
+  }
+}

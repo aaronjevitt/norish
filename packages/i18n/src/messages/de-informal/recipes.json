@@ -1,9 +1,11 @@
 {
   "dashboard": {
-    "title": "Alle Rezepte",
+    "libraryTitle": "Deine Bibliothek",
+    "recipesTitle": "Deine Rezepte",
+    "cookbooksTitle": "Deine Kochbücher",
     "searchPlaceholder": "Rezept suchen oder hinzufügen...",
     "searchRecipesPlaceholder": "Rezepte durchsuchen...",
-    "recipeCount": "{count, plural, one {# Rezept} other {# Rezepte}}",
+    "libraryCount": "{count, plural, one {# Eintrag} other {# Einträge}}",
     "addRecipe": "Rezept hinzufügen",
     "importFromUrl": "URL",
     "importFromPaste": "Einfügen",
@@ -14,24 +16,48 @@
       "ingredients": "Zutaten",
       "steps": "Schritte",
       "tags": "Tags"
+    },
+    "viewMode": {
+      "label": "Rezeptansicht",
+      "grid": "Raster",
+      "list": "Liste"
+    },
+    "libraryType": {
+      "label": "Anzeigen",
+      "all": "Alle",
+      "recipes": "Rezepte",
+      "cookbooks": "Kochbücher"
     }
   },
+  "back": {
+    "all": "Zurück zur Bibliothek",
+    "recipes": "Zurück zu den Rezepten",
+    "cookbooks": "Zurück zu den Kochbüchern",
+    "named": "Zurück zu {name}",
+    "cookbook": "Zurück zum Kochbuch",
+    "generic": "Zurück"
+  },
   "empty": {
-    "title": "Deine Rezeptsammlung wartet",
+    "title": "Deine Bibliothek wartet",
     "description": "Füge eine Rezept-URL in das Suchfeld oben ein und schau, wie die Magie passiert.",
     "noResults": "Keine Rezepte gefunden",
-    "noResultsHint": "Versuche, deine Filter anzupassen oder zu löschen."
+    "noResultsHint": "Versuche, deine Filter anzupassen oder zu löschen.",
+    "noCookbooks": "Noch keine Kochbücher",
+    "noCookbooksHint": "Ein Kochbuch ist eine benannte Sammlung von Rezepten. Erstelle dein erstes, um deine Bibliothek zu ordnen."
   },
   "card": {
     "noImage": "Kein Bild verfügbar",
     "viewGroceries": "Einkaufsliste anzeigen",
     "addToCalendar": "Zum Kalender hinzufügen",
-    "deleteRecipe": "Rezept löschen"
+    "deleteRecipe": "Rezept löschen",
+    "recipeOptions": "Rezeptoptionen"
   },
   "detail": {
-    "backToRecipes": "Zurück zu Rezepten",
     "viewOriginal": "Originalrezept anzeigen",
     "ingredients": "Zutaten",
+    "ingredientOptions": "Zutaten-Optionen",
+    "showMore": "Mehr anzeigen",
+    "showLess": "Weniger anzeigen",
     "steps": "Schritte",
     "notes": "Notizen",
     "addToGroceries": "Zur Einkaufsliste hinzufügen",
@@ -45,7 +71,12 @@
     "instructions": "Anleitung",
     "cook": "Kochen",
     "switchToDecimal": "Dezimalzahlen anzeigen",
-    "switchToFraction": "Brüche anzeigen"
+    "switchToFraction": "Brüche anzeigen",
+    "servingsCount": "{count, plural, one {# Portion} other {# Portionen}}",
+    "source": "Quelle",
+    "addedBy": "Hinzugefügt von {name}",
+    "decreaseServings": "Weniger Portionen",
+    "increaseServings": "Mehr Portionen"
   },
   "actions": {
     "plan": "Planen",
@@ -64,7 +95,16 @@
     "estimatingNutrition": "Schätze Nährwerte...",
     "screenOn": "Bildschirm an",
     "keepScreenOn": "Bildschirm an",
-    "actionsLabel": "Aktionen"
+    "actionsLabel": "Aktionen",
+    "autoCategorizing": "Kategorisierung läuft…",
+    "inferProvenance": "Herkunft ermitteln",
+    "inferringProvenance": "Herkunft wird ermittelt …",
+    "linkIngredients": "Zutaten mit Schritten verknüpfen",
+    "linkingIngredients": "Zutaten werden verknüpft…",
+    "enrichmentFailed": "Letzter Versuch fehlgeschlagen",
+    "generateImage": "Bild generieren",
+    "generatingImage": "Bild wird generiert…",
+    "cookbooks": "Kochbücher"
   },
   "sharePanel": {
     "title": "Rezept teilen",
@@ -113,7 +153,8 @@
   "convert": {
     "ariaLabel": "Maßeinheit umwandeln",
     "toMetric": "In metrisch umwandeln",
-    "toUS": "In US umwandeln"
+    "toUS": "In US umwandeln",
+    "converting": "Wird umgerechnet…"
   },
   "deleteModal": {
     "title": "Rezept löschen",
@@ -143,7 +184,7 @@
     "notesPlaceholder": "Füge Hinweise zur Vorbereitung, Anpassungen oder Serviervorschläge für dieses Rezept hinzu...",
     "ingredientsHelp": "Gib Zutaten wie \"2 Tassen Mehl\" ein - wir analysieren die Mengen und Einheiten automatisch.",
     "instructionsHelp": "Schreibe klare Schritt-für-Schritt-Anleitungen. Drücke Enter, um zum nächsten Schritt zu gehen.",
-    "tagsHelp": "Gib Tags ein und klicke auf Vorschläge zum Hinzufügen. Ausgewählte Tags sind blau, neue Tags haben einen gestrichelten Rahmen.",
+    "tagsHelp": "Gib Tags ein und klicke auf Vorschläge zum Hinzufügen. Tags am Rezept sind ausgefüllt, neue Tags haben einen gestrichelten Rahmen.",
     "tagsAndCategories": "Tags & Kategorien",
     "categoriesHelp": "Wähle Mahlzeitkategorien für dieses Rezept.",
     "category": {
@@ -156,6 +197,16 @@
     "fat": "Fett (g)",
     "carbs": "Kohlenhydrate (g)",
     "protein": "Protein (g)",
+    "provenance": "Herkunft",
+    "provenanceHelp": "Woher dieses Rezept stammt.",
+    "originCountry": "Land",
+    "originCountryPlaceholder": "Kein Land",
+    "originRegion": "Region",
+    "originRegionPlaceholder": "z. B. Sizilien",
+    "cuisines": "Küchen",
+    "cuisinesHelp": "Wähle aus der Liste deiner Installation. Bei einem Fusionsgericht sind mehrere sinnvoll.",
+    "provenanceNote": "Notiz",
+    "provenanceNotePlaceholder": "Ein paar Sätze dazu, woher dieses Gericht stammt …",
     "servings": "Portionen",
     "cookingTimes": "Garzeiten",
     "optional": "(optional)",
@@ -168,7 +219,8 @@
     "uploading": "Wird hochgeladen...",
     "clickToUpload": "Zum Hochladen klicken oder Drag & Drop",
     "pasteToUpload": "zum Einfügen",
-    "imageFormats": "PNG, JPG, WEBP bis zu 5MB"
+    "imageFormats": "PNG, JPG, WEBP bis zu 5MB",
+    "discardChangesConfirm": "Du hast ungespeicherte Änderungen. Verwerfen und diese Seite verlassen?"
   },
   "gallery": {
     "addImage": "Bild hinzufügen",
@@ -220,6 +272,23 @@
     "stepPlaceholder": "Schritt {number}: Beschreibe den Schritt...",
     "stepPlaceholderShort": "Schritt {number}"
   },
+  "stepIngredients": {
+    "rowLabel": "Verknüpfte Zutaten",
+    "addLabel": "Zutat verknüpfen",
+    "pickerLabel": "Verknüpfe eine Zutat mit diesem Schritt",
+    "shareLabel": "Anteil von {name} ändern",
+    "share": {
+      "full": "Ganze Zeile",
+      "half": "Die Hälfte",
+      "third": "Ein Drittel",
+      "quarter": "Ein Viertel",
+      "custom": "Benutzerdefiniert…",
+      "amount": "Menge…"
+    },
+    "customShareLabel": "Benutzerdefinierter Anteil",
+    "customAmountLabel": "Menge",
+    "removeLabel": "{name} entfernen"
+  },
   "ingredientInput": {
     "placeholder": "z.B. 2 Tassen Mehl"
   },
@@ -231,12 +300,6 @@
     "ariaLabel": "Bildschirm aktiv halten"
   },
   "toasts": {
-    "processingBoth": "Tags & Allergene werden verarbeitet",
-    "processingTags": "Tags werden generiert",
-    "processingAllergies": "Allergene werden erkannt",
-    "bothComplete": "Tags & Allergene aktualisiert",
-    "tagsComplete": "Tags generiert",
-    "allergiesComplete": "Allergene erkannt",
     "imported": "Rezept importiert",
     "converted": "Maße umgerechnet",
     "convertedDescription": "Rezept in {system}-Einheiten umgerechnet",
@@ -254,7 +317,6 @@
       "duplicateTag": "Dieser Tag existiert bereits"
     }
   },
-
   "cookMode": {
     "steps": "Schritte",
     "ingredients": "Zutaten",
@@ -263,6 +325,83 @@
     "stepCounter": "{current} / {total}",
     "swipeSteps": "Wische, um durch die Schritte zu navigieren",
     "swipeIngredients": "Nach links wischen für Zutaten",
-    "swipeBackToSteps": "Nach rechts wischen für Schritte"
+    "swipeBackToSteps": "Nach rechts wischen für Schritte",
+    "readyAt": "Fertig gegen {time}",
+    "timers": "Timer",
+    "nextStep": "Nächster Schritt"
+  },
+  "enrichment": {
+    "failed": "Anreicherung fehlgeschlagen",
+    "states": {
+      "queued": "In Warteschlange",
+      "processing": "In Bearbeitung",
+      "succeeded": "Abgeschlossen",
+      "failed": "Letzter Versuch fehlgeschlagen"
+    },
+    "kinds": {
+      "auto-tagging": "Automatische Tags",
+      "allergy-detection": "Allergieerkennung",
+      "auto-categorization": "Automatische Kategorisierung",
+      "nutrition-estimation": "Nährwertschätzung",
+      "recipe-provenance": "Rezept-Herkunft",
+      "ingredient-linking": "Zutatenverknüpfung",
+      "image-generation": "Bildgenerierung"
+    }
+  },
+  "provenance": {
+    "title": "Herkunft",
+    "region": "Region",
+    "cuisines": "Küchen",
+    "inferring": "Die Herkunft dieses Rezepts wird ermittelt …",
+    "noInfo": "Noch keine Herkunftsangaben",
+    "inferWithAI": "Mit KI ermitteln"
+  },
+  "import": {
+    "alreadyExists": "Du hast dieses Rezept bereits",
+    "openExisting": "Öffnen"
+  },
+  "glanceBar": {
+    "totalTime": "Gesamtzeit",
+    "servings": "{count, plural, one {Portion} other {Portionen}}"
+  },
+  "cookingTime": {
+    "title": "Zubereitungszeit",
+    "prep": "Vorbereitung",
+    "cook": "Kochen",
+    "other": "Sonstige Zeit",
+    "total": "Gesamt"
+  },
+  "cookbooks": {
+    "addCookbook": "Kochbuch hinzufügen",
+    "createTitle": "Neues Kochbuch",
+    "editTitle": "Kochbuch bearbeiten",
+    "titleLabel": "Titel",
+    "titlePlaceholder": "z. B. Wochentagsessen",
+    "options": "Kochbuch-Optionen",
+    "deleteTitle": "Kochbuch löschen",
+    "deleteConfirm": "Möchtest du \"{title}\" wirklich löschen?",
+    "deleteKeepsRecipes": "Die enthaltenen Rezepte bleiben in deiner Bibliothek.",
+    "recipeCount": "{count, plural, one {# Rezept} other {# Rezepte}}",
+    "empty": "Noch keine Rezepte",
+    "singular": "Kochbuch",
+    "notFound": "Kochbuch nicht gefunden",
+    "notFoundHint": "Es wurde möglicherweise gelöscht oder ist für dich nicht sichtbar.",
+    "emptyHint": "Füge Rezepte über das Aktionsmenü eines Rezepts hinzu.",
+    "panelTitle": "Zu Kochbuch hinzufügen",
+    "newWithRecipe": "Neues Kochbuch mit diesem Rezept",
+    "noneEditable": "Es gibt keine Kochbücher, die du bearbeiten kannst.",
+    "cardTitle": "In Kochbüchern",
+    "removeFromCookbook": "Aus Kochbuch entfernen",
+    "noMatchingMembers": "In diesem Kochbuch gibt es keine Rezepte, die zu deinen Filtern passen.",
+    "membersLabel": "Rezepte in diesem Kochbuch",
+    "showMore": "Mehr anzeigen",
+    "willBeCreated": "Wird beim Speichern erstellt",
+    "manage": "Verwalten",
+    "addRecipes": "Rezepte hinzufügen",
+    "addRecipesTitle": "Rezepte zu {title} hinzufügen",
+    "searchRecipes": "Rezepte suchen",
+    "noRecipesToAdd": "Keine Rezepte gefunden.",
+    "addCount": "{count, plural, one {# Rezept hinzufügen} other {# Rezepte hinzufügen}}",
+    "everythingAlreadyIn": "Alle Rezepte sind bereits in diesem Kochbuch."
   }
 }

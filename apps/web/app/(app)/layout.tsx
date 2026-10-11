@@ -1,44 +1,25 @@
-import { Navbar } from "@/components/navbar/navbar";
-import { TimerDock } from "@/components/timer-dock";
-import { ArchiveImportProvider } from "@/context/archive-import-context";
-import { HouseholdProvider } from "@/context/household-context";
-import { PermissionsProvider } from "@/context/permissions-context";
-import { RecipesContextProvider } from "@/context/recipes-context";
-import { RecipesFiltersProvider } from "@/context/recipes-filters-context";
-import { UserProvider } from "@/context/user-context";
+import { cookies } from "next/headers";
+import { AppShell } from "@/app/(app)/app-shell";
+import { amountDisplayPreference } from "@/lib/amount-display";
+import { hiddenItemsPreference } from "@/lib/hidden-items";
+import { recipePageColorPreference } from "@/lib/recipe-page-color";
+import { todaysMealsVisibilityPreference } from "@/lib/todays-meals-visibility";
 
-import { APP_MAIN_HORIZONTAL_PADDING_CLASS } from "@norish/web/config/css-tokens";
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  // Device preferences every (app) route consults are read here, once,
+  // so the shell's providers seed the very first render. The offline
+  // bootstrap mounts the same shell with nothing seeded and the providers
+  // read the cookies themselves.
+  const cookieStore = await cookies();
 
-import { AuthProviders } from "../providers/auth-providers";
-
-export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AuthProviders>
-      <ArchiveImportProvider>
-        <UserProvider>
-          <HouseholdProvider>
-            <PermissionsProvider>
-              <RecipesFiltersProvider>
-                <RecipesContextProvider>
-                  <div
-                    data-app-container
-                    className="relative flex min-h-dvh flex-col overflow-x-hidden"
-                  >
-                    <Navbar />
-                    <main
-                      className={`container mx-auto flex max-w-7xl flex-1 flex-col ${APP_MAIN_HORIZONTAL_PADDING_CLASS} pb-20 md:pb-6`}
-                      style={{ paddingTop: "calc(1.5rem + env(safe-area-inset-top))" }}
-                    >
-                      {children}
-                    </main>
-                  </div>
-                  <TimerDock />
-                </RecipesContextProvider>
-              </RecipesFiltersProvider>
-            </PermissionsProvider>
-          </HouseholdProvider>
-        </UserProvider>
-      </ArchiveImportProvider>
-    </AuthProviders>
+    <AppShell
+      initialAmountDisplayMode={amountDisplayPreference.readFrom(cookieStore)}
+      initialHiddenItems={hiddenItemsPreference.readFrom(cookieStore)}
+      initialRecipePageColor={recipePageColorPreference.readFrom(cookieStore)}
+      initialTodaysMealsVisibility={todaysMealsVisibilityPreference.readFrom(cookieStore)}
+    >
+      {children}
+    </AppShell>
   );
 }

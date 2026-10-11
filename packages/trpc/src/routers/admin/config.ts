@@ -3,10 +3,10 @@ import { z } from "zod";
 import type { ServerConfigKey } from "@norish/config/zod/server-config";
 import { ServerConfigKeys } from "@norish/config/zod/server-config";
 import { getAllConfigs, getConfigSecret } from "@norish/db/repositories/server-config";
-import { getUserServerRole } from "@norish/db/repositories/users";
+import { getEffectivePrompts } from "@norish/shared-server/ai/prompts/loader";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 
-import { adminProcedure, authedProcedure } from "../../middleware";
+import { adminProcedure } from "../../middleware";
 import { router } from "../../trpc";
 
 /**
@@ -17,6 +17,12 @@ const getAllConfigsProcedure = adminProcedure.query(async ({ ctx }) => {
   log.debug({ userId: ctx.user.id }, "Getting all server configs");
 
   const configs = await getAllConfigs(false);
+
+  // The prompts row stores only administrator overrides; the admin surface
+  // shows the prompts actually in use, so merge the shipped defaults in.
+  const { values, overriddenFields } = await getEffectivePrompts();
+
+  configs[ServerConfigKeys.PROMPTS] = { ...values, isOverridden: overriddenFields.length > 0 };
 
   return configs;
 });
@@ -44,18 +50,7 @@ const getSecretField = adminProcedure
     return { value: secret };
   });
 
-/**
- * Get user's admin role.
- * Accessible by any authenticated user (used to determine if admin tab should show).
- */
-const getUserRoleProcedure = authedProcedure.query(async ({ ctx }) => {
-  const role = await getUserServerRole(ctx.user.id);
-
-  return role;
-});
-
 export const adminConfigProcedures = router({
   getAllConfigs: getAllConfigsProcedure,
   getSecretField,
-  getUserRole: getUserRoleProcedure,
 });

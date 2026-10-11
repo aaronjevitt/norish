@@ -1,7 +1,6 @@
 {
   "page": {
     "title": "Настройки",
-    "loading": "Загрузка...",
     "ariaLabel": "Вкладки настроек"
   },
   "tabs": {
@@ -62,13 +61,22 @@
     },
     "archiveImport": {
       "title": "Импорт архива рецептов",
-      "description": "Импортируйте рецепты из экспортов Mela (.melarecipes), Paprika (.paprikarecipes) или Mealie/Tandoor (.zip)"
+      "description": "Импортируйте рецепты из экспортов Norish (.norishrecipes), Mela (.melarecipes), Paprika (.paprikarecipes) или Mealie/Tandoor (.zip)"
+    },
+    "archiveExport": {
+      "title": "Экспортировать архив рецептов",
+      "description": "Скачайте все рецепты, которые вам видны.",
+      "button": "Экспортировать"
     },
     "siteAuthTokens": {
       "title": "Токены аутентификации сайтов",
       "description": "Добавляйте заголовки или cookies, которые отправляются при импорте рецептов с определённых сайтов. Полезно для сайтов, где требуется вход (например, Instagram, Facebook).",
+      "accountsDescription": "Задайте имя аккаунта, если у вас несколько входов на сайт. Тогда каждый импорт использует один из аккаунтов этого сайта, выбранный случайно, чтобы ни один вход не нёс все импорты. Токен без имени аккаунта отправляется при каждом импорте с его домена.",
       "domain": "Домен",
       "domainPlaceholder": "например, instagram.com",
+      "account": "Аккаунт",
+      "accountPlaceholder": "напр. my_handle (необязательно)",
+      "accountShared": "Все аккаунты",
       "name": "Название",
       "namePlaceholder": "например, Cookie или Authorization",
       "value": "Значение",
@@ -80,6 +88,7 @@
       "noTokens": "Токены аутентификации сайтов не настроены.",
       "tableHeaders": {
         "domain": "ДОМЕН",
+        "account": "АККАУНТ",
         "name": "НАЗВАНИЕ",
         "type": "ТИП",
         "created": "СОЗДАН",
@@ -111,21 +120,37 @@
         "title": "Язык",
         "description": "Выберите предпочитаемый язык"
       },
-      "timers": {
-        "title": "Включить таймеры рецептов",
-        "description": "Показывать интерактивные таймеры в инструкциях рецептов"
+      "hidden": {
+        "title": "Скрытые элементы",
+        "description": "Выберите, что вы предпочитаете не видеть. По умолчанию показывается всё, и это меняет только ваш собственный вид.",
+        "placeholder": "Ничего не скрыто",
+        "options": {
+          "provenance": "Происхождение",
+          "nutrition": "Пищевая ценность",
+          "notes": "Заметки",
+          "rating": "Оценки",
+          "favorites": "Избранное",
+          "conversion": "Конвертация ингредиентов",
+          "timers": "Таймеры рецептов",
+          "cookbooks": "Кулинарные книги"
+        }
       },
-      "conversion": {
-        "title": "Показать кнопку конвертации",
-        "description": "Отображать кнопку на страницах рецептов для конвертации между системами мер"
+      "todaySection": {
+        "title": "Раздел «Сегодня»",
+        "description": "Выберите, как раздел «Сегодня» на главной странице отображается на этом устройстве",
+        "options": {
+          "always": "Всегда виден",
+          "planned": "Только запланированные приёмы пищи",
+          "hidden": "Скрыт"
+        }
       },
-      "ratings": {
-        "title": "Показать оценки",
-        "description": "Отображать звёздные оценки на карточках рецептов и страницах с подробностями"
-      },
-      "favorites": {
-        "title": "Показать избранное",
-        "description": "Отображать значки избранного/сердечка на карточках рецептов и страницах с подробностями"
+      "recipePageColor": {
+        "title": "Цвет страниц рецептов",
+        "description": "Окрашивайте каждую страницу рецепта в цвета её собственного фото или сохраните цвета темы на этом устройстве",
+        "options": {
+          "dish": "Из фото блюда",
+          "theme": "Цвета темы"
+        }
       },
       "applyError": "Не удалось применить настройку"
     },
@@ -301,7 +326,8 @@
       },
       "emptyFiltered": "Элементы со статусом «{status}» не найдены",
       "emptyDefault": "Записи синхронизации не найдены",
-      "errorDetails": "Подробности ошибки"
+      "errorDetails": "Подробности ошибки",
+      "pagination": "Page {current} of {total}"
     }
   },
   "admin": {
@@ -344,7 +370,40 @@
       "saveLocales": "Сохранить языковые настройки",
       "localesSaved": "Языковые настройки сохранены",
       "localesError": "Не удалось сохранить языковые настройки",
-      "atLeastOneLocale": "Должен быть включён хотя бы один язык"
+      "atLeastOneLocale": "Должен быть включён хотя бы один язык",
+      "export": {
+        "title": "Архив рецептов",
+        "description": "Скачайте все рецепты на этом сервере.",
+        "button": "Экспортировать архив рецептов"
+      }
+    },
+    "users": {
+      "title": "Пользователи",
+      "description": "Управляйте всеми, у кого есть аккаунт на этом сервере.",
+      "table": {
+        "user": "Пользователь",
+        "role": "Роль",
+        "household": "Домохозяйство",
+        "joined": "Присоединился",
+        "actions": "Действия"
+      },
+      "roles": {
+        "owner": "Владелец",
+        "admin": "Админ"
+      },
+      "noHousehold": "Нет домохозяйства",
+      "loading": "Загрузка пользователей…",
+      "empty": "Пользователей пока нет.",
+      "loadFailed": "Не удалось загрузить список пользователей.",
+      "actions": {
+        "makeAdmin": "Сделать админом",
+        "revokeAdmin": "Убрать права админа",
+        "delete": "Удалить пользователя"
+      },
+      "deleteTitle": "Удалить {name}?",
+      "deleteConfirm": "Это навсегда удалит аккаунт пользователя и уберёт его из домохозяйства. Это действие нельзя отменить.",
+      "deleteSuccess": "{name} удалён(а)",
+      "countSummary": "{count, plural, one {# пользователь} few {# пользователя} many {# пользователей} other {# пользователя}} всего"
     },
     "registration": {
       "title": "Регистрация",
@@ -463,7 +522,7 @@
       "contentIndicators": {
         "title": "Индикаторы контента",
         "subtitle": "Ключевые слова, определяющие страницы рецептов",
-        "description": "Schema-индикаторы обнаруживают структурированные данные рецепта (JSON-LD, microdata). Индикаторы контента — это ключевые слова, которые предполагают, что страница содержит рецепт.",
+        "description": "Schema-индикаторы обнаруживают структурированные данные рецепта (JSON-LD, microdata). Индикаторы контента, это ключевые слова, которые предполагают, что страница содержит рецепт.",
         "timersEnabled": {
           "title": "Включить таймеры рецептов",
           "description": "Определять и показывать интерактивные таймеры в рецептах"
@@ -507,18 +566,39 @@
         "title": "Обработка видео",
         "subtitle": "Извлечение видео из соцсетей и транскрибация"
       },
+      "imageGeneration": {
+        "title": "Генерация изображений",
+        "subtitle": "Нарисовать фото блюда для рецептов без изображения"
+      },
+      "decisionModel": {
+        "title": "Модель решений",
+        "subtitle": "Быстрые и дешёвые ответы на закрытые вопросы"
+      },
       "prompts": {
         "title": "Промпты",
         "subtitle": "Настройка инструкций ИИ для обработки рецептов"
       },
-      "bulkCategorization": {
-        "title": "Массовая категоризация",
-        "subtitle": "Категоризировать рецепты без категории с помощью ИИ",
-        "description": "Поставить в очередь все рецепты без категории для определения категории с помощью ИИ. Категории включают Завтрак, Обед, Ужин и Перекус.",
-        "button": "Категоризировать все рецепты",
-        "queued": "{count, plural, =0 {Нет рецептов для категоризации} one {В очередь добавлен # рецепт} few {В очередь добавлено # рецепта} many {В очередь добавлено # рецептов} other {В очередь добавлено # рецепта}}",
-        "success": "Категоризация запущена",
-        "error": "Не удалось запустить категоризацию"
+      "cuisines": {
+        "title": "Кухни",
+        "subtitle": "Словарь, из которого выбирают рецепты и ИИ"
+      },
+      "bulkEnrichment": {
+        "title": "Массовое обогащение",
+        "subtitle": "Запустить включённое обогащение для всех рецептов",
+        "description": "Поставьте в очередь для всех рецептов на этом сервере каждый вид обогащения, у которого включён автоматический переключатель. По умолчанию заполняются только пробелы; в подтверждении можно выбрать перезапись уже имеющихся данных.",
+        "button": "Обогатить все рецепты",
+        "confirmTitle": "Запустить обогащение для всех рецептов?",
+        "confirmMessage": "Это поставит в очередь работу ИИ для каждого рецепта на этом сервере. Каждый вид обогащения с включённым автоматическим переключателем выполняется там, где не хватает данных.",
+        "replaceExisting": "Перезаписать существующие данные",
+        "replaceExistingDescription": "Заново определить категории, пищевую ценность, происхождение и ингредиенты шагов, даже если они у рецепта уже есть. Теги и указания об аллергенах только добавляются.",
+        "replaceWarning": "Это действие необратимо. Данные, введённые вами вручную, тоже будут заменены, включая ингредиенты шагов, связанные вручную: нигде не записано, какие значения получены от ИИ.",
+        "costWarning": "Это может быть дорогая операция: при большом количестве рецептов она может занять много времени, а у платного провайдера ИИ, израсходовать значительное количество кредитов.",
+        "confirmButton": "Запустить для всех рецептов",
+        "confirmButtonReplace": "Перезаписать все рецепты",
+        "queued": "{queued, plural, =0 {Нет запусков в очереди} one {# запуск в очереди} few {# запуска в очереди} many {# запусков в очереди} other {# запуска в очереди}} для {recipes, plural, one {# рецепта} few {# рецептов} many {# рецептов} other {# рецепта}}",
+        "aiDisabled": "ИИ отключён на этом сервере. Сначала включите ИИ.",
+        "error": "Не удалось запустить массовое обогащение",
+        "imageCount": "{count, plural, =0 {Изображения генерироваться не будут.} one {Будет сгенерировано # изображение.} few {Будет сгенерировано # изображения.} many {Будет сгенерировано # изображений.} other {Будет сгенерировано # изображения.}}"
       }
     },
     "aiConfig": {
@@ -551,25 +631,52 @@
       "temperatureHint": "Ниже = более точные ответы, выше = более творческие",
       "maxTokens": "Макс. токенов",
       "requestTimeout": "Время ожидания запроса (мс)",
-      "autoTagAllergies": "Автоматически добавлять теги аллергии",
-      "autoTagAllergiesDescription": "Автоматически добавлять теги, связанные с аллергией, при импорте рецептов",
       "alwaysUseAI": "Всегда использовать импорт с ИИ",
       "alwaysUseAIDescription": "Пропускать структурированные парсеры и извлекать рецепт только с помощью ИИ",
-      "autoTaggingMode": "Режим автотегирования",
-      "autoTaggingModeDescription": "Автоматически назначать теги/ключевые слова импортированным рецептам с помощью ИИ",
-      "autoTaggingModes": {
-        "disabled": "Отключено",
+      "connectionSuccess": "Подключение успешно",
+      "testConnection": "Проверить подключение",
+      "vision": "vision",
+      "automaticEnrichment": "Автоматическое обогащение рецептов",
+      "automaticEnrichmentDescription": "Выберите, какое обогащение ИИ выполняется автоматически для новых рецептов. Участники по-прежнему могут запускать каждое вручную, пока ИИ включён.",
+      "automaticEnrichmentPlaceholder": "Ничего не выполняется автоматически",
+      "automaticEnrichmentKinds": {
+        "autoTagging": "Автоматические теги",
+        "autoTaggingDescription": "Добавляет предложенные ИИ теги к новым рецептам, не удаляя существующие",
+        "allergyDetection": "Определение аллергенов",
+        "allergyDetectionDescription": "Автоматически добавлять теги, связанные с аллергией, при импорте рецептов",
+        "autoCategorization": "Автоматическая категоризация",
+        "autoCategorizationDescription": "Задаёт категории приёма пищи для новых рецептов, у которых их нет",
+        "nutritionEstimation": "Оценка пищевой ценности",
+        "nutritionEstimationDescription": "Оценивает калории, жиры, углеводы и белки для новых рецептов без указанных значений",
+        "recipeProvenance": "Происхождение рецепта",
+        "recipeProvenanceDescription": "Определять страну, регион, кухни и короткую заметку для новых рецептов, заполняются только недостающие поля, указанное вами сохраняется",
+        "ingredientLinking": "Связывание ингредиентов",
+        "ingredientLinkingDescription": "Связывает каждый шаг с используемыми строками ингредиентов, только для шагов без связей",
+        "imageGeneration": "Генерация изображений",
+        "imageGenerationDescription": "Нарисовать фото блюда для новых рецептов, у которых нет ни одного изображения"
+      },
+      "tagStrategy": "Стратегия тегов",
+      "tagStrategyDescription": "Какие теги может использовать автоматическое тегирование, как автоматически, так и вручную",
+      "tagStrategies": {
         "predefined": "Только предустановленные теги",
         "predefinedDb": "Предустановленные + существующие теги",
         "freeform": "ИИ может создавать новые теги"
       },
-      "connectionSuccess": "Подключение успешно",
-      "testConnection": "Проверить подключение",
-      "vision": "vision"
+      "cuisineStrategy": "Стратегия кухонь",
+      "cuisineStrategyDescription": "Может ли определение происхождения добавлять кухни в ваш словарь или только выбирать из него",
+      "cuisineStrategies": {
+        "existing": "Только существующие кухни",
+        "extend": "ИИ может добавлять новые кухни"
+      }
+    },
+    "modelListing": {
+      "empty": "Модели не вернулись. Проверьте ключ API или адрес, либо введите название модели.",
+      "refused": "{provider} отклонил запрос ({status}). Проверьте ключ API.",
+      "unreachable": "Не удалось связаться с {provider}. Проверьте адрес."
     },
     "videoConfig": {
       "enableVideo": "Включить парсинг видео",
-      "enableVideoDescription": "Извлекать рецепты из TikTok, Instagram, YouTube Shorts или Facebook",
+      "enableVideoDescription": "Извлекать рецепты из TikTok, Instagram, YouTube Shorts, Facebook, Pinterest и других",
       "configureWarning": "Настройте провайдера транскрибации ниже, чтобы включить обработку видео.",
       "aiDisabledWarning": "Перед включением обработки видео включите настройки ИИ.",
       "maxLength": "Макс. длина видео (секунды)",
@@ -577,7 +684,10 @@
       "maxFileSize": "Макс. размер видеофайла",
       "maxFileSizeDescription": "Максимальный размер загружаемых видеофайлов",
       "ytDlpVersion": "Версия yt-dlp",
-      "ytDlpVersionDescription": "Версия yt-dlp для загрузки видео",
+      "ytDlpVersionDescription": "Версия yt-dlp, работающая на этом сервере. Здесь не изменяется.",
+      "ytDlpVersionMissing": "Двоичный файл yt-dlp не найден",
+      "ytDlpVersionUnknown": "Не удалось проверить",
+      "ytDlpVersionLoading": "Проверка …",
       "ytDlpProxy": "yt-dlp Proxy",
       "ytDlpProxyDescription": "HTTP/SOCKS5-прокси для yt-dlp",
       "transcription": "Транскрибация",
@@ -604,10 +714,65 @@
       "transcriptionApiKeyOptionalDescription": "Большинство локальных Whisper-серверов не требуют API-ключ",
       "transcriptionApiKeyOptionalPlaceholder": "Оставьте пустым для локальных серверов"
     },
+    "imageGenerationConfig": {
+      "description": "Генерация изображений использует собственного провайдера, потому что большинство ИИ-провайдеров не умеют рисовать. Изображения создаются этим провайдером; провайдер ИИ выше отвечает за всё остальное.",
+      "provider": "Провайдер изображений",
+      "providers": {
+        "disabled": "Отключено",
+        "openai": "OpenAI",
+        "google": "Google AI",
+        "azure": "Azure OpenAI",
+        "ollama": "Ollama (локально)",
+        "lmStudio": "LM Studio",
+        "genericOpenai": "Универсальный OpenAI-совместимый"
+      },
+      "endpoint": "URL эндпоинта",
+      "endpointOptional": "Необязательно: собственный URL ресурса Azure",
+      "apiKey": "API-ключ",
+      "apiKeyPlaceholder": "Введите API-ключ...",
+      "apiKeyInherited": "Используется API-ключ из конфигурации ИИ.",
+      "model": "Модель изображений",
+      "modelPlaceholder": "напр. gpt-image-1",
+      "modelDescription": "Модель, которая рисует изображение. Это должна быть модель изображений, а не текстовая.",
+      "fallbackHint": "Тот же провайдер, что и в конфигурации ИИ: эндпоинт и API-ключ берутся из неё, если вы не зададите их здесь."
+    },
+    "decisionConfig": {
+      "provider": "Провайдер решений",
+      "providers": {
+        "disabled": "Отключено",
+        "typesafe": "TypeSafe AI"
+      },
+      "apiKey": "API-ключ",
+      "apiKeyPlaceholder": "Введите API-ключ...",
+      "apiKeyDescription": "Получите ключ в своём аккаунте на typesafe.ai",
+      "model": "Модель решений",
+      "uses": "Использовать модель решений для",
+      "usesPlaceholder": "Ничего",
+      "useNames": {
+        "autoCategorization": "Автоматическая категоризация",
+        "autoCategorizationDescription": "Решить, является ли рецепт завтраком, обедом, ужином или перекусом",
+        "autoTagging": "Автоматические теги",
+        "autoTaggingDescription": "Выбрать теги из заданного списка и подтвердить каждый тег, предложенный ИИ",
+        "allergyDetection": "Определение аллергенов",
+        "allergyDetectionDescription": "Решить, какие аллергены домохозяйства содержит рецепт",
+        "recipeProvenance": "Происхождение рецепта",
+        "recipeProvenanceDescription": "Определить страну и Кухни до того, как будет написана заметка",
+        "groceryLinking": "Привязка покупок",
+        "groceryLinkingDescription": "Упорядочить предложенные магазином товары и привязать тот, в котором она уверена",
+        "validateEnrichments": "Проверка обогащений",
+        "validateEnrichmentsDescription": "Проверять собственные утверждения каждого обогащения перед записью"
+      },
+      "testConnection": "Проверить подключение",
+      "connectionSuccess": "Подключение успешно",
+      "aiDisabledHint": "AI отключён на этом сервере. Включите его в конфигурации AI, чтобы проверять и использовать модель решений."
+    },
     "promptsConfig": {
       "recipeExtraction": "Промпт извлечения рецепта",
       "recipeExtractionDescription": "Этот промпт используется при извлечении данных рецепта с веб-страниц или из транскриптов видео.",
       "recipeExtractionPlaceholder": "Введите промпт извлечения рецепта...",
+      "imageExtraction": "Промпт извлечения из изображений",
+      "imageExtractionDescription": "Этот промпт используется при извлечении данных рецепта из загруженных изображений, например фотографий кулинарной книги или карточки рецепта.",
+      "imageExtractionPlaceholder": "Введите промпт извлечения из изображений...",
       "unitConversion": "Промпт конвертации единиц",
       "unitConversionDescription": "Этот промпт используется при конвертации мер между метрической и US системами. Доступные переменные: sourceSystem, targetSystem, units",
       "unitConversionPlaceholder": "Введите промпт конвертации единиц...",
@@ -616,7 +781,25 @@
       "nutritionEstimationPlaceholder": "Введите промпт оценки пищевой ценности...",
       "autoTagging": "Промпт автотегирования",
       "autoTaggingDescription": "Этот промпт используется для генерации тегов для импортируемых рецептов. Задайте правила тегирования и список предустановленных тегов.",
-      "autoTaggingPlaceholder": "Введите промпт автотегирования..."
+      "autoTaggingPlaceholder": "Введите промпт автотегирования...",
+      "autoCategorization": "Промпт автокатегоризации",
+      "autoCategorizationDescription": "Этот промпт используется для распределения рецептов по категориям приёмов пищи (завтрак, обед, ужин, перекус).",
+      "autoCategorizationPlaceholder": "Введите промпт автокатегоризации...",
+      "allergyDetection": "Промпт обнаружения аллергенов",
+      "allergyDetectionDescription": "Этот промпт используется для обнаружения настроенных аллергенов домохозяйства в ингредиентах рецепта.",
+      "allergyDetectionPlaceholder": "Введите промпт обнаружения аллергенов...",
+      "recipeProvenance": "Промпт происхождения рецепта",
+      "recipeProvenanceDescription": "Этот промпт определяет происхождение рецепта. Полученная заметка пишется на языке самого рецепта. Доступные переменные: recipeName, description, ingredients",
+      "recipeProvenancePlaceholder": "Введите промпт происхождения рецепта...",
+      "ingredientLinking": "Промпт связывания ингредиентов",
+      "ingredientLinkingDescription": "Используется при связывании каждого шага со строками ингредиентов",
+      "ingredientLinkingPlaceholder": "Промпт для связывания ингредиентов с шагами...",
+      "imageGenerationBrief": "Промпт визуального описания",
+      "imageGenerationBriefDescription": "Превращает рецепт в короткое визуальное описание перед генерацией изображения. Рецепт добавляется после промпта.",
+      "imageGenerationBriefPlaceholder": "Промпт для визуального описания...",
+      "imageGenerationStyle": "Промпт стиля изображения",
+      "imageGenerationStyleDescription": "Отправляется модели изображений вместе с визуальным описанием. Задаёт вид, общий для всех сгенерированных изображений.",
+      "imageGenerationStylePlaceholder": "Промпт для стиля изображения..."
     },
     "unsavedChanges": "Несохранённые изменения",
     "jsonEditor": {
@@ -624,6 +807,140 @@
       "invalidJson": "Некорректный формат JSON",
       "failedToSave": "Не удалось сохранить",
       "failedToRestore": "Не удалось восстановить значения по умолчанию"
+    },
+    "jobQueue": {
+      "title": "Job Queues",
+      "description": "Monitor background jobs across all queues: status, current step, duration, and failures.",
+      "empty": "No jobs found",
+      "filters": {
+        "queue": "Queue",
+        "allQueues": "All queues"
+      },
+      "status": {
+        "waiting": "Waiting",
+        "active": "Active",
+        "delayed": "Delayed",
+        "completed": "Completed",
+        "failed": "Failed",
+        "paused": "Paused",
+        "prioritized": "Prioritized",
+        "unknown": "Unknown",
+        "hanging": "Hanging"
+      },
+      "stepStatus": {
+        "done": "Done",
+        "failed": "Failed",
+        "running": "Running",
+        "skipped": "Skipped",
+        "pending": "Pending"
+      },
+      "steps": {
+        "dedupe-check": "Check existing",
+        "fetch-allergies": "Fetch allergies",
+        "parsing": "Parse recipe",
+        "saving": "Save recipe",
+        "post-processing": "Post processing",
+        "preparing-images": "Prepare images",
+        "ai-extraction": "AI extraction",
+        "parsing-text": "Parse pasted text",
+        "creating-recipes": "Create recipes",
+        "ai-request": "AI request",
+        "syncing-event": "Sync calendar event",
+        "deleting-event": "Delete calendar event",
+        "running": "Run task",
+        "searching": "Search the shop",
+        "reading-product": "Read the product page",
+        "saving-link": "Save the link"
+      },
+      "queues": {
+        "recipe-import": "Recipe import",
+        "image-recipe-import": "Image import",
+        "paste-recipe-import": "Paste import",
+        "nutrition-estimation": "Nutrition estimation",
+        "auto-tagging": "Auto-tagging",
+        "auto-categorization": "Auto-categorization",
+        "allergy-detection": "Allergy detection",
+        "recipe-provenance": "Происхождение рецепта",
+        "ingredient-linking": "Связывание ингредиентов",
+        "caldav-sync": "CalDAV sync",
+        "scheduled-tasks": "Scheduled tasks",
+        "image-generation": "Генерация изображений",
+        "store-lookup": "Поиск в магазине"
+      },
+      "summary": {
+        "failed": "{count} failed"
+      },
+      "table": {
+        "job": "Job",
+        "status": "Status",
+        "step": "Step",
+        "duration": "Duration",
+        "created": "Created",
+        "runsAt": "Runs {time}"
+      },
+      "detail": {
+        "title": "Job Details",
+        "notFound": "Job not found. It may have been cleaned up.",
+        "sections": {
+          "error": "Error",
+          "pipelineSteps": "Pipeline Steps",
+          "input": "Input",
+          "logs": "Logs",
+          "errors": "Errors"
+        },
+        "fields": {
+          "queue": "Queue",
+          "jobId": "Job ID",
+          "description": "Description",
+          "recipe": "Recipe",
+          "created": "Created",
+          "started": "Started",
+          "finished": "Finished",
+          "duration": "Duration",
+          "attempts": "Attempts",
+          "models": "Модели",
+          "runsAt": "Runs at",
+          "nextRun": "Next run"
+        },
+        "attempt": "Attempt {number}",
+        "stackTrace": "Stack trace"
+      },
+      "actions": {
+        "retry": "Retry",
+        "remove": "Remove"
+      },
+      "removeModal": {
+        "message": "Permanently remove this job?",
+        "confirm": "Remove job"
+      },
+      "retention": {
+        "title": "Job Retention",
+        "keepCompleted": "Keep completed jobs",
+        "keepFailed": "Keep failed jobs",
+        "maxAgeDays": "Max age (days)",
+        "description": "How many finished jobs to keep per queue for monitoring. Changes require a server restart."
+      },
+      "pagination": "Page {current} of {total}"
+    },
+    "cuisineVocabulary": {
+      "description": "Кухни, это выверенный словарь, которым владеете вы. Названия показываются ровно так, как записаны здесь, на всех языках.",
+      "namePlaceholder": "Название кухни",
+      "addLabel": "Добавить кухню",
+      "renameLabel": "Переименовать {name}",
+      "deleteLabel": "Удалить {name}",
+      "deleteConfirm": "Удалить «{name}»? Рецепты, использующие её, её потеряют.",
+      "empty": "Кухонь пока нет.",
+      "duplicate": "Кухня с таким названием уже существует.",
+      "saveFailed": "Не удалось сохранить эту кухню."
+    }
+  },
+  "archiveExport": {
+    "progress": "Экспорт… {size}",
+    "errors": {
+      "failedTitle": "Не удалось выполнить экспорт",
+      "failedDescription": "Не удалось скачать архив рецептов. Попробуйте снова.",
+      "signedOut": "Ваш сеанс истёк. Войдите снова, чтобы экспортировать.",
+      "notAllowed": "У вас нет прав на экспорт этого."
     }
   }
 }

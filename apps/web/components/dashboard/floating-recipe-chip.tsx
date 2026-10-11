@@ -8,43 +8,68 @@ import { Button } from "@heroui/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
 
+/**
+ * The floating Library pill: how much is on screen, and a shortcut to the
+ * Filters panel.
+ *
+ * The count is the Library's, which holds both kinds — so it counts items
+ * rather than recipes (ADR-0026).
+ */
 export default function FloatingRecipeChip() {
   const { total, isLoading } = useRecipesContext();
   const [isOpen, setIsOpen] = useState(false);
   const isVisibleByCount = !isLoading && total > 0;
   const t = useTranslations("recipes.dashboard");
-
   const { isVisible } = useAutoHide();
-
   if (!isVisibleByCount) return null;
-
   return (
-    <AnimatePresence>
-      {isVisible && (
-        <motion.div
-          key="chip"
-          animate={{ opacity: 1, y: 0 }}
-          className="pointer-events-none fixed inset-x-0 bottom-8 z-50 hidden justify-center md:flex"
-          exit={{ opacity: 0, y: 24 }}
-          initial={{ opacity: 0, y: 24 }}
-          transition={{ duration: 0.25 }}
-        >
-          <div className="pointer-events-auto">
+    <>
+      <AnimatePresence>
+        {isVisible && (
+          <motion.div
+            key="chip"
+            animate={{
+              opacity: 1,
+              y: 0,
+            }}
+            className="pointer-events-none fixed inset-x-0 bottom-8 z-50 hidden justify-center md:flex"
+            exit={{
+              opacity: 0,
+              y: 24,
+            }}
+            initial={{
+              opacity: 0,
+              y: 24,
+            }}
+            transition={{
+              duration: 0.25,
+            }}
+          >
             <div className="pointer-events-auto">
               <Button
-                className="h-8 rounded-full border border-white/20 bg-black/50 px-4 py-0 text-white shadow backdrop-blur transition-colors hover:bg-black/80 data-[hover=true]:bg-black/80"
-                radius="full"
+                className="bg-chrome text-chrome-foreground border-chrome-border hover:bg-chrome-hover data-[hovered=true]:bg-chrome-hover h-8 min-w-16 rounded-full border px-4 py-0 shadow-md transition-colors"
                 size="sm"
-                variant="flat"
                 onPress={() => setIsOpen(true)}
+                variant="tertiary"
               >
-                <span className="text-sm">{t("recipeCount", { count: total })}</span>
+                <span className="text-sm">
+                  {t("libraryCount", {
+                    count: total,
+                  })}
+                </span>
               </Button>
-              <FiltersPanel open={isOpen} onOpenChange={setIsOpen} />
             </div>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/*
+       * Deliberately outside the auto-hide. The panel subscribes to queries, and
+       * the pill unmounts every time you scroll down and mounts again when you
+       * scroll back up — which refetched the panel's whole query set on each
+       * reveal. The panel's own visibility is `open`, not the pill's.
+       */}
+      <FiltersPanel open={isOpen} onOpenChange={setIsOpen} />
+    </>
   );
 }

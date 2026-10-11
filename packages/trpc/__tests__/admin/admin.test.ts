@@ -4,16 +4,16 @@ import superjson from "superjson";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-// Import mocks for assertions
-import { getRecipePermissionPolicy } from "@norish/config/server-config-loader";
 import {
   AIConfigSchema,
   RecipePermissionPolicySchema,
   ServerConfigKeys,
 } from "@norish/config/zod/server-config";
+// Import mocks for assertions
+import { getRecipePermissionPolicy } from "@norish/shared-server/config/server-config-loader";
 
 import { testAIEndpoint } from "../mocks/connection-tests";
-import { permissionsEmitter } from "../mocks/permissions-emitter";
+import { permissions } from "../mocks/realtime/permissions";
 import {
   configExists,
   deleteConfig,
@@ -22,7 +22,7 @@ import {
   getConfigSecret,
   setConfig,
 } from "../mocks/server-config";
-import { getUserServerRole, isUserServerAdmin } from "../mocks/users";
+import { isUserServerAdmin } from "../mocks/users";
 import {
   createMockAdminContext,
   createMockAdminUser,
@@ -34,8 +34,11 @@ import {
 vi.mock("@norish/db/repositories/server-config", () => import("../mocks/server-config"));
 vi.mock("@norish/db/repositories/users", () => import("../mocks/users"));
 vi.mock("@norish/auth/connection-tests", () => import("../mocks/connection-tests"));
-vi.mock("@norish/trpc/routers/permissions/emitter", () => import("../mocks/permissions-emitter"));
-vi.mock("@norish/config/server-config-loader", () => ({
+vi.mock(
+  "@norish/shared-server/realtime/permissions",
+  () => import("../mocks/realtime/permissions")
+);
+vi.mock("@norish/shared-server/config/server-config-loader", () => ({
   getRecipePermissionPolicy: vi.fn().mockResolvedValue({
     view: "everyone",
     edit: "household",
@@ -67,7 +70,6 @@ const adminMiddleware = t.middleware(async ({ ctx, next }) => {
 });
 
 const adminProcedure = t.procedure.use(adminMiddleware);
-const authedProcedure = t.procedure;
 
 describe("admin procedures", () => {
   const mockUser = createMockUser();
@@ -119,27 +121,6 @@ describe("admin procedures", () => {
     });
   });
 
-  describe("getUserRole", () => {
-    it("returns user role for any authenticated user", async () => {
-      const ctx = createMockAuthedContext(mockUser);
-      const mockRole = { isOwner: false, isAdmin: false };
-
-      getUserServerRole.mockResolvedValue(mockRole);
-
-      const testRouter = t.router({
-        getUserRole: authedProcedure.query(async () => {
-          return getUserServerRole(ctx.user.id);
-        }),
-      });
-
-      const caller = t.createCallerFactory(testRouter)(ctx);
-      const result = await caller.getUserRole();
-
-      expect(result).toEqual(mockRole);
-      expect(getUserServerRole).toHaveBeenCalledWith(mockUser.id);
-    });
-  });
-
   describe("updateRegistration", () => {
     it("updates registration setting for admin users", async () => {
       const ctx = createMockAdminContext(mockAdmin);
@@ -177,9 +158,18 @@ describe("admin procedures", () => {
         temperature: 0.7,
         maxTokens: 4096,
         timeoutMs: 300000,
-        autoTagAllergies: true,
         alwaysUseAI: false,
-        autoTaggingMode: "disabled" as const,
+        tagStrategy: "predefined" as const,
+        cuisineStrategy: "existing" as const,
+        automaticEnrichment: {
+          autoTagging: false,
+          allergyDetection: true,
+          autoCategorization: false,
+          nutritionEstimation: false,
+          recipeProvenance: false,
+          ingredientLinking: false,
+          imageGeneration: false,
+        },
       };
 
       // Current config has enabled: false
@@ -197,7 +187,7 @@ describe("admin procedures", () => {
             // Broadcast policyUpdated so all users get updated isAIEnabled
             const recipePolicy = await getRecipePermissionPolicy();
 
-            permissionsEmitter.broadcast("policyUpdated", { recipePolicy });
+            void permissions.publish("policyUpdated", { recipePolicy }, undefined);
           }
 
           return { success: true };
@@ -214,9 +204,13 @@ describe("admin procedures", () => {
         mockAdmin.id,
         true
       );
-      expect(permissionsEmitter.broadcast).toHaveBeenCalledWith("policyUpdated", {
-        recipePolicy: { view: "everyone", edit: "household", delete: "household" },
-      });
+      expect(permissions.publish).toHaveBeenCalledWith(
+        "policyUpdated",
+        {
+          recipePolicy: { view: "everyone", edit: "household", delete: "household" },
+        },
+        undefined
+      );
     });
 
     it("does not broadcast when enabled state unchanged", async () => {
@@ -228,9 +222,16 @@ describe("admin procedures", () => {
         temperature: 0.7,
         maxTokens: 4096,
         timeoutMs: 300000,
-        autoTagAllergies: true,
         alwaysUseAI: false,
-        autoTaggingMode: "disabled" as const,
+        tagStrategy: "predefined" as const,
+        cuisineStrategy: "existing" as const,
+        automaticEnrichment: {
+          autoTagging: false,
+          allergyDetection: true,
+          autoCategorization: false,
+          nutritionEstimation: false,
+          recipeProvenance: false,
+        },
       };
 
       // Current config also has enabled: false
@@ -247,7 +248,7 @@ describe("admin procedures", () => {
           if (enabledChanged) {
             const recipePolicy = await getRecipePermissionPolicy();
 
-            permissionsEmitter.broadcast("policyUpdated", { recipePolicy });
+            void permissions.publish("policyUpdated", { recipePolicy }, undefined);
           }
 
           return { success: true };
@@ -258,9 +259,9 @@ describe("admin procedures", () => {
 
       await caller.updateAIConfig(newConfig);
 
-      // permissionsEmitter.broadcast may have been called by other tests, so we check
+      // permissions.publish may have been called by other tests, so we check
       // that it wasn't called with policyUpdated in this test specifically
-      expect(permissionsEmitter.broadcast).not.toHaveBeenCalled();
+      expect(permissions.publish).not.toHaveBeenCalled();
     });
   });
 
@@ -280,7 +281,7 @@ describe("admin procedures", () => {
           .input(RecipePermissionPolicySchema)
           .mutation(async ({ input }) => {
             await setConfig(ServerConfigKeys.RECIPE_PERMISSION_POLICY, input, ctx.user.id, false);
-            permissionsEmitter.broadcast("policyUpdated", { recipePolicy: input });
+            void permissions.publish("policyUpdated", { recipePolicy: input }, undefined);
 
             return { success: true };
           }),
@@ -296,9 +297,13 @@ describe("admin procedures", () => {
         mockAdmin.id,
         false
       );
-      expect(permissionsEmitter.broadcast).toHaveBeenCalledWith("policyUpdated", {
-        recipePolicy: newPolicy,
-      });
+      expect(permissions.publish).toHaveBeenCalledWith(
+        "policyUpdated",
+        {
+          recipePolicy: newPolicy,
+        },
+        undefined
+      );
     });
   });
 

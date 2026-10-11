@@ -3,12 +3,10 @@ import { TRPCError } from "@trpc/server";
 import type { PermissionAction } from "@norish/auth/permissions";
 import type { FullRecipeDTO } from "@norish/shared/contracts";
 import { canAccessResource } from "@norish/auth/permissions";
-import { getRecipePermissionPolicy } from "@norish/config/server-config-loader";
 import { getRecipeFull, getRecipeOwnerId } from "@norish/db";
+import { getRecipePermissionPolicy } from "@norish/shared-server/config/server-config-loader";
 import { trpcLogger as log } from "@norish/shared-server/logger";
-
-import { emitByPolicy } from "../../helpers";
-import { recipeEmitter } from "./emitter";
+import { recipes } from "@norish/shared-server/realtime/recipes";
 
 export type RecipeUserContext = {
   user: { id: string };
@@ -24,12 +22,10 @@ export async function emitRecipeFailure(
 ): Promise<void> {
   const policy = await getRecipePermissionPolicy();
 
-  emitByPolicy(
-    recipeEmitter,
-    policy.view,
-    { userId: ctx.user.id, householdKey: ctx.householdKey },
+  void recipes.publish(
     "failed",
-    { reason, ...meta }
+    { reason, ...meta },
+    { viewPolicy: policy.view, userId: ctx.user.id, householdKey: ctx.householdKey }
   );
 }
 

@@ -8,7 +8,7 @@ vi.mock("@norish/shared-server/media/storage", () => ({
   downloadAllImagesFromJsonLd: vi.fn().mockResolvedValue([]),
 }));
 
-vi.mock("@norish/config/server-config-loader", () => ({
+vi.mock("@norish/shared-server/config/server-config-loader", () => ({
   getUnits: vi.fn().mockResolvedValue({}),
 }));
 
@@ -1060,6 +1060,23 @@ describe("normalizeRecipeFromJson - Notes", () => {
 
     expect(result).not.toBeNull();
     expect(result?.notes).toBe("Use ripe tomatoes and rest for 10 minutes.");
+  });
+});
+
+describe("normalizeRecipeFromJson - explicit allergy facts", () => {
+  it("preserves structured source allergen fields as deduplicated tags", async () => {
+    const result = await normalizeRecipeFromJson(
+      {
+        name: "Allergen-labelled Recipe",
+        recipeIngredient: ["flour"],
+        recipeInstructions: ["Mix"],
+        keywords: ["Quick", "peanut"],
+        allergens: ["Peanut", "Milk"],
+      },
+      "recipe-123"
+    );
+
+    expect(result?.tags).toEqual([{ name: "quick" }, { name: "peanut" }, { name: "milk" }]);
   });
 });
 

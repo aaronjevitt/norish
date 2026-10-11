@@ -1,6 +1,15 @@
 import type { FullRecipeInsertDTO } from "@norish/shared/contracts/dto/recipe";
 import type { SiteAuthTokenDecryptedDto } from "@norish/shared/contracts/dto/site-auth-tokens";
 
+/**
+ * What the downloader said about a post's video stream.
+ *
+ * `"unknown"` is an Unclassified Post: the downloader gave nothing to go on.
+ * It is a third answer rather than a missing one, so that no caller can read
+ * silence as absence the way the duration check did (#513).
+ */
+export type VideoStream = "present" | "absent" | "unknown";
+
 export interface VideoMetadata {
   title: string;
   description: string;
@@ -10,6 +19,8 @@ export interface VideoMetadata {
   uploadDate?: string;
   /** BCP-47 language code of the video's original audio (e.g. "en", "es") */
   language?: string;
+  /** Whether the post carries a video stream, as reported by yt-dlp. */
+  videoStream: VideoStream;
 }
 
 /**
@@ -18,7 +29,6 @@ export interface VideoMetadata {
 export interface VideoProcessorContext {
   url: string;
   recipeId: string;
-  allergies?: string[];
   tokens?: SiteAuthTokenDecryptedDto[];
 }
 

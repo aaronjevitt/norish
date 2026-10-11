@@ -1,7 +1,6 @@
 {
   "page": {
     "title": "설정",
-    "loading": "불러오는 중...",
     "ariaLabel": "설정 탭"
   },
   "tabs": {
@@ -62,13 +61,22 @@
     },
     "archiveImport": {
       "title": "레시피 아카이브 가져오기",
-      "description": "Mela(.melarecipes), Paprika(.paprikarecipes) 또는 Mealie/Tandoor(.zip) 내보내기에서 레시피 가져오기"
+      "description": "Norish(.norishrecipes), Mela(.melarecipes), Paprika(.paprikarecipes) 또는 Mealie/Tandoor(.zip) 내보내기에서 레시피 가져오기"
+    },
+    "archiveExport": {
+      "title": "레시피 아카이브 내보내기",
+      "description": "볼 수 있는 모든 레시피를 다운로드합니다.",
+      "button": "내보내기"
     },
     "siteAuthTokens": {
       "title": "사이트 인증 토큰",
       "description": "특정 사이트에서 레시피를 가져올 때 전송되는 헤더나 쿠키를 추가하세요. 로그인이 필요한 사이트(예: Instagram, Facebook)에 유용합니다.",
+      "accountsDescription": "한 사이트에 로그인이 여러 개 있으면 계정 이름을 지정하세요. 그러면 가져오기마다 해당 사이트의 계정 중 하나를 무작위로 사용하므로 한 로그인이 모든 가져오기를 감당하지 않습니다. 계정 이름이 없는 토큰은 해당 도메인의 모든 가져오기에 함께 전송됩니다.",
       "domain": "도메인",
       "domainPlaceholder": "예: instagram.com",
+      "account": "계정",
+      "accountPlaceholder": "예: my_handle (선택 사항)",
+      "accountShared": "모든 계정",
       "name": "이름",
       "namePlaceholder": "예: Cookie 또는 Authorization",
       "value": "값",
@@ -80,6 +88,7 @@
       "noTokens": "설정된 사이트 인증 토큰이 없습니다.",
       "tableHeaders": {
         "domain": "도메인",
+        "account": "계정",
         "name": "이름",
         "type": "유형",
         "created": "생성일",
@@ -111,21 +120,37 @@
         "title": "언어",
         "description": "선호하는 언어를 선택하세요"
       },
-      "timers": {
-        "title": "레시피 타이머 활성화",
-        "description": "레시피 지침에서 상호작용 타이머를 표시합니다"
+      "hidden": {
+        "title": "숨긴 항목",
+        "description": "표시하지 않을 항목을 선택하세요. 기본적으로 모두 표시되며, 이 설정은 내 화면에만 적용됩니다.",
+        "placeholder": "숨긴 항목 없음",
+        "options": {
+          "provenance": "출처",
+          "nutrition": "영양 정보",
+          "notes": "메모",
+          "rating": "평점",
+          "favorites": "즐겨찾기",
+          "conversion": "재료 단위 변환",
+          "timers": "레시피 타이머",
+          "cookbooks": "요리책"
+        }
       },
-      "conversion": {
-        "title": "재료 단위 변환 버튼 표시",
-        "description": "레시피 페이지에 측정 시스템 변환 버튼을 표시합니다"
+      "todaySection": {
+        "title": "오늘 섹션",
+        "description": "이 기기에서 대시보드의 오늘 섹션 표시 방식을 선택합니다",
+        "options": {
+          "always": "항상 표시",
+          "planned": "계획된 식사만 표시",
+          "hidden": "숨기기"
+        }
       },
-      "ratings": {
-        "title": "평점 표시",
-        "description": "레시피 카드와 상세 페이지에 별점 평가를 표시합니다"
-      },
-      "favorites": {
-        "title": "즐겨찾기 표시",
-        "description": "레시피 카드와 상세 페이지에 즐겨찾기/하트 아이콘을 표시합니다"
+      "recipePageColor": {
+        "title": "레시피 페이지 색상",
+        "description": "각 레시피 페이지를 요리 사진의 색으로 물들이거나 이 기기에서 기본 테마 색상을 유지합니다",
+        "options": {
+          "dish": "요리 사진에서",
+          "theme": "기본 테마 색상"
+        }
       },
       "applyError": "환경설정을 적용하지 못했습니다"
     },
@@ -301,7 +326,8 @@
       },
       "emptyFiltered": "{status} 항목을 찾을 수 없습니다.",
       "emptyDefault": "동기화 기록을 찾을 수 없습니다.",
-      "errorDetails": "오류 세부정보"
+      "errorDetails": "오류 세부정보",
+      "pagination": "Page {current} of {total}"
     }
   },
   "admin": {
@@ -344,7 +370,40 @@
       "saveLocales": "언어 설정 저장",
       "localesSaved": "언어 설정이 저장되었습니다",
       "localesError": "언어 설정을 저장하지 못했습니다.",
-      "atLeastOneLocale": "하나 이상의 언어를 활성화해야 합니다."
+      "atLeastOneLocale": "하나 이상의 언어를 활성화해야 합니다.",
+      "export": {
+        "title": "레시피 아카이브",
+        "description": "이 서버의 모든 레시피를 다운로드합니다.",
+        "button": "레시피 아카이브 내보내기"
+      }
+    },
+    "users": {
+      "title": "사용자",
+      "description": "이 서버의 계정을 가진 모든 사용자를 관리하세요.",
+      "table": {
+        "user": "사용자",
+        "role": "역할",
+        "household": "가구",
+        "joined": "가입일",
+        "actions": "작업"
+      },
+      "roles": {
+        "owner": "소유자",
+        "admin": "관리자"
+      },
+      "noHousehold": "가구 없음",
+      "loading": "사용자 불러오는 중…",
+      "empty": "아직 사용자가 없습니다.",
+      "loadFailed": "사용자 목록을 불러오지 못했습니다.",
+      "actions": {
+        "makeAdmin": "관리자로 지정",
+        "revokeAdmin": "관리자 권한 해제",
+        "delete": "사용자 삭제"
+      },
+      "deleteTitle": "{name}님을 삭제할까요?",
+      "deleteConfirm": "이 작업은 사용자의 계정을 영구적으로 삭제하고 가구에서 제외합니다. 되돌릴 수 없습니다.",
+      "deleteSuccess": "{name}님이 삭제되었습니다",
+      "countSummary": "총 {count}명"
     },
     "registration": {
       "title": "등록",
@@ -507,18 +566,39 @@
         "title": "비디오 처리",
         "subtitle": "소셜 미디어 비디오 추출 및 음성 변환"
       },
+      "imageGeneration": {
+        "title": "이미지 생성",
+        "subtitle": "이미지가 없는 레시피에 요리 사진을 그려줍니다"
+      },
+      "decisionModel": {
+        "title": "결정 모델",
+        "subtitle": "닫힌 질문에 대한 빠르고 저렴한 답"
+      },
       "prompts": {
         "title": "프롬프트",
         "subtitle": "레시피 처리를 위한 AI 지침 사용자 정의"
       },
-      "bulkCategorization": {
-        "title": "대량 분류",
-        "subtitle": "분류되지 않은 레시피를 AI를 활용하여 분류",
-        "description": "AI 기반 카테고리 감지를 위해 분류되지 않은 모든 레시피를 대기열에 추가하세요. 카테고리에는 아침, 점심, 저녁, 간식이 포함됩니다.",
-        "button": "모든 레시피 분류",
-        "queued": "{count, plural, =0 {분류할 레시피 없음} one {#개 레시피 대기 중} other {#개 레시피 대기 중}}",
-        "success": "분류가 시작되었습니다",
-        "error": "분류를 시작하지 못했습니다."
+      "cuisines": {
+        "title": "요리",
+        "subtitle": "레시피와 AI가 선택하는 어휘 목록"
+      },
+      "bulkEnrichment": {
+        "title": "대량 보강",
+        "subtitle": "모든 레시피에 활성화된 보강 실행",
+        "description": "이 서버의 모든 레시피에 대해 자동 스위치가 켜진 보강 종류를 모두 대기열에 넣습니다. 기본적으로는 빈 항목만 채우며, 확인 창에서 기존 데이터를 덮어쓰도록 선택할 수 있습니다.",
+        "button": "모든 레시피 보강",
+        "confirmTitle": "모든 레시피에 보강을 실행할까요?",
+        "confirmMessage": "이 서버의 모든 레시피에 대한 AI 작업을 대기열에 추가합니다. 자동 스위치가 켜진 모든 보강 종류가 데이터가 없는 곳에서 실행됩니다.",
+        "replaceExisting": "기존 데이터 덮어쓰기",
+        "replaceExistingDescription": "레시피에 이미 있더라도 분류, 영양 정보, 출처, 단계별 재료를 다시 만듭니다. 태그와 알레르기 표시는 추가만 됩니다.",
+        "replaceWarning": "되돌릴 수 없습니다. 직접 입력한 데이터도 함께 대체되며, 손으로 연결한 단계별 재료도 포함됩니다. 어떤 값이 AI에서 왔는지는 기록되지 않습니다.",
+        "costWarning": "비용이 많이 드는 작업일 수 있습니다. 레시피가 많으면 오래 걸릴 수 있고, 유료 AI 제공업체에서는 상당한 크레딧을 사용할 수 있습니다.",
+        "confirmButton": "모든 레시피에 실행",
+        "confirmButtonReplace": "모든 레시피 덮어쓰기",
+        "queued": "{recipes, plural, other {#개 레시피}}에 대해 {queued, plural, =0 {대기 중인 실행 없음} other {#개 실행 대기 중}}",
+        "aiDisabled": "이 서버에서 AI가 비활성화되어 있습니다. 먼저 AI를 활성화하세요.",
+        "error": "대량 보강을 시작하지 못했습니다",
+        "imageCount": "{count, plural, =0 {생성되는 이미지가 없습니다.} other {#개의 이미지가 생성됩니다.}}"
       }
     },
     "aiConfig": {
@@ -551,25 +631,52 @@
       "temperatureHint": "낮음 = 더 집중적, 높음 = 더 창의적",
       "maxTokens": "최대 토큰",
       "requestTimeout": "요청 제한 시간 (ms)",
-      "autoTagAllergies": "알러지 태그 자동 감지",
-      "autoTagAllergiesDescription": "레시피를 가져올 때 알러지 관련 태그를 자동으로 추가합니다.",
       "alwaysUseAI": "항상 AI 가져오기 사용",
       "alwaysUseAIDescription": "구조화된 파서를 건너뛰고 AI만 사용하여 레시피 추출",
-      "autoTaggingMode": "자동 태그 추가 모드",
-      "autoTaggingModeDescription": "AI를 사용하여 가져온 레시피에 자동으로 태그/키워드 할당",
-      "autoTaggingModes": {
-        "disabled": "비활성",
+      "connectionSuccess": "연결 성공",
+      "testConnection": "연결 테스트",
+      "vision": "비전",
+      "automaticEnrichment": "자동 레시피 보강",
+      "automaticEnrichmentDescription": "새 레시피에 자동으로 실행할 AI 보강을 선택하세요. AI가 켜져 있으면 구성원은 각 항목을 수동으로 실행할 수 있습니다.",
+      "automaticEnrichmentPlaceholder": "자동으로 실행되는 항목 없음",
+      "automaticEnrichmentKinds": {
+        "autoTagging": "자동 태그 지정",
+        "autoTaggingDescription": "기존 태그를 지우지 않고 새 레시피에 AI가 제안한 태그를 추가합니다",
+        "allergyDetection": "알레르기 감지",
+        "allergyDetectionDescription": "레시피를 가져올 때 알러지 관련 태그를 자동으로 추가합니다.",
+        "autoCategorization": "자동 분류",
+        "autoCategorizationDescription": "분류가 없는 새 레시피에 식사 분류를 설정합니다",
+        "nutritionEstimation": "영양 정보 추정",
+        "nutritionEstimationDescription": "값이 없는 새 레시피의 칼로리, 지방, 탄수화물, 단백질을 추정합니다",
+        "recipeProvenance": "레시피 출처",
+        "recipeProvenanceDescription": "새 레시피의 국가, 지역, 요리와 짧은 설명을 추론하며, 비어 있는 항목만 채웁니다",
+        "ingredientLinking": "재료 연결",
+        "ingredientLinkingDescription": "연결이 없는 단계에 한해, 각 단계를 사용하는 재료 줄에 연결합니다",
+        "imageGeneration": "이미지 생성",
+        "imageGenerationDescription": "이미지가 전혀 없는 새 레시피에 요리 사진을 그려줍니다"
+      },
+      "tagStrategy": "태그 전략",
+      "tagStrategyDescription": "자동 또는 수동 실행 여부와 관계없이 자동 태그 지정이 사용할 수 있는 태그",
+      "tagStrategies": {
         "predefined": "사전 정의된 태그만",
         "predefinedDb": "사전 정의된 태그 + 기존 태그",
         "freeform": "AI는 새로운 태그를 만들 수 있습니다"
       },
-      "connectionSuccess": "연결 성공",
-      "testConnection": "연결 테스트",
-      "vision": "비전"
+      "cuisineStrategy": "요리 전략",
+      "cuisineStrategyDescription": "출처 추론이 어휘 목록에 요리를 추가할 수 있는지, 아니면 목록에서만 선택할지",
+      "cuisineStrategies": {
+        "existing": "기존 요리만",
+        "extend": "AI가 새 요리를 추가할 수 있음"
+      }
+    },
+    "modelListing": {
+      "empty": "모델을 가져오지 못했습니다. API 키나 엔드포인트를 확인하거나 모델 이름을 입력하세요.",
+      "refused": "{provider}이(가) 요청을 거부했습니다({status}). API 키를 확인하세요.",
+      "unreachable": "{provider}에 연결할 수 없습니다. 엔드포인트를 확인하세요."
     },
     "videoConfig": {
       "enableVideo": "비디오 구문 분석 활성화",
-      "enableVideoDescription": "TikTok, Instagram, YouTube Shorts 또는 Facebook에서 레시피 추출",
+      "enableVideoDescription": "TikTok, Instagram, YouTube Shorts, Facebook, Pinterest 등에서 레시피 추출",
       "configureWarning": "비디오 처리를 활성화하려면 아래에서 음성 변환 제공업체를 구성하세요.",
       "aiDisabledWarning": "비디오 처리를 켜기 전에 AI 구성을 활성화하세요.",
       "maxLength": "최대 비디오 길이(초)",
@@ -577,7 +684,10 @@
       "maxFileSize": "최대 비디오 파일 크기",
       "maxFileSizeDescription": "다운로드한 비디오 파일의 최대 크기",
       "ytDlpVersion": "yt-dlp 버전",
-      "ytDlpVersionDescription": "비디오 다운로드에 사용할 yt-dlp 버전",
+      "ytDlpVersionDescription": "이 서버가 실행 중인 yt-dlp 버전입니다. 여기서는 변경할 수 없습니다.",
+      "ytDlpVersionMissing": "yt-dlp 바이너리를 찾을 수 없음",
+      "ytDlpVersionUnknown": "확인할 수 없음",
+      "ytDlpVersionLoading": "확인 중 …",
       "ytDlpProxy": "yt-dlp Proxy",
       "ytDlpProxyDescription": "yt-dlp용 HTTP/SOCKS5 프록시",
       "transcription": "전사",
@@ -604,10 +714,65 @@
       "transcriptionApiKeyOptionalDescription": "대부분의 로컬 Whisper 서버에는 API 키가 필요하지 않습니다.",
       "transcriptionApiKeyOptionalPlaceholder": "로컬 서버의 경우 비워 두세요."
     },
+    "imageGenerationConfig": {
+      "description": "대부분의 AI 제공자는 그림을 그릴 수 없기 때문에 이미지 생성은 자체 제공자를 사용합니다. 이미지는 이 제공자로 생성되며, 위의 AI 제공자가 나머지 모든 작업을 처리합니다.",
+      "provider": "이미지 제공자",
+      "providers": {
+        "disabled": "사용 안 함",
+        "openai": "OpenAI",
+        "google": "Google AI",
+        "azure": "Azure OpenAI",
+        "ollama": "Ollama(로컬)",
+        "lmStudio": "LM Studio",
+        "genericOpenai": "일반 OpenAI 호환"
+      },
+      "endpoint": "엔드포인트 URL",
+      "endpointOptional": "선택 사항: 사용자 지정 Azure 리소스 URL",
+      "apiKey": "API 키",
+      "apiKeyPlaceholder": "API 키 입력...",
+      "apiKeyInherited": "AI 설정의 API 키를 사용합니다.",
+      "model": "이미지 모델",
+      "modelPlaceholder": "예: gpt-image-1",
+      "modelDescription": "이미지를 그리는 모델입니다. 텍스트 모델이 아닌 이미지 모델이어야 합니다.",
+      "fallbackHint": "AI 설정과 동일한 제공자입니다. 여기서 설정하지 않으면 엔드포인트와 API 키를 AI 설정에서 가져옵니다."
+    },
+    "decisionConfig": {
+      "provider": "결정 제공자",
+      "providers": {
+        "disabled": "사용 안 함",
+        "typesafe": "TypeSafe AI"
+      },
+      "apiKey": "API 키",
+      "apiKeyPlaceholder": "API 키 입력...",
+      "apiKeyDescription": "typesafe.ai 계정에서 키를 발급받으세요",
+      "model": "결정 모델",
+      "uses": "결정 모델을 사용할 기능",
+      "usesPlaceholder": "없음",
+      "useNames": {
+        "autoCategorization": "자동 분류",
+        "autoCategorizationDescription": "레시피가 아침, 점심, 저녁, 간식 중 무엇인지 결정",
+        "autoTagging": "자동 태그 지정",
+        "autoTaggingDescription": "미리 정의된 목록에서 태그를 고르고 AI가 제안한 각 태그를 확인",
+        "allergyDetection": "알레르기 감지",
+        "allergyDetectionDescription": "레시피에 가구의 어떤 알레르겐이 들어 있는지 결정",
+        "recipeProvenance": "레시피 출처",
+        "recipeProvenanceDescription": "메모를 작성하기 전에 국가와 요리 종류를 확정",
+        "groceryLinking": "장보기 연결",
+        "groceryLinkingDescription": "상점이 제안한 상품을 정렬하고 확신하는 하나를 연결",
+        "validateEnrichments": "보강 검증",
+        "validateEnrichmentsDescription": "각 보강 실행의 결과를 저장하기 전에 검사"
+      },
+      "testConnection": "연결 테스트",
+      "connectionSuccess": "연결 성공",
+      "aiDisabledHint": "이 서버에서는 AI가 비활성화되어 있습니다. 결정 모델을 테스트하고 사용하려면 AI 설정에서 활성화하세요."
+    },
     "promptsConfig": {
       "recipeExtraction": "레시피 추출 프롬프트",
       "recipeExtractionDescription": "이 프롬프트는 웹페이지나 비디오 대본에서 레시피 데이터를 추출할 때 사용됩니다.",
       "recipeExtractionPlaceholder": "레시피 추출 프롬프트를 입력하세요...",
+      "imageExtraction": "이미지 추출 프롬프트",
+      "imageExtractionDescription": "이 프롬프트는 요리책 사진이나 레시피 카드 같은 업로드된 이미지에서 레시피 데이터를 추출할 때 사용됩니다.",
+      "imageExtractionPlaceholder": "이미지 추출 프롬프트를 입력하세요...",
       "unitConversion": "단위 변환 프롬프트",
       "unitConversionDescription": "이 프롬프트는 미터법과 미국식 시스템 간에 레시피 측정값을 변환할 때 사용됩니다. 사용 가능한 변수: sourceSystem, targetSystem, units",
       "unitConversionPlaceholder": "단위 변환 프롬프트를 입력하세요...",
@@ -616,7 +781,25 @@
       "nutritionEstimationPlaceholder": "영양소 추정 프롬프트를 입력하세요...",
       "autoTagging": "자동 태그 추가 프롬프트",
       "autoTaggingDescription": "이 프롬프트는 가져온 레시피에 대한 태그를 생성하는 데 사용됩니다. 태그 지정 규칙과 사전 정의된 태그 목록을 정의합니다.",
-      "autoTaggingPlaceholder": "자동 태그 추가 프롬프트를 입력하세요..."
+      "autoTaggingPlaceholder": "자동 태그 추가 프롬프트를 입력하세요...",
+      "autoCategorization": "자동 분류 프롬프트",
+      "autoCategorizationDescription": "이 프롬프트는 레시피를 식사 카테고리(아침, 점심, 저녁, 간식)로 분류할 때 사용됩니다.",
+      "autoCategorizationPlaceholder": "자동 분류 프롬프트를 입력하세요...",
+      "allergyDetection": "알레르기 감지 프롬프트",
+      "allergyDetectionDescription": "이 프롬프트는 레시피 재료에서 가구에 설정된 알레르겐을 감지할 때 사용됩니다.",
+      "allergyDetectionPlaceholder": "알레르기 감지 프롬프트를 입력하세요...",
+      "recipeProvenance": "레시피 출처 프롬프트",
+      "recipeProvenanceDescription": "이 프롬프트는 레시피의 출처를 추론합니다. 생성된 설명은 레시피 자체의 언어로 작성됩니다. 사용 가능한 변수: recipeName, description, ingredients",
+      "recipeProvenancePlaceholder": "레시피 출처 프롬프트를 입력하세요...",
+      "ingredientLinking": "재료 연결 프롬프트",
+      "ingredientLinkingDescription": "각 단계를 사용하는 재료 줄에 연결할 때 사용됩니다",
+      "ingredientLinkingPlaceholder": "재료를 단계에 연결하기 위한 프롬프트...",
+      "imageGenerationBrief": "이미지 설명 프롬프트",
+      "imageGenerationBriefDescription": "이미지를 생성하기 전에 레시피를 짧은 시각적 설명으로 바꾸는 데 사용됩니다. 레시피는 프롬프트 뒤에 추가됩니다.",
+      "imageGenerationBriefPlaceholder": "시각적 설명을 위한 프롬프트...",
+      "imageGenerationStyle": "이미지 스타일 프롬프트",
+      "imageGenerationStyleDescription": "시각적 설명과 함께 이미지 모델로 전송됩니다. 생성되는 모든 이미지가 공유하는 스타일을 정합니다.",
+      "imageGenerationStylePlaceholder": "이미지 스타일을 위한 프롬프트..."
     },
     "unsavedChanges": "저장되지 않은 변경사항",
     "jsonEditor": {
@@ -624,6 +807,140 @@
       "invalidJson": "잘못된 JSON 형식",
       "failedToSave": "저장하지 못했습니다.",
       "failedToRestore": "기본값을 복원하지 못했습니다."
+    },
+    "jobQueue": {
+      "title": "Job Queues",
+      "description": "Monitor background jobs across all queues: status, current step, duration, and failures.",
+      "empty": "No jobs found",
+      "filters": {
+        "queue": "Queue",
+        "allQueues": "All queues"
+      },
+      "status": {
+        "waiting": "Waiting",
+        "active": "Active",
+        "delayed": "Delayed",
+        "completed": "Completed",
+        "failed": "Failed",
+        "paused": "Paused",
+        "prioritized": "Prioritized",
+        "unknown": "Unknown",
+        "hanging": "Hanging"
+      },
+      "stepStatus": {
+        "done": "Done",
+        "failed": "Failed",
+        "running": "Running",
+        "skipped": "Skipped",
+        "pending": "Pending"
+      },
+      "steps": {
+        "dedupe-check": "Check existing",
+        "fetch-allergies": "Fetch allergies",
+        "parsing": "Parse recipe",
+        "saving": "Save recipe",
+        "post-processing": "Post processing",
+        "preparing-images": "Prepare images",
+        "ai-extraction": "AI extraction",
+        "parsing-text": "Parse pasted text",
+        "creating-recipes": "Create recipes",
+        "ai-request": "AI request",
+        "syncing-event": "Sync calendar event",
+        "deleting-event": "Delete calendar event",
+        "running": "Run task",
+        "searching": "Search the shop",
+        "reading-product": "Read the product page",
+        "saving-link": "Save the link"
+      },
+      "queues": {
+        "recipe-import": "Recipe import",
+        "image-recipe-import": "Image import",
+        "paste-recipe-import": "Paste import",
+        "nutrition-estimation": "Nutrition estimation",
+        "auto-tagging": "Auto-tagging",
+        "auto-categorization": "Auto-categorization",
+        "allergy-detection": "Allergy detection",
+        "recipe-provenance": "레시피 유래",
+        "ingredient-linking": "재료 연결",
+        "caldav-sync": "CalDAV sync",
+        "scheduled-tasks": "Scheduled tasks",
+        "image-generation": "이미지 생성",
+        "store-lookup": "매장 조회"
+      },
+      "summary": {
+        "failed": "{count} failed"
+      },
+      "table": {
+        "job": "Job",
+        "status": "Status",
+        "step": "Step",
+        "duration": "Duration",
+        "created": "Created",
+        "runsAt": "Runs {time}"
+      },
+      "detail": {
+        "title": "Job Details",
+        "notFound": "Job not found. It may have been cleaned up.",
+        "sections": {
+          "error": "Error",
+          "pipelineSteps": "Pipeline Steps",
+          "input": "Input",
+          "logs": "Logs",
+          "errors": "Errors"
+        },
+        "fields": {
+          "queue": "Queue",
+          "jobId": "Job ID",
+          "description": "Description",
+          "recipe": "Recipe",
+          "created": "Created",
+          "started": "Started",
+          "finished": "Finished",
+          "duration": "Duration",
+          "attempts": "Attempts",
+          "models": "모델",
+          "runsAt": "Runs at",
+          "nextRun": "Next run"
+        },
+        "attempt": "Attempt {number}",
+        "stackTrace": "Stack trace"
+      },
+      "actions": {
+        "retry": "Retry",
+        "remove": "Remove"
+      },
+      "removeModal": {
+        "message": "Permanently remove this job?",
+        "confirm": "Remove job"
+      },
+      "retention": {
+        "title": "Job Retention",
+        "keepCompleted": "Keep completed jobs",
+        "keepFailed": "Keep failed jobs",
+        "maxAgeDays": "Max age (days)",
+        "description": "How many finished jobs to keep per queue for monitoring. Changes require a server restart."
+      },
+      "pagination": "Page {current} of {total}"
+    },
+    "cuisineVocabulary": {
+      "description": "요리는 관리자가 소유하는 선별된 어휘 목록입니다. 이름은 모든 언어에서 여기 적힌 그대로 표시됩니다.",
+      "namePlaceholder": "요리 이름",
+      "addLabel": "요리 추가",
+      "renameLabel": "{name} 이름 변경",
+      "deleteLabel": "{name} 삭제",
+      "deleteConfirm": "\"{name}\"을(를) 삭제할까요? 사용 중인 레시피에서 사라집니다.",
+      "empty": "아직 요리가 없습니다.",
+      "duplicate": "같은 이름의 요리가 이미 있습니다.",
+      "saveFailed": "해당 요리를 저장할 수 없습니다."
+    }
+  },
+  "archiveExport": {
+    "progress": "내보내는 중… {size}",
+    "errors": {
+      "failedTitle": "내보내기 실패",
+      "failedDescription": "레시피 아카이브를 다운로드할 수 없습니다. 다시 시도해 주세요.",
+      "signedOut": "세션이 만료되었습니다. 다시 로그인하여 내보내세요.",
+      "notAllowed": "이 항목을 내보낼 권한이 없습니다."
     }
   }
 }

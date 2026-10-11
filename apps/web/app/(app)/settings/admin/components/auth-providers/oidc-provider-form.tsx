@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import SecretInput from "@/components/shared/secret-input";
 import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
-import { Input, useDisclosure } from "@heroui/react";
+import { Input, Label, TextField, useOverlayState } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import { ServerConfigKeys } from "@norish/config/zod/server-config";
@@ -58,7 +58,7 @@ export function OIDCProviderForm({ config, onDirtyChange }: OIDCProviderFormProp
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [saving, setSaving] = useState(false);
-  const deleteModal = useDisclosure();
+  const deleteModal = useOverlayState();
 
   const configClaim = config?.claimConfig as
     | {
@@ -156,6 +156,8 @@ export function OIDCProviderForm({ config, onDirtyChange }: OIDCProviderFormProp
           householdPrefix: claimMapping.householdPrefix,
         },
       });
+      // Saved secrets live on the server, not in the form.
+      setClientSecret("");
     } finally {
       setSaving(false);
     }
@@ -165,7 +167,7 @@ export function OIDCProviderForm({ config, onDirtyChange }: OIDCProviderFormProp
     const result = await deleteAuthProvider("oidc");
 
     if (!result.success) {
-      deleteModal.onClose();
+      deleteModal.close();
       showSafeErrorToast({
         title: tErrors("operationFailed"),
         description: tErrors("technicalDetails"),
@@ -176,7 +178,7 @@ export function OIDCProviderForm({ config, onDirtyChange }: OIDCProviderFormProp
       return;
     }
 
-    deleteModal.onClose();
+    deleteModal.close();
     // Reset all fields
     setName("");
     setIssuer("");
@@ -195,19 +197,18 @@ export function OIDCProviderForm({ config, onDirtyChange }: OIDCProviderFormProp
   return (
     <div className="flex flex-col gap-4 p-2">
       {/* Core OIDC Fields */}
-      <Input
-        label={tOidc("name")}
-        placeholder={tOidc("namePlaceholder")}
-        value={name}
-        onValueChange={setName}
-      />
-      <Input
-        label={tOidc("issuer")}
-        placeholder={tOidc("issuerPlaceholder")}
-        value={issuer}
-        onValueChange={setIssuer}
-      />
-      <Input label={tOidc("clientId")} value={clientId} onValueChange={setClientId} />
+      <TextField value={name} onChange={setName}>
+        <Label>{tOidc("name")}</Label>
+        <Input variant="secondary" placeholder={tOidc("namePlaceholder")} />
+      </TextField>
+      <TextField value={issuer} onChange={setIssuer}>
+        <Label>{tOidc("issuer")}</Label>
+        <Input variant="secondary" placeholder={tOidc("issuerPlaceholder")} />
+      </TextField>
+      <TextField value={clientId} onChange={setClientId}>
+        <Label>{tOidc("clientId")}</Label>
+        <Input variant="secondary" />
+      </TextField>
       <SecretInput
         isConfigured={!!config?.clientSecret}
         label={tOidc("clientSecret")}
@@ -215,12 +216,10 @@ export function OIDCProviderForm({ config, onDirtyChange }: OIDCProviderFormProp
         onReveal={handleRevealSecret("clientSecret")}
         onValueChange={setClientSecret}
       />
-      <Input
-        label={tOidc("wellknown")}
-        placeholder={tOidc("wellknownPlaceholder")}
-        value={wellknown}
-        onValueChange={setWellknown}
-      />
+      <TextField value={wellknown} onChange={setWellknown}>
+        <Label>{tOidc("wellknown")}</Label>
+        <Input variant="secondary" placeholder={tOidc("wellknownPlaceholder")} />
+      </TextField>
 
       {/* Claim Mapping Section */}
       <OIDCClaimMapping
@@ -236,7 +235,7 @@ export function OIDCProviderForm({ config, onDirtyChange }: OIDCProviderFormProp
         hasConfig={!!config}
         saving={saving}
         testing={testing}
-        onDeleteClick={deleteModal.onOpen}
+        onDeleteClick={deleteModal.open}
         onSave={handleSave}
         onTest={handleTest}
       />
@@ -244,7 +243,7 @@ export function OIDCProviderForm({ config, onDirtyChange }: OIDCProviderFormProp
       <DeleteProviderModal
         isOpen={deleteModal.isOpen}
         providerName="OIDC"
-        onClose={deleteModal.onClose}
+        onClose={deleteModal.close}
         onConfirm={handleDelete}
       />
     </div>

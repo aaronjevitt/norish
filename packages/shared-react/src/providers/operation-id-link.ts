@@ -54,8 +54,7 @@ export function createOperationIdLink<TRouter extends AnyTRPCRouter>(): TRPCLink
           // Merge into headers so httpLink/httpBatchLink sends it to the server
           headers: {
             ...((op.context as Record<string, unknown>)?.headers as
-              | Record<string, string>
-              | undefined),
+              Record<string, string> | undefined),
             [OPERATION_ID_HEADER]: operationId,
           },
         },

@@ -12,6 +12,8 @@
     "apply": "Zastosuj",
     "reset": "Resetuj",
     "clear": "Wyczyść",
+    "selectAll": "Zaznacz wszystko",
+    "deselectAll": "Odznacz wszystko",
     "confirm": "Potwierdź",
     "back": "Wstecz",
     "next": "Dalej",
@@ -28,11 +30,12 @@
     "test": "Test",
     "format": "Formatuj",
     "restoreDefaults": "Przywróć domyślne",
-    "saveChanges": "Zapisz zmiany",
-    "revealSecret": "Pokaż sekret",
-    "hideSecret": "Ukryj sekret",
-    "enterNewValue": "Wpisz nową wartość",
-    "cancelEditing": "Anuluj edycję"
+    "saveChanges": "Zapisz zmiany"
+  },
+  "secret": {
+    "reveal": "Pokaż sekret",
+    "hide": "Ukryj sekret",
+    "keepsCurrent": "Pozostaw puste, aby zachować zapisaną wartość."
   },
   "status": {
     "loading": "Ładowanie...",
@@ -46,6 +49,7 @@
   "filters": {
     "title": "Filtry",
     "search": "Szukaj",
+    "searchIn": "Szukaj w",
     "sort": "Sortuj",
     "mode": "Tryb",
     "modeAll": "Wszystkie",
@@ -70,8 +74,14 @@
     "sortByDate": "Data",
     "clearFilters": "Wyczyść filtry"
   },
-  "time": { "minutes": "min", "hours": "godz" },
-  "validation": { "required": "To pole jest wymagane", "invalidUrl": "Podaj prawidłowy URL" },
+  "time": {
+    "minutes": "min",
+    "hours": "godz"
+  },
+  "validation": {
+    "required": "To pole jest wymagane",
+    "invalidUrl": "Podaj prawidłowy URL"
+  },
   "errors": {
     "operationFailed": "Operacja nie powiodła się",
     "nameCannotBeEmpty": "Nazwa nie może być pusta",
@@ -86,17 +96,21 @@
   },
   "connection": {
     "connecting": "Łączenie z Norish...",
-    "syncing": "Synchronizacja, proszę czekać...",
     "checkInternet": "Sprawdź połączenie internetowe",
-    "gettingUpdates": "Chwileczkę, pobieramy najnowsze aktualizacje",
     "offlineBanner": "Jesteś offline, wyświetlane są dane z pamięci podręcznej",
-    "serverUnreachableBanner": "Nie można połączyć się z serwerem Norish, wyświetlane są dane z pamięci podręcznej"
+    "serverUnreachableBanner": "Nie można połączyć się z serwerem Norish, wyświetlane są dane z pamięci podręcznej",
+    "live": "Połączono",
+    "offline": "Offline",
+    "openDetails": "Connection details"
   },
-  "language": { "title": "Język" },
+  "language": {
+    "title": "Język"
+  },
   "notFound": {
     "code": "404",
-    "title": "Nie znaleziono strony",
-    "message": "Ups! Nora nie mogła znaleźć tego, czego szukasz."
+    "title": "Nora jest zdezorientowana.",
+    "message": "Węszy dookoła, żeby znaleźć stronę, której szukasz.",
+    "imageAlt": "Zdezorientowana Nora"
   },
   "import": {
     "url": {
@@ -105,6 +119,9 @@
       "placeholder": "https://przykład.pl/przepis",
       "failed": "Nie udało się zaimportować przepisu",
       "failedWithAI": "Nie udało się zaimportować przepisu z AI"
+    },
+    "clipboard": {
+      "title": "Zaimportować przepis ze skopiowanego linku?"
     },
     "paste": {
       "title": "Importuj przez wklejenie",
@@ -147,9 +164,12 @@
     "heading": "Zacznij linię od **#** dla nagłówka",
     "bold": "Otoczyć **podwójnymi gwiazdkami** aby pogrubić",
     "recipeLink": "Wpisz **/nazwa przepisu** aby linkować przepis",
+    "ingredientMention": "Wpisz <strong>@</strong>, aby powiązać składnik z krokiem — słowo trafi do zdania, a powiązanie pojawi się jako etykieta poniżej",
     "helpAriaLabel": "Pomoc formatowania"
   },
-  "tagInput": { "placeholder": "Wpisuj tagi oddzielone spacjami..." },
+  "tagInput": {
+    "placeholder": "Wpisuj tagi oddzielone spacjami..."
+  },
   "recurrence": {
     "title": "Powtarzaj",
     "frequency": "Częstotliwość",
@@ -189,7 +209,9 @@
       "6": "Sobota"
     }
   },
-  "badges": { "new": "Nowe" },
+  "badges": {
+    "new": "Nowe"
+  },
   "timer": {
     "done": "Gotowe",
     "done_action": "Gotowe",
@@ -201,5 +223,74 @@
     "notification_body": "{label} gotowe!",
     "notifications_disabled": "Powiadomienia są wyłączone",
     "notifications_disabled_hint": "Włącz powiadomienia w przeglądarce, aby otrzymywać alerty gdy timer skończy działać w tle."
+  },
+  "offlineStatus": {
+    "title": "Connection & offline",
+    "connection": {
+      "heading": "Connection",
+      "live": "Live",
+      "offline": "Offline",
+      "forced": "Offline (forced)",
+      "liveDescription": "Connected to Norish. Changes sync as you make them.",
+      "offlineDescription": "Can't reach Norish. Showing cached data; changes are queued and sync when you're back.",
+      "forcedDescription": "Offline is forced for development. The backend is reachable but every request is blocked.",
+      "devBadge": "dev"
+    },
+    "cache": {
+      "heading": "Offline cache",
+      "recipes": "Recipes",
+      "cookbooks": "Książki kucharskie",
+      "groceries": "Groceries",
+      "stores": "Stores",
+      "planned": "This week",
+      "dataAge": "Data from {when}",
+      "dataAgeUnknown": "Not warmed yet",
+      "wipe": "Clear cached data",
+      "wipeConfirmBody": "Remove the offline copy of your recipes, groceries, stores and plan? Your queued changes are kept.",
+      "wipeConfirmOfflineBody": "You're offline — clearing now leaves nothing to show until you reconnect. Your queued changes are kept.",
+      "wipeConfirm": "Clear",
+      "wipeCancel": "Keep"
+    },
+    "outbox": {
+      "heading": "Queued changes",
+      "empty": "Nothing queued — everything's synced.",
+      "pending": "{count, plural, =0 {No changes waiting} one {# change waiting} other {# changes waiting}}",
+      "syncing": "{count, plural, =0 {Syncing} one {Syncing # change} other {Syncing # changes}}",
+      "syncNow": "Sync now",
+      "retryAll": "Retry all",
+      "discardAll": "Discard all",
+      "discardConfirmBody": "{count, plural, one {Permanently discard # queued change? It won't be sent.} other {Permanently discard # queued changes? They won't be sent.}}",
+      "discardConfirm": "Discard",
+      "discardCancel": "Keep",
+      "status": {
+        "pending": "Syncing",
+        "parked": "Needs attention",
+        "conflicted": "Conflict"
+      }
+    },
+    "devToggle": {
+      "heading": "Developer",
+      "force": "Force offline",
+      "description": "Blocks the backend transport to exercise the offline runtime. Dev builds only.",
+      "on": "On",
+      "off": "Off"
+    }
+  },
+  "offlineFallback": {
+    "title": "Nora też jest offline.",
+    "body": "Ta strona nie jest zapisana do trybu offline — ostatnio odwiedzane strony wciąż tu są.",
+    "backOnlineTitle": "Nora znalazła połączenie!",
+    "backOnlineBody": "Norish znów jest osiągalny — spróbuj ponownie wczytać tę stronę.",
+    "retry": "Spróbuj ponownie",
+    "home": "Otwórz Norish"
+  },
+  "queuedOffline": {
+    "title": "Jesteś offline",
+    "description": "Dodano do kolejki — Norish dokończy to automatycznie, gdy wrócisz online."
+  },
+  "storageUnavailable": {
+    "title": "Nie można uruchomić",
+    "description": "Norish nie mógł odczytać bezpiecznego magazynu, więc nie wie, do którego serwera należy ta aplikacja. Nic nie zostało zmienione. Spróbuj ponownie lub uruchom aplikację jeszcze raz.",
+    "detailsLabel": "Szczegóły techniczne"
   }
 }

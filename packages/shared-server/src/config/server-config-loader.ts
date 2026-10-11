@@ -1,0 +1,497 @@
+/**
+ * Server Configuration Loader
+ *
+ * Simple async access to server configuration stored in the database.
+ * Each call queries the database directly - no caching layer.
+ *
+ * Flow:
+ * - Server code needs config => call getX() => queries DB => returns value
+ * - Frontend needs config => use hook => fetches from API => API queries DB
+ */
+
+// Import defaults for fallback when DB has no value
+import type {
+  AIConfig,
+  AutomaticEnrichmentConfig,
+  ContentIndicatorsConfig,
+  CuisineStrategy,
+  DecisionConfig,
+  DecisionUse,
+  I18nLocaleConfig,
+  ImageGenerationConfig,
+  PromptsConfig,
+  RecipePermissionPolicy,
+  RecurrenceConfig,
+  TagStrategy,
+  TimerKeywordsConfig,
+  UnitsMap,
+  VideoConfig,
+} from "@norish/config/zod/server-config";
+import defaultContentIndicators from "@norish/config/content-indicators.default.json";
+import { SERVER_CONFIG } from "@norish/config/env-config-server";
+import defaultRecurrenceConfig from "@norish/config/recurrence-config.default.json";
+import defaultTimerKeywords from "@norish/config/timer-keywords.default.json";
+import defaultUnits from "@norish/config/units.default.json";
+import {
+  AIConfigSchema,
+  DecisionConfigSchema,
+  DEFAULT_CUISINE_STRATEGY,
+  DEFAULT_RECIPE_PERMISSION_POLICY,
+  DEFAULT_TAG_STRATEGY,
+  isDecisionConfigValid,
+  isDecisionUseSelected,
+  isImageGenerationConfigValid,
+  ServerConfigKeys,
+  UnitsConfigSchema,
+  UnitsMapSchema,
+} from "@norish/config/zod/server-config";
+import { getConfig } from "@norish/db/repositories/server-config";
+import { DEFAULT_LOCALE } from "@norish/i18n/config";
+import { getBundledLocales } from "@norish/i18n/locales";
+import { serverLogger } from "@norish/shared-server/logger";
+
+/** Global AI disablement suppresses every automatic kind, not just the configured ones. */
+const ALL_AUTOMATIC_ENRICHMENT_OFF: AutomaticEnrichmentConfig = {
+  autoTagging: false,
+  allergyDetection: false,
+  autoCategorization: false,
+  nutritionEstimation: false,
+  recipeProvenance: false,
+  ingredientLinking: false,
+  imageGeneration: false,
+};
+
+// ============================================================================
+// Configuration Getters - Each call queries the database
+// ============================================================================
+
+/**
+ * Check if registration is enabled
+ */
+export async function isRegistrationEnabled(): Promise<boolean> {
+  const value = await getConfig<boolean>(ServerConfigKeys.REGISTRATION_ENABLED);
+
+  return value ?? true;
+}
+
+/**
+ * Get units configuration
+ */
+export async function getUnits(): Promise<UnitsMap> {
+  const value = await getConfig<unknown>(ServerConfigKeys.UNITS);
+
+  const wrapped = UnitsConfigSchema.safeParse(value);
+
+  if (wrapped.success) {
+    return wrapped.data.units;
+  }
+
+  const legacyWrapped =
+    typeof value === "object" && value !== null && "units" in value && "isOverwritten" in value
+      ? UnitsMapSchema.safeParse((value as { units: unknown }).units)
+      : null;
+
+  if (legacyWrapped?.success) {
+    return legacyWrapped.data;
+  }
+
+  const legacy = UnitsMapSchema.safeParse(value);
+
+  if (legacy.success) {
+    return legacy.data;
+  }
+
+  return defaultUnits as UnitsMap;
+}
+
+/**
+ * Get content indicators configuration
+ */
+export async function getContentIndicators(): Promise<ContentIndicatorsConfig> {
+  const value = await getConfig<ContentIndicatorsConfig>(ServerConfigKeys.CONTENT_INDICATORS);
+
+  return value ?? defaultContentIndicators;
+}
+
+/**
+ * Check if recipe timers are enabled
+ */
+export async function isTimersEnabled(): Promise<boolean> {
+  const config = await getTimerKeywords();
+
+  return config.enabled ?? true;
+}
+
+/**
+ * Get timer keywords configuration
+ */
+export async function getTimerKeywords(): Promise<TimerKeywordsConfig> {
+  const value = await getConfig<TimerKeywordsConfig>(ServerConfigKeys.TIMER_KEYWORDS);
+
+  if (value && !value.isOverridden) {
+    // User hasn't overridden, merge with defaults to get latest keywords
+    return {
+      ...defaultTimerKeywords,
+      ...value,
+      isOverridden: false,
+    } as TimerKeywordsConfig;
+  }
+
+  return value ?? (defaultTimerKeywords as TimerKeywordsConfig);
+}
+
+/**
+ * Get recurrence configuration
+ */
+export async function getRecurrenceConfig(): Promise<RecurrenceConfig> {
+  const value = await getConfig<RecurrenceConfig>(ServerConfigKeys.RECURRENCE_CONFIG);
+
+  return value ?? (defaultRecurrenceConfig as RecurrenceConfig);
+}
+
+/**
+ * Get AI configuration
+ * @param includeSecrets - If true, includes decrypted API keys
+ */
+export async function getAIConfig(includeSecrets = false): Promise<AIConfig | null> {
+  const stored = await getConfig<unknown>(ServerConfigKeys.AI_CONFIG, includeSecrets);
+
+  if (stored == null) return null;
+
+  // Startup backfill rewrites stored config in canonical shape, but a server that
+  // has not restarted yet still reads pre-migration values. Normalizing here keeps
+  // one contract for every caller regardless of what is on disk.
+  const parsed = AIConfigSchema.safeParse(stored);
+
+  if (!parsed.success) {
+    serverLogger.warn(
+      { issues: parsed.error.issues },
+      "Stored AI config does not match the current contract"
+    );
+
+    return null;
+  }
+
+  return parsed.data;
+}
+
+/**
+ * Get video processing configuration (includes transcription settings)
+ * @param includeSecrets - If true, includes decrypted API keys
+ */
+export async function getVideoConfig(includeSecrets = false): Promise<VideoConfig | null> {
+  return await getConfig<VideoConfig>(ServerConfigKeys.VIDEO_CONFIG, includeSecrets);
+}
+
+/**
+ * Get the Image Generation configuration block. Ships unconfigured: a
+ * deployment that never saved it has no row and gets null.
+ * @param includeSecrets - If true, includes the decrypted API key
+ */
+export async function getImageGenerationConfig(
+  includeSecrets = false
+): Promise<ImageGenerationConfig | null> {
+  return await getConfig<ImageGenerationConfig>(
+    ServerConfigKeys.IMAGE_GENERATION_CONFIG,
+    includeSecrets
+  );
+}
+
+/**
+ * Whether an image request could be served at all: a provider is selected, a
+ * model is named, and the credentials the provider needs are present — the
+ * block's own, or the AI configuration's when the provider matches. The
+ * coordinator's skip, the manual request's refusal, and the runtime's
+ * configuration error all ask this one question.
+ */
+export async function isImageGenerationConfigured(): Promise<boolean> {
+  const [imageConfig, aiConfig] = await Promise.all([
+    getImageGenerationConfig(true),
+    getAIConfig(true),
+  ]);
+
+  return isImageGenerationConfigValid(imageConfig, aiConfig);
+}
+
+/**
+ * Get the Decision Model block (ADR-0035). Ships unconfigured: a deployment
+ * that never saved it has no row and gets null. A stored row that no longer
+ * matches the contract is reported and treated as absent, so a Decision is
+ * never attempted against half a configuration.
+ * @param includeSecrets - If true, includes the decrypted API key
+ */
+export async function getDecisionConfig(includeSecrets = false): Promise<DecisionConfig | null> {
+  const stored = await getConfig<unknown>(ServerConfigKeys.DECISION_CONFIG, includeSecrets);
+
+  if (stored == null) return null;
+
+  const parsed = DecisionConfigSchema.safeParse(stored);
+
+  if (!parsed.success) {
+    serverLogger.warn(
+      { issues: parsed.error.issues },
+      "Stored Decision Model config does not match the current contract"
+    );
+
+    return null;
+  }
+
+  return parsed.data;
+}
+
+/**
+ * Whether a Decision could be served at all: a provider is selected and its
+ * key is stored. Says nothing about the global AI switch, which the runtime
+ * checks on every request.
+ */
+export async function isDecisionModelConfigured(): Promise<boolean> {
+  return isDecisionConfigValid(await getDecisionConfig(true));
+}
+
+/**
+ * The one question a feature asks before composing a Decision: is there a
+ * Decision Model, is AI on at all, and did the administrator leave this use
+ * selected. False on every count when no Decision Model is configured, so a
+ * feature's fallback is the path it takes on a server that never heard of
+ * one. A block with no stored selection means every use.
+ */
+export async function isDecisionUseEnabled(use: DecisionUse): Promise<boolean> {
+  const [aiConfig, decisionConfig] = await Promise.all([getAIConfig(), getDecisionConfig(true)]);
+
+  if (!aiConfig?.enabled) return false;
+
+  return isDecisionUseSelected(decisionConfig, use);
+}
+
+/**
+ * Get maximum video file size in bytes
+ * Returns value from DB config, falls back to SERVER_CONFIG default if not configured
+ */
+export async function getMaxVideoFileSize(): Promise<number> {
+  const videoConfig = await getConfig<VideoConfig>(ServerConfigKeys.VIDEO_CONFIG);
+
+  return videoConfig?.maxVideoFileSize ?? SERVER_CONFIG.MAX_VIDEO_FILE_SIZE;
+}
+
+/**
+ * Get scheduler cleanup months
+ */
+export async function getSchedulerCleanupMonths(): Promise<number> {
+  const value = await getConfig<number>(ServerConfigKeys.SCHEDULER_CLEANUP_MONTHS);
+
+  return value ?? 3;
+}
+
+/**
+ * Get recipe permission policy
+ */
+export async function getRecipePermissionPolicy(): Promise<RecipePermissionPolicy> {
+  const value = await getConfig<RecipePermissionPolicy>(ServerConfigKeys.RECIPE_PERMISSION_POLICY);
+
+  return value ?? DEFAULT_RECIPE_PERMISSION_POLICY;
+}
+
+/**
+ * Get prompts configuration
+ */
+export async function getPrompts(): Promise<PromptsConfig> {
+  const value = await getConfig<PromptsConfig>(ServerConfigKeys.PROMPTS);
+
+  // The row stores only administrator overrides; no row means no overrides.
+  return value ?? {};
+}
+
+/**
+ * Check if AI features are enabled
+ */
+export async function isAIEnabled(): Promise<boolean> {
+  const aiConfig = await getConfig<AIConfig>(ServerConfigKeys.AI_CONFIG);
+
+  return aiConfig?.enabled ?? false;
+}
+
+/**
+ * Check if imports should always use AI (skip structured parsers)
+ * Only returns true if AI is enabled AND alwaysUseAI is set
+ */
+export async function shouldAlwaysUseAI(): Promise<boolean> {
+  const aiConfig = await getConfig<AIConfig>(ServerConfigKeys.AI_CONFIG);
+
+  return (aiConfig?.enabled && aiConfig?.alwaysUseAI) ?? false;
+}
+
+/**
+ * Check if video parsing is enabled
+ */
+export async function isVideoParsingEnabled(): Promise<boolean> {
+  const videoConfig = await getConfig<VideoConfig>(ServerConfigKeys.VIDEO_CONFIG);
+
+  return ((await isAIEnabled()) && videoConfig?.enabled) ?? false;
+}
+
+/**
+ * Get the tag strategy auto-tagging uses when it runs.
+ * Deliberately independent of whether auto-tagging runs automatically, so a
+ * disabled automatic switch never removes the manual tool or erases the strategy.
+ */
+export async function getTagStrategy(): Promise<TagStrategy> {
+  const aiConfig = await getAIConfig();
+
+  return aiConfig?.tagStrategy ?? DEFAULT_TAG_STRATEGY;
+}
+
+/**
+ * Get the cuisine strategy provenance inference uses when it runs.
+ * Like the tag strategy, independent of the automatic switch: turning
+ * automation off must not change how names are picked for a manual run.
+ */
+export async function getCuisineStrategy(): Promise<CuisineStrategy> {
+  const aiConfig = await getAIConfig();
+
+  return aiConfig?.cuisineStrategy ?? DEFAULT_CUISINE_STRATEGY;
+}
+
+/**
+ * Get the independent Automatic Recipe Enrichment switches, one per kind.
+ * Every kind is off when AI is globally disabled, because no automatic or manual
+ * AI request may bypass deployment policy.
+ */
+export async function getAutomaticEnrichmentConfig(): Promise<AutomaticEnrichmentConfig> {
+  const aiConfig = await getAIConfig();
+
+  if (!aiConfig?.enabled) {
+    return ALL_AUTOMATIC_ENRICHMENT_OFF;
+  }
+
+  return aiConfig.automaticEnrichment;
+}
+
+// ============================================================================
+// Locale Configuration
+// ============================================================================
+
+/**
+ * Default locale configuration with all available locales.
+ * To add a new locale:
+ * 1. Add the locale entry to `@norish/i18n/locales`
+ * 2. Add translation files to `@norish/i18n/messages/{locale}`
+ * 3. Register static message loaders in `@norish/i18n/messages`
+ */
+export const DEFAULT_LOCALE_CONFIG: I18nLocaleConfig = {
+  defaultLocale: DEFAULT_LOCALE,
+  locales: Object.fromEntries(
+    getBundledLocales().map((locale) => [locale.code, { name: locale.name, enabled: true }])
+  ),
+};
+
+/**
+ * Get the full locale configuration.
+ *
+ * Priority:
+ * 1. Database config (if admin has saved settings via UI)
+ * 2. Environment variable ENABLED_LOCALES (filters which locales are enabled)
+ * 3. Default config (all locales enabled)
+ */
+export async function getLocaleConfig(): Promise<I18nLocaleConfig> {
+  try {
+    const dbConfig = await getConfig<I18nLocaleConfig>(ServerConfigKeys.LOCALE_CONFIG);
+
+    if (dbConfig) {
+      return dbConfig;
+    }
+  } catch {
+    // DB unavailable (e.g., during build/CI), fall through to env config
+  }
+
+  // 2. Build from env var + defaults
+  return buildLocaleConfigFromEnv();
+}
+
+/**
+ * Build locale config from environment variables.
+ * Exported for use by seed-config.ts to avoid duplication.
+ */
+export function buildLocaleConfigFromEnv(): I18nLocaleConfig {
+  const envEnabledLocales = SERVER_CONFIG.ENABLED_LOCALES;
+  const envDefaultLocale = SERVER_CONFIG.DEFAULT_LOCALE;
+
+  // Start with default config
+  const config: I18nLocaleConfig = {
+    defaultLocale: envDefaultLocale || DEFAULT_LOCALE_CONFIG.defaultLocale,
+    locales: JSON.parse(JSON.stringify(DEFAULT_LOCALE_CONFIG.locales)),
+  };
+
+  // If ENABLED_LOCALES env is set, filter enabled status
+  if (envEnabledLocales.length > 0) {
+    for (const locale of Object.keys(config.locales)) {
+      const localeEntry = config.locales[locale];
+
+      if (!localeEntry) {
+        continue;
+      }
+
+      config.locales[locale] = {
+        ...localeEntry,
+        enabled: envEnabledLocales.includes(locale),
+      };
+    }
+  }
+
+  // Ensure default locale is valid - if not in enabled locales, use first enabled
+  const enabledLocales = Object.entries(config.locales)
+    .filter(([_, entry]) => entry.enabled)
+    .map(([code]) => code);
+
+  if (!enabledLocales.includes(config.defaultLocale)) {
+    config.defaultLocale = enabledLocales[0] || "en";
+  }
+
+  return config;
+}
+
+/**
+ * Get list of enabled locale codes
+ */
+export async function getEnabledLocales(): Promise<string[]> {
+  const config = await getLocaleConfig();
+
+  return Object.entries(config.locales)
+    .filter(([_, entry]) => entry.enabled)
+    .map(([code]) => code);
+}
+
+/**
+ * Get the default locale code
+ */
+export async function getDefaultLocale(): Promise<string> {
+  const config = await getLocaleConfig();
+
+  return config.defaultLocale;
+}
+
+/**
+ * Check if a locale code is valid and enabled
+ */
+export async function isValidEnabledLocale(locale: string): Promise<boolean> {
+  const enabledLocales = await getEnabledLocales();
+
+  return enabledLocales.includes(locale);
+}
+
+// ============================================================================
+// Type exports for convenience
+// ============================================================================
+
+export type {
+  UnitsMap,
+  ContentIndicatorsConfig,
+  RecurrenceConfig,
+  AIConfig,
+  VideoConfig,
+  DecisionConfig,
+  DecisionUse,
+  RecipePermissionPolicy,
+  PromptsConfig,
+  I18nLocaleConfig,
+  TimerKeywordsConfig,
+};

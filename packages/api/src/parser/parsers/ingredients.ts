@@ -6,7 +6,7 @@
 
 import { decode } from "html-entities";
 
-import type { UnitsMap } from "@norish/config/server-config-loader";
+import type { UnitsMap } from "@norish/shared-server/config/server-config-loader";
 import type { MeasurementSystem } from "@norish/shared/contracts/dto/recipe";
 import { inferSystemUsedFromParsed } from "@norish/shared/lib/determine-recipe-system";
 import { parseIngredientWithDefaults } from "@norish/shared/lib/helpers";

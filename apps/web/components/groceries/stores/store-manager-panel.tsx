@@ -1,125 +1,167 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { DynamicHeroIcon, STORE_ICON_NAMES } from "@/components/groceries/dynamic-hero-icon";
-import { getStoreColorClasses, STORE_COLOR_OPTIONS } from "@/components/groceries/store-colors";
-import Panel, { PANEL_HEIGHT_LARGE } from "@/components/Panel/Panel";
+import { storeColorKey, storeColorStyle } from "@/components/groceries/store-colors";
+import Panel from "@/components/Panel/Panel";
+import {
+  ActionButton,
+  ActionButtonGroup,
+  IconActionButton,
+} from "@/components/shared/action-button";
 import { useGroceriesQuery } from "@/hooks/groceries";
 import { useStoresMutations } from "@/hooks/stores";
-import {
-  Bars3Icon,
-  CheckIcon,
-  PencilIcon,
-  PlusIcon,
-  TrashIcon,
-  XMarkIcon,
-} from "@heroicons/react/24/solid";
-import { Button, Input } from "@heroui/react";
+import { Bars3Icon } from "@heroicons/react/24/solid";
 import { Reorder, useDragControls } from "motion/react";
 import { useTranslations } from "next-intl";
 
-import type { StoreColor, StoreDto } from "@norish/shared/contracts";
+import type {
+  SearchAddressOutcome,
+  StoreDto,
+  StoreSearchAddressResult,
+} from "@norish/shared/contracts";
+import { sortAisles } from "@norish/shared/lib/aisles";
 
+import type { EditingStore } from "./store-editor-panel";
 import { DeleteStoreModal } from "./delete-store-modal";
+import { canSaveStore, StoreEditorPanel } from "./store-editor-panel";
+import { storeLinkFields } from "./store-search-address-field";
 
 interface StoreManagerPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   stores: StoreDto[];
 }
+/** What the shop said when its Search Address was last tried, if it was. */
+type ShopCheck = { storeName: string; result: StoreSearchAddressResult | null };
 
-type EditingStore = {
-  id: string | null; // null = new store
-  name: string;
-  color: StoreColor;
-  icon: string;
-};
-
+/**
+ * The household's Stores: a list to reorder, edit and delete, with the one
+ * being added or edited in a panel of its own over it. What the shop
+ * answered when a Store's link was last tried is said here, above the list,
+ * once the editor has closed.
+ */
 export function StoreManagerPanel({ open, onOpenChange, stores }: StoreManagerPanelProps) {
-  const { createStore, updateStore, deleteStore, reorderStores } = useStoresMutations();
+  const { createStore, updateStore, deleteStore, reorderStores, checkSearchAddress } =
+    useStoresMutations();
   const { groceries } = useGroceriesQuery();
   const t = useTranslations("groceries.storeManager");
   const tActions = useTranslations("common.actions");
-
   const [editingStore, setEditingStore] = useState<EditingStore | null>(null);
+  const [shopCheck, setShopCheck] = useState<ShopCheck | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [storeToDelete, setStoreToDelete] = useState<{ id: string; name: string } | null>(null);
-
+  const [storeToDelete, setStoreToDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const dragConstraintsRef = useRef<HTMLDivElement>(null);
-
   const handleStartCreate = () => {
     setEditingStore({
       id: null,
       name: "",
       color: "primary",
-      icon: "ShoppingBagIcon",
+      link: "",
+      aisles: [],
     });
   };
-
   const handleStartEdit = (store: StoreDto) => {
     setEditingStore({
       id: store.id,
       name: store.name,
-      color: store.color as StoreColor,
-      icon: store.icon,
+      color: storeColorKey(store.color),
+      link: store.searchAddress ?? store.website ?? "",
+      aisles: sortAisles(store.aisles).map(({ id, name, version }) => ({ id, name, version })),
     });
   };
-
   const handleSave = async () => {
-    if (!editingStore || !editingStore.name.trim()) return;
+    if (!editingStore || !canSaveStore(editingStore)) return;
+
+    const { website, searchAddress, term } = storeLinkFields(editingStore.link);
+    const storeName = editingStore.name.trim();
+    // Re-saving a Store with the link it already had asks the shop nothing:
+    // the address was checked when it was pasted, and a paste re-read from the
+    // Store carries no term to check it with.
+    const before = editingStore.id ? stores.find((store) => store.id === editingStore.id) : null;
+    const linkChanged =
+      !before ||
+      (before.website ?? null) !== website ||
+      (before.searchAddress ?? null) !== searchAddress;
+
+    let savedId = editingStore.id;
+    // The whole list, in order: the aisles are saved with the Store, in one
+    // write, each known aisle at the version it was read at (ADR-0004).
+    const aisles = editingStore.aisles.map(({ id, name, version }) => ({
+      id,
+      name: name.trim(),
+      ...(version === undefined ? {} : { version }),
+    }));
 
     if (editingStore.id) {
-      // Update existing store
       updateStore({
         id: editingStore.id,
-        name: editingStore.name.trim(),
+        name: storeName,
         color: editingStore.color,
-        icon: editingStore.icon,
+        website,
+        searchAddress,
+        aisles,
       });
     } else {
-      // Create new store
-      await createStore({
-        name: editingStore.name.trim(),
+      savedId = await createStore({
+        name: storeName,
         color: editingStore.color,
-        icon: editingStore.icon,
+        website,
+        searchAddress,
+        aisles,
       });
     }
-
     setEditingStore(null);
+    // Verification informs, it never gates: the Store is stored by now, and
+    // this only tells the user what the address it was given actually found.
+    if (savedId && (website ?? searchAddress) && linkChanged) {
+      setShopCheck({ storeName, result: null });
+      checkSearchAddress(savedId, term, searchAddress, website)
+        .then((result) => setShopCheck({ storeName, result }))
+        .catch(() => setShopCheck(null));
+    }
   };
-
   const handleCancel = () => {
     setEditingStore(null);
   };
-
   const handleDeleteClick = (store: StoreDto) => {
-    setStoreToDelete({ id: store.id, name: store.name });
+    setStoreToDelete({
+      id: store.id,
+      name: store.name,
+    });
     setDeleteModalOpen(true);
   };
-
   const handleDeleteConfirm = (storeId: string, deleteGroceries: boolean) => {
     const grocerySnapshot = groceries
       .filter((grocery) => grocery.storeId === storeId)
-      .map((grocery) => ({ id: grocery.id, version: grocery.version }));
+      .map((grocery) => ({
+        id: grocery.id,
+        version: grocery.version,
+      }));
 
     deleteStore(storeId, deleteGroceries, grocerySnapshot);
     setStoreToDelete(null);
   };
-
   const handleReorder = (newOrder: StoreDto[]) => {
-    const storeIds = newOrder.map((s) => s.id);
-
-    reorderStores(storeIds);
+    reorderStores(newOrder.map((s) => s.id));
+  };
+  const handlePanelOpenChange = (isOpen: boolean) => {
+    if (!isOpen) setEditingStore(null);
+    onOpenChange(isOpen);
   };
 
   return (
     <>
-      <Panel height={PANEL_HEIGHT_LARGE} open={open} title={t("title")} onOpenChange={onOpenChange}>
-        <div className="flex h-full flex-col gap-4">
+      <Panel open={open} title={t("title")} onOpenChange={handlePanelOpenChange}>
+        <Panel.Body>
+          {shopCheck && <ShopCheckLine check={shopCheck} />}
+
           {/* Store list */}
-          <div ref={dragConstraintsRef} className="flex-1 overflow-y-auto">
-            {stores.length === 0 && !editingStore && (
-              <div className="text-default-400 py-8 text-center">
+          <div ref={dragConstraintsRef} className="min-h-0 flex-1">
+            {stores.length === 0 && (
+              <div className="text-muted py-8 text-center">
                 <p>{t("noStoresYet")}</p>
                 <p className="text-sm">{t("createStoreHint")}</p>
               </div>
@@ -135,54 +177,33 @@ export function StoreManagerPanel({ open, onOpenChange, stores }: StoreManagerPa
                 <StoreListItem
                   key={store.id}
                   dragConstraintsRef={dragConstraintsRef}
-                  isEditing={editingStore?.id === store.id}
                   store={store}
+                  translations={{
+                    deleteLabel: tActions("delete"),
+                    editLabel: tActions("edit"),
+                  }}
                   onDelete={() => handleDeleteClick(store)}
                   onEdit={() => handleStartEdit(store)}
                 />
               ))}
             </Reorder.Group>
-
-            {/* New store form inline */}
-            {editingStore && editingStore.id === null && (
-              <div className="mt-2">
-                <StoreEditForm
-                  editing={editingStore}
-                  translations={{ t, tActions }}
-                  onCancel={handleCancel}
-                  onChange={setEditingStore}
-                  onSave={handleSave}
-                />
-              </div>
-            )}
           </div>
-
-          {/* Edit form when editing existing store */}
-          {editingStore && editingStore.id !== null && (
-            <div className="border-default-200 border-t pt-4">
-              <StoreEditForm
-                editing={editingStore}
-                translations={{ t, tActions }}
-                onCancel={handleCancel}
-                onChange={setEditingStore}
-                onSave={handleSave}
-              />
-            </div>
-          )}
-
-          {/* Add store button */}
-          {!editingStore && (
-            <Button
-              className="shrink-0"
-              color="primary"
-              startContent={<PlusIcon className="h-5 w-5" />}
-              variant="solid"
-              onPress={handleStartCreate}
-            >
+        </Panel.Body>
+        <Panel.Footer>
+          <ActionButtonGroup>
+            <ActionButton action="add" onPress={handleStartCreate}>
               {t("addStore")}
-            </Button>
-          )}
-        </div>
+            </ActionButton>
+          </ActionButtonGroup>
+        </Panel.Footer>
+
+        <StoreEditorPanel
+          editing={editingStore}
+          open={open && editingStore !== null}
+          onCancel={handleCancel}
+          onChange={setEditingStore}
+          onSave={handleSave}
+        />
       </Panel>
 
       <DeleteStoreModal
@@ -199,163 +220,95 @@ export function StoreManagerPanel({ open, onOpenChange, stores }: StoreManagerPa
   );
 }
 
-// Store list item component
+/** One line of copy per thing a shop can answer, so no outcome goes unworded. */
+const CHECK_MESSAGES: Record<SearchAddressOutcome, string> = {
+  products: "checkFoundProducts",
+  "no-products": "checkNoProducts",
+  answered: "checkAnswered",
+  "no-answer": "checkNoAnswer",
+  "no-address": "checkNoAddress",
+};
+
+/** What the shop answered, in the user's own words rather than an error. */
+function ShopCheckLine({ check }: { check: ShopCheck }) {
+  const t = useTranslations("groceries.storeManager");
+  const { result } = check;
+  const message = result
+    ? t(CHECK_MESSAGES[result.outcome], { store: check.storeName, count: result.count ?? 0 })
+    : t("checkingShop", { store: check.storeName });
+
+  return (
+    <p
+      className="text-muted bg-surface-secondary mb-2 rounded-lg p-3 text-sm"
+      data-testid="shop-check"
+    >
+      {message}
+    </p>
+  );
+}
+
 interface StoreListItemProps {
   store: StoreDto;
-  isEditing: boolean;
   dragConstraintsRef: React.RefObject<HTMLDivElement | null>;
+  translations: {
+    deleteLabel: string;
+    editLabel: string;
+  };
   onEdit: () => void;
   onDelete: () => void;
 }
-
 function StoreListItem({
   store,
-  isEditing,
   dragConstraintsRef,
+  translations,
   onEdit,
   onDelete,
 }: StoreListItemProps) {
   const controls = useDragControls();
-  const colorClasses = getStoreColorClasses(store.color as StoreColor);
-
-  if (isEditing) {
-    return null; // Hide when editing (form shows below)
-  }
 
   return (
     <Reorder.Item
-      className="bg-content1 flex items-center gap-3 rounded-lg p-3"
+      className="bg-surface flex items-center gap-3 rounded-lg p-3"
       drag="y"
       dragConstraints={dragConstraintsRef}
       dragControls={controls}
       dragElastic={0}
       dragListener={false}
       dragMomentum={false}
-      style={{ position: "relative" }}
+      style={{
+        position: "relative",
+      }}
       value={store}
     >
       {/* Drag handle */}
       <div
-        className="text-default-400 shrink-0 cursor-grab touch-none active:cursor-grabbing"
+        className="text-muted shrink-0 cursor-grab touch-none active:cursor-grabbing"
         onPointerDown={(e) => controls.start(e)}
       >
         <Bars3Icon className="h-5 w-5" />
       </div>
 
-      {/* Icon with color */}
-      <div className={`shrink-0 rounded-full p-1.5 ${colorClasses.bgLight}`}>
-        <DynamicHeroIcon className={`h-5 w-5 ${colorClasses.text}`} iconName={store.icon} />
-      </div>
+      {/* The Store's mark: a dot in its colour */}
+      <span
+        aria-hidden
+        className="h-2.5 w-2.5 shrink-0 rounded-full bg-(--store-color)"
+        data-testid="store-dot"
+        style={storeColorStyle(store.color)}
+      />
 
       {/* Name */}
       <span className="flex-1 truncate font-medium">{store.name}</span>
 
       {/* Actions */}
       <div className="flex shrink-0 gap-1">
-        <Button isIconOnly size="sm" variant="light" onPress={onEdit}>
-          <PencilIcon className="h-4 w-4" />
-        </Button>
-        <Button isIconOnly color="danger" size="sm" variant="light" onPress={onDelete}>
-          <TrashIcon className="h-4 w-4" />
-        </Button>
+        <IconActionButton action="edit" label={translations.editLabel} size="sm" onPress={onEdit} />
+        <IconActionButton
+          action="delete"
+          label={translations.deleteLabel}
+          size="sm"
+          onPress={onDelete}
+        />
       </div>
     </Reorder.Item>
-  );
-}
-
-// Store edit form component
-interface StoreEditFormProps {
-  editing: EditingStore;
-  onChange: (store: EditingStore) => void;
-  onSave: () => void;
-  onCancel: () => void;
-  translations: {
-    t: ReturnType<typeof useTranslations<"groceries.storeManager">>;
-    tActions: ReturnType<typeof useTranslations<"common.actions">>;
-  };
-}
-
-function StoreEditForm({ editing, onChange, onSave, onCancel, translations }: StoreEditFormProps) {
-  const { t, tActions } = translations;
-
-  return (
-    <div className="bg-content2 flex flex-col gap-4 rounded-lg p-4">
-      {/* Name input - autoFocus is intentional UX for edit form */}
-      <Input
-        // eslint-disable-next-line jsx-a11y/no-autofocus
-        autoFocus
-        label={t("storeName")}
-        placeholder={t("storeNamePlaceholder")}
-        size="sm"
-        value={editing.name}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            onSave();
-          }
-        }}
-        onValueChange={(v) => onChange({ ...editing, name: v })}
-      />
-
-      {/* Color picker */}
-      <div>
-        <p className="text-default-600 mb-2 text-sm font-medium">{t("storeColor")}</p>
-        <div className="flex flex-wrap gap-2">
-          {STORE_COLOR_OPTIONS.map((color) => {
-            const colorClasses = getStoreColorClasses(color);
-            const isSelected = editing.color === color;
-
-            return (
-              <button
-                key={color}
-                className={`h-8 w-8 rounded-full transition-transform ${colorClasses.bg} ${
-                  isSelected ? "scale-110 ring-2 ring-offset-2" : ""
-                } ${colorClasses.ring}`}
-                type="button"
-                onClick={() => onChange({ ...editing, color })}
-              />
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Icon picker */}
-      <div>
-        <p className="text-default-600 mb-2 text-sm font-medium">{t("storeIcon")}</p>
-        <div className="flex flex-wrap gap-2">
-          {STORE_ICON_NAMES.map((iconName) => {
-            const isSelected = editing.icon === iconName;
-            const colorClasses = getStoreColorClasses(editing.color);
-
-            return (
-              <button
-                key={iconName}
-                className={`rounded-lg p-2 transition-colors ${
-                  isSelected
-                    ? `${colorClasses.bgLight} ${colorClasses.text}`
-                    : "bg-default-100 text-default-600 hover:bg-default-200"
-                }`}
-                type="button"
-                onClick={() => onChange({ ...editing, icon: iconName })}
-              >
-                <DynamicHeroIcon className="h-5 w-5" iconName={iconName} />
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Action buttons */}
-      <div className="flex justify-end gap-2">
-        <Button size="sm" variant="flat" onPress={onCancel}>
-          <XMarkIcon className="h-4 w-4" />
-          {tActions("cancel")}
-        </Button>
-        <Button color="primary" isDisabled={!editing.name.trim()} size="sm" onPress={onSave}>
-          <CheckIcon className="h-4 w-4" />
-          {editing.id ? tActions("save") : t("create")}
-        </Button>
-      </div>
-    </div>
   );
 }

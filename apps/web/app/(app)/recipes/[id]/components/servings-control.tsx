@@ -1,10 +1,15 @@
 "use client";
 
-import React, { useCallback, useEffect } from "react";
+import { AnimatedNumber } from "@/components/recipes/animated-number";
 import { MinusIcon, PlusIcon } from "@heroicons/react/16/solid";
 import { Button } from "@heroui/react";
+import { useTranslations } from "next-intl";
 
 import { useRecipeContextRequired } from "../context";
+
+type ServingsControlProps = {
+  compact?: boolean;
+};
 
 function formatServings(n: number): string {
   if (Number.isInteger(n)) return String(n);
@@ -13,68 +18,72 @@ function formatServings(n: number): string {
   return n.toFixed(2).replace(/\.?0+$/, "");
 }
 
-export default function ServingsControl() {
-  const { recipe, setIngredientAmounts } = useRecipeContextRequired();
-  const [servings, setServings] = React.useState<number>(Math.max(0.125, recipe.servings ?? 1));
-
-  // Sync local servings with recipe when recipe.servings changes from server
-  useEffect(() => {
-    setServings(Math.max(0.125, recipe.servings ?? 1));
-  }, [recipe.servings]);
-
-  const adjust = useCallback(
-    (servingsValue: number) => {
-      setIngredientAmounts(servingsValue);
-    },
-    [setIngredientAmounts]
-  );
-
-  // Only call adjust when servings changes, not when recipe updates
-  useEffect(() => {
-    adjust(servings);
-  }, [servings, adjust]);
+/**
+ * Servings, as the same stepper the Nutrition card uses for portions: the two
+ * do the same job on the same page, and drawing them differently says they do
+ * not. It sits inline with the Ingredients heading rather than as a row of its
+ * own, so the card starts with the list.
+ */
+export default function ServingsControl({ compact = false }: ServingsControlProps) {
+  const { currentServings, recipe, setIngredientAmounts } = useRecipeContextRequired();
+  const t = useTranslations("recipes.detail");
+  const servings = Math.max(0.125, currentServings ?? recipe.servings ?? 1);
+  const buttonClassName = compact
+    ? "bg-surface-secondary size-8 min-w-8 px-0"
+    : "bg-surface-secondary";
+  const valueClassName = compact
+    ? "min-w-6 justify-center text-xs"
+    : "min-w-8 justify-center text-sm";
 
   const dec = () => {
-    setServings((s) => {
-      // If at or below 1, halve it (1 -> 0.5 -> 0.25 -> 0.125)
-      if (s <= 1) return Math.max(0.125, s / 2);
-      // If between 1 and 2, go to 1
-      if (s <= 2) return 1;
+    if (servings <= 1) {
+      setIngredientAmounts(Math.max(0.125, servings / 2));
 
-      // Otherwise decrement by 1
-      return s - 1;
-    });
+      return;
+    }
+
+    if (servings <= 2) {
+      setIngredientAmounts(1);
+
+      return;
+    }
+
+    setIngredientAmounts(servings - 1);
   };
-
   const inc = () => {
-    setServings((s) => {
-      // If below 1, double it (0.125 -> 0.25 -> 0.5 -> 1)
-      if (s < 1) return Math.min(1, s * 2);
+    if (servings < 1) {
+      setIngredientAmounts(Math.min(1, servings * 2));
 
-      // Otherwise increment by 1
-      return s + 1;
-    });
+      return;
+    }
+
+    setIngredientAmounts(servings + 1);
   };
 
   return (
-    <div className="inline-flex items-center gap-2">
+    <div className={`inline-flex shrink-0 items-center ${compact ? "gap-1" : "gap-2"}`}>
       <Button
         isIconOnly
-        aria-label="Decrease servings"
-        className="bg-content2"
+        aria-label={t("decreaseServings")}
+        className={buttonClassName}
         size="sm"
-        variant="flat"
+        variant="tertiary"
         onPress={dec}
       >
         <MinusIcon className="h-4 w-4" />
       </Button>
-      <span className="min-w-8 text-center text-sm">{formatServings(servings)}</span>
+
+      {/* Only the figure rolls. Rolling the word beside it would animate
+          something that did not change. */}
+      <span className="sr-only">{t("servingsCount", { count: servings })}</span>
+      <AnimatedNumber className={valueClassName} value={formatServings(servings)} />
+
       <Button
         isIconOnly
-        aria-label="Increase servings"
-        className="bg-content2"
+        aria-label={t("increaseServings")}
+        className={buttonClassName}
         size="sm"
-        variant="flat"
+        variant="tertiary"
         onPress={inc}
       >
         <PlusIcon className="h-4 w-4" />

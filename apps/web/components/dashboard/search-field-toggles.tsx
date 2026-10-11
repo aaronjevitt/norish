@@ -1,49 +1,50 @@
 "use client";
 
-import { useRecipesFiltersContext } from "@/context/recipes-filters-context";
 import { Chip } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
+import type { SearchField } from "@norish/shared/contracts";
+import { toggleSearchFieldIn } from "@norish/shared-react/contexts";
 import { SEARCH_FIELDS } from "@norish/shared/contracts";
 
 interface SearchFieldTogglesProps {
+  /** The working selection, held by whoever owns the Apply button. */
+  value: readonly SearchField[];
+  onChange: (next: SearchField[]) => void;
   className?: string;
   itemClassName?: string;
-  onInteraction?: () => void;
-  scrollable?: boolean;
 }
 
+/**
+ * The "Search in" group: which fields a search looks at.
+ *
+ * Controlled, because it lives in the Filters panel and applies with that
+ * panel's Apply button rather than on each click.
+ */
 export default function SearchFieldToggles({
+  value,
+  onChange,
   className = "",
   itemClassName = "",
-  onInteraction,
-  scrollable = false,
 }: SearchFieldTogglesProps) {
   const t = useTranslations("recipes.dashboard");
-  const { filters, toggleSearchField } = useRecipesFiltersContext();
-
-  const handleClick = (field: (typeof SEARCH_FIELDS)[number]) => {
-    onInteraction?.();
-    toggleSearchField(field);
-  };
-
-  const containerClass = scrollable
-    ? `flex gap-1.5 overflow-x-auto scrollbar-hide ${className}`
-    : `flex flex-wrap gap-1.5 ${className}`;
 
   return (
-    <div className={containerClass} onScroll={onInteraction} onTouchStart={onInteraction}>
+    <div className={`flex flex-wrap gap-1.5 ${className}`}>
       {SEARCH_FIELDS.map((field) => {
-        const isSelected = filters.searchFields.includes(field);
+        const isSelected = value.includes(field);
 
         return (
           <Chip
             key={field}
+            aria-pressed={isSelected}
+            as="button"
             className={`shrink-0 cursor-pointer select-none ${itemClassName}`}
-            color={isSelected ? "primary" : "default"}
+            color={isSelected ? "accent" : "default"}
             size="sm"
-            variant="solid"
-            onClick={() => handleClick(field)}
+            type="button"
+            variant={isSelected ? "primary" : "tertiary"}
+            onClick={() => onChange(toggleSearchFieldIn(value, field))}
           >
             {t(`searchFields.${field}`)}
           </Chip>

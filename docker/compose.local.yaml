@@ -4,10 +4,12 @@ services:
     ports:
       - "5432:5432"
 
-  chrome-headless:
-    container_name: chrome-headless-local
+  obscura:
+    container_name: norish-obscura-local
     ports:
-      - "3003:3003"
+      # Loopback only: this is here so a developer's `pnpm run dev` on the host
+      # can reach the browser, not so the CDP server faces the network.
+      - "127.0.0.1:9222:9222"
 
   redis:
     container_name: norish-redis-local

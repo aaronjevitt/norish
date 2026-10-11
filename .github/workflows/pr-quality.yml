@@ -1,45 +1,30 @@
 name: PR Quality Checks
 
-env:
-  NODE_ENV: production
-  DATABASE_URL: postgres://ci-user:ci-password@localhost:5432/ci-db
-  MASTER_KEY: QmFzZTY0RW5jb2RlZE1hc3RlcktleU1pbjMyQ2hhcnM=
-  SKIP_ENV_VALIDATION: "1"
-  AUTH_URL: http://localhost:3000
-  CHROME_WS_ENDPOINT: ws://localhost:3000
-
+# Pull requests only. A push to main runs release-build.yml, which gates on the
+# same reusable workflow before it tags anything, so a `push: main` trigger here
+# would just run every check on that commit a second time.
 on:
   pull_request:
     branches:
       - main
       - "rc/**"
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
 
+# A new commit supersedes whatever is still running for the PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
-  dependency-cycles:
-    name: Dependency Cycles
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup toolchain and install dependencies
-        uses: ./tooling/github/setup
-
-      - name: Run circular dependency gate
-        run: pnpm run deps:cycles
-
   quality:
-    name: Quality Checks
+    name: Quality
+    # Skipped when the PR's head is an rc/** branch. Pushing to those fires
+    # rc-release-build.yml against the identical SHA, and it gates its tag and
+    # publish on that same run — so the work is not just duplicated here, it is
+    # duplicated without anything depending on the second copy. Check runs
+    # attach to the commit, so the release run's result still lands on this PR.
+    if: ${{ !startsWith(github.head_ref, 'rc/') }}
     uses: ./.github/workflows/_node-ci.yml
-    with:
-      run-build: true
-      run-tests: true
-      run-lint: true
-      run-format: true
-      run-i18n: true
+    secrets: inherit

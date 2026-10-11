@@ -5,13 +5,14 @@ import { plannedItems, recipes } from "@norish/db/schema";
 
 import type { MutationOutcome } from "./mutation-outcomes";
 import { appliedOutcome, staleOutcome } from "./mutation-outcomes";
+import { PRIMARY_IMAGE_SQL } from "./recipe-primary-image";
 
 type PlannedItem = typeof plannedItems.$inferSelect;
 type PlannedItemInsert = typeof plannedItems.$inferInsert;
 type PlannedItemUpdate = Partial<PlannedItemInsert>;
 type PlannedItemSlot = PlannedItem["slot"];
 
-type PlannedItemWithRecipe = PlannedItem & {
+export type PlannedItemWithRecipe = PlannedItem & {
   recipeName: string | null;
   recipeImage: string | null;
   servings: number | null;
@@ -39,7 +40,7 @@ export async function listPlannedItemsByUserAndDateRange(
       createdAt: plannedItems.createdAt,
       updatedAt: plannedItems.updatedAt,
       recipeName: recipes.name,
-      recipeImage: recipes.image,
+      recipeImage: PRIMARY_IMAGE_SQL.as("recipeImage"),
       servings: recipes.servings,
       calories: recipes.calories,
     })
@@ -76,7 +77,7 @@ export async function listPlannedItemsWithRecipeBySlot(
       createdAt: plannedItems.createdAt,
       updatedAt: plannedItems.updatedAt,
       recipeName: recipes.name,
-      recipeImage: recipes.image,
+      recipeImage: PRIMARY_IMAGE_SQL.as("recipeImage"),
       servings: recipes.servings,
       calories: recipes.calories,
     })
@@ -109,7 +110,7 @@ export async function getPlannedItemWithRecipeById(
       createdAt: plannedItems.createdAt,
       updatedAt: plannedItems.updatedAt,
       recipeName: recipes.name,
-      recipeImage: recipes.image,
+      recipeImage: PRIMARY_IMAGE_SQL.as("recipeImage"),
       servings: recipes.servings,
       calories: recipes.calories,
     })
@@ -257,6 +258,12 @@ export async function deletePlannedItem(
 
     return appliedOutcome({ deletedItem, reindexedItems: updated });
   });
+}
+
+export async function deletePlannedItemsBefore(beforeDate: string): Promise<number> {
+  const result = await db.delete(plannedItems).where(lte(plannedItems.date, beforeDate));
+
+  return result.rowCount ?? 0;
 }
 
 export async function moveItem(

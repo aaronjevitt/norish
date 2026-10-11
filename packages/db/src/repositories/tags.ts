@@ -1,11 +1,12 @@
-import { asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import z from "zod";
 
 import type { TagDto } from "@norish/shared/contracts/dto/tag";
 import { db } from "@norish/db/drizzle";
-import { recipeTags, tags } from "@norish/db/schema";
+import { recipes, recipeTags, tags, userAllergies } from "@norish/db/schema";
 import { TagSelectBaseSchema } from "@norish/shared/contracts/zod";
 import { stripHtmlTags } from "@norish/shared/lib/helpers";
+import { normalizeEnrichmentTagNames } from "@norish/shared/lib/recipe-enrichment";
 
 const TagArraySchema = z.array(TagSelectBaseSchema);
 
@@ -17,6 +18,25 @@ export async function listAllTagNames(): Promise<string[]> {
     .selectDistinct({ name: tags.name, lowerName })
     .from(tags)
     .innerJoin(recipeTags, eq(tags.id, recipeTags.tagId))
+    .orderBy(lowerName);
+
+  return rows.map((r) => r.name).filter(Boolean);
+}
+
+/**
+ * List tag names used by recipes owned by the given users (typically the
+ * requesting user plus their household members).
+ */
+export async function listTagNamesForUsers(userIds: string[]): Promise<string[]> {
+  if (!userIds.length) return [];
+
+  const lowerName = sql<string>`lower(${tags.name})`.as("lower_name");
+  const rows = await db
+    .selectDistinct({ name: tags.name, lowerName })
+    .from(tags)
+    .innerJoin(recipeTags, eq(tags.id, recipeTags.tagId))
+    .innerJoin(recipes, eq(recipeTags.recipeId, recipes.id))
+    .where(inArray(recipes.userId, userIds))
     .orderBy(lowerName);
 
   return rows.map((r) => r.name).filter(Boolean);
@@ -121,6 +141,23 @@ export async function getOrCreateManyTagsTx(tx: any, names: string[]): Promise<T
   return parsed.data;
 }
 
+export async function deleteOrphanedTagsTx(tx: any): Promise<void> {
+  // A tag is only orphaned when neither recipes nor allergy settings use it.
+  // Deleting an allergy-linked tag would cascade through user_allergies and
+  // silently erase safety data.
+  const orphanedTagIds = await tx
+    .select({ id: tags.id })
+    .from(tags)
+    .leftJoin(recipeTags, eq(tags.id, recipeTags.tagId))
+    .leftJoin(userAllergies, eq(tags.id, userAllergies.tagId))
+    .where(and(isNull(recipeTags.tagId), isNull(userAllergies.tagId)))
+    .then((rows: any[]) => rows.map((r) => r.id));
+
+  if (orphanedTagIds.length === 0) return;
+
+  await tx.delete(tags).where(inArray(tags.id, orphanedTagIds));
+}
+
 export async function attachTagsToRecipeTx(
   tx: any,
   recipeId: string,
@@ -146,7 +183,11 @@ export async function attachTagsToRecipeByInputTx(
   // Delete existing tags for this recipe first
   await tx.delete(recipeTags).where(eq(recipeTags.recipeId, recipeId));
 
-  if (!tagNames.length) return;
+  if (!tagNames.length) {
+    // Clean up any orphaned tags created by removing all tags from this recipe
+    await deleteOrphanedTagsTx(tx);
+    return;
+  }
 
   const created = await getOrCreateManyTagsTx(tx, tagNames);
 
@@ -171,6 +212,9 @@ export async function attachTagsToRecipeByInputTx(
   if (rows.length > 0) {
     await tx.insert(recipeTags).values(rows).onConflictDoNothing();
   }
+
+  // Clean up any orphaned tags (tags that were removed from all recipes)
+  await deleteOrphanedTagsTx(tx);
 }
 
 export async function getRecipeTagNames(recipeId: string): Promise<string[]> {
@@ -272,4 +316,54 @@ export async function removeTagFromRecipe(recipeId: string, tagName: string): Pr
     .where(sql`${recipeTags.recipeId} = ${recipeId} AND ${recipeTags.tagId} = ${tag.id}`);
 
   return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * Append Recipe Enrichment findings to a recipe's tags.
+ *
+ * Inserts only the links that are missing and never deletes an existing one, so
+ * supplied tags survive and auto-tagging and allergy detection can finish in any
+ * order — or concurrently — without losing each other's findings. The composite
+ * primary key on (recipe, tag) makes a retried job a no-op rather than an error.
+ *
+ * @returns the tags this call actually added, and the resulting full tag list
+ */
+export async function appendRecipeTags(
+  recipeId: string,
+  incomingTagNames: readonly string[]
+): Promise<{ added: string[]; allTags: string[] }> {
+  const normalized = normalizeEnrichmentTagNames(incomingTagNames);
+
+  if (normalized.length === 0) {
+    return { added: [], allTags: await getRecipeTagNames(recipeId) };
+  }
+
+  return await db.transaction(async (tx) => {
+    const existingTags = await getRecipeTagNamesTx(tx, recipeId);
+    const existingLower = new Set(existingTags.map((name) => name.toLowerCase()));
+    const added = normalized.filter((name) => !existingLower.has(name.toLowerCase()));
+
+    if (added.length === 0) {
+      return { added, allTags: existingTags };
+    }
+
+    const created = await getOrCreateManyTagsTx(tx, added);
+    const tagIdByName = new Map(created.map((tag) => [tag.name.toLowerCase(), tag.id]));
+
+    const rows = added
+      .map((name, index) => {
+        const tagId = tagIdByName.get(name.toLowerCase());
+
+        if (!tagId) return null;
+
+        return { recipeId, tagId, order: existingTags.length + index };
+      })
+      .filter((row): row is { recipeId: string; tagId: string; order: number } => row !== null);
+
+    if (rows.length > 0) {
+      await tx.insert(recipeTags).values(rows).onConflictDoNothing();
+    }
+
+    return { added, allTags: [...existingTags, ...added] };
+  });
 }

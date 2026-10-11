@@ -14,37 +14,24 @@ import Redis from "ioredis";
 
 import { SERVER_CONFIG } from "@norish/config/env-config-server";
 import { createLogger } from "@norish/shared-server/logger";
+import { parseRedisUrl } from "@norish/shared-server/redis/url";
 
 const log = createLogger("redis:bullmq");
 
-// Use globalThis to survive HMR in development
+// Read on every access, never copied into a module-local — see the note on
+// `globalForRegistry` in ../registry.ts for why this module is evaluated more
+// than once per process. Here the cost of getting it wrong is one "shared"
+// Redis connection per instance.
 const globalForBull = globalThis as unknown as {
   bullClient: Redis | null;
 };
 
 /**
- * Parse Redis URL into connection options
- */
-function parseRedisUrl(url: string): { host: string; port: number; password?: string } {
-  const parsed = new URL(url);
-
-  return {
-    host: parsed.hostname,
-    port: parseInt(parsed.port || "6379", 10),
-    password: parsed.password || undefined,
-  };
-}
-
-/**
  * Base Redis options optimized for BullMQ
  */
 function getBaseOptions(): RedisOptions {
-  const { host, port, password } = parseRedisUrl(SERVER_CONFIG.REDIS_URL);
-
   return {
-    host,
-    port,
-    password,
+    ...parseRedisUrl(SERVER_CONFIG.REDIS_URL),
     maxRetriesPerRequest: null,
 
     // Performance optimizations
@@ -72,9 +59,6 @@ function getBaseOptions(): RedisOptions {
   };
 }
 
-// Singleton instance (survives HMR)
-let bullClient = globalForBull.bullClient ?? null;
-
 /**
  * Get the shared BullMQ Redis connection (singleton).
  *
@@ -84,18 +68,20 @@ let bullClient = globalForBull.bullClient ?? null;
  * serves as a template for connection options.
  */
 export function getBullClient(): Redis {
+  const existing = globalForBull.bullClient;
+
   // Check if existing client is still usable
-  if (bullClient && bullClient.status !== "end" && bullClient.status !== "close") {
-    return bullClient;
+  if (existing && existing.status !== "end" && existing.status !== "close") {
+    return existing;
   }
 
   // Clean up old client listeners before creating new one
-  if (bullClient) {
-    bullClient.removeAllListeners();
+  if (existing) {
+    existing.removeAllListeners();
   }
 
   // Create new client if none exists or previous one was closed
-  bullClient = new Redis({
+  const bullClient = new Redis({
     ...getBaseOptions(),
     connectionName: `norish:${process.pid}:bull`,
   });
@@ -122,9 +108,10 @@ export function getBullClient(): Redis {
  * Call during server shutdown.
  */
 export async function closeBullConnection(): Promise<void> {
+  const bullClient = globalForBull.bullClient;
+
   if (bullClient && bullClient.status !== "end") {
     await bullClient.quit();
-    bullClient = null;
     globalForBull.bullClient = null;
     log.info("BullMQ Redis connection closed");
   }

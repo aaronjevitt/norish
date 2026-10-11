@@ -1,30 +1,108 @@
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
-import type { AIConfig, VideoConfig } from "@norish/config/zod/server-config";
+import type {
+  AIConfig,
+  DecisionConfig,
+  ImageGenerationConfig,
+  VideoConfig,
+} from "@norish/config/zod/server-config";
 import { testAIEndpoint as testAIEndpointFn } from "@norish/auth/connection-tests";
-import { getRecipePermissionPolicy } from "@norish/config/server-config-loader";
 import {
+  AIConfigInputSchema,
   AIConfigSchema,
+  DecisionConfigSchema,
+  DecisionProviderSchema,
+  ImageGenerationConfigSchema,
   ServerConfigKeys,
   TranscriptionProviderSchema,
   VideoConfigSchema,
 } from "@norish/config/zod/server-config";
-import { getRecipesWithoutCategories } from "@norish/db/repositories/recipes";
+import { getImageGenerationSweepCounts } from "@norish/db/repositories/recipes";
 import { getConfig, setConfig } from "@norish/db/repositories/server-config";
-import { addAutoCategorizationJob } from "@norish/queue/auto-categorization/producer";
-import { getQueues } from "@norish/queue/registry";
-import { listModels, listTranscriptionModels } from "@norish/shared-server/ai/providers";
+import { enrollEnrichmentForAllRecipes } from "@norish/queue";
+import {
+  listModels,
+  listTranscriptionModels,
+  ModelListingError,
+} from "@norish/shared-server/ai/providers/listing";
+import { testDecisionModel } from "@norish/shared-server/ai/runtime/runtime";
+import {
+  getAutomaticEnrichmentConfig,
+  getRecipePermissionPolicy,
+  isAIEnabled,
+  isImageGenerationConfigured,
+} from "@norish/shared-server/config/server-config-loader";
 import { trpcLogger as log } from "@norish/shared-server/logger";
+import { permissions } from "@norish/shared-server/realtime/permissions";
 
 import { adminProcedure } from "../../middleware";
 import { router } from "../../trpc";
-import { permissionsEmitter } from "../permissions/emitter";
 
 type ListedModel = {
   id: string;
   name: string;
   supportsVision?: boolean;
 };
+
+/**
+ * Whether a saved provider is being replaced by a different one.
+ *
+ * A key is issued by a provider and only that provider accepts it, so a block
+ * that changes providers without a key of its own must forget the stored one
+ * rather than carry it across — carrying it is what silently blocked the
+ * fallback to the AI configuration's key.
+ */
+function providerChangedFrom(stored: string | undefined, incoming: string): boolean {
+  return stored !== undefined && stored !== incoming;
+}
+
+/** Why a list came back empty, in parts the UI can phrase in its own language. */
+type ListingRefusal = {
+  provider: string;
+  status?: number;
+  statusText?: string;
+};
+
+/**
+ * Run a listing and report a refusal rather than letting it read as "no models".
+ *
+ * A provider that rejects the key answers with nothing, which is exactly what a
+ * provider that was never configured answers with. The dropdown cannot tell an
+ * administrator which of the two happened unless the reason travels with the
+ * (empty) list, so it does.
+ */
+async function listOrExplain(
+  provider: string,
+  list: () => Promise<{ id: string; name: string; supportsVision?: boolean }[]>
+): Promise<{ models: ListedModel[]; refusal?: ListingRefusal }> {
+  try {
+    const listed = await list();
+
+    return {
+      models: listed.map((model) => ({
+        id: model.id,
+        name: model.name,
+        supportsVision: model.supportsVision,
+      })),
+    };
+  } catch (cause) {
+    if (!(cause instanceof ModelListingError)) {
+      throw cause;
+    }
+
+    log.warn({ err: cause, provider }, "Model listing refused by provider");
+
+    return {
+      models: [],
+      refusal: {
+        provider: cause.provider,
+        status: cause.status,
+        statusText: cause.statusText,
+      },
+    };
+  }
+}
 
 /**
  * Update AI config.
@@ -38,7 +116,9 @@ const updateAIConfig = adminProcedure.input(AIConfigSchema).mutation(async ({ in
   const currentConfig = await getConfig<AIConfig>(ServerConfigKeys.AI_CONFIG);
   const enabledChanged = currentConfig?.enabled !== input.enabled;
 
-  await setConfig(ServerConfigKeys.AI_CONFIG, input, ctx.user.id, true);
+  await setConfig(ServerConfigKeys.AI_CONFIG, input, ctx.user.id, true, {
+    dropSecrets: providerChangedFrom(currentConfig?.provider, input.provider) ? ["apiKey"] : [],
+  });
 
   // Broadcast permission policy update to all users if AI enabled state changed
   // This allows UI to show/hide recipe convert button
@@ -46,7 +126,7 @@ const updateAIConfig = adminProcedure.input(AIConfigSchema).mutation(async ({ in
     log.info({ enabled: input.enabled }, "AI enabled state changed, broadcasting policy update");
     const recipePolicy = await getRecipePermissionPolicy();
 
-    permissionsEmitter.broadcast("policyUpdated", { recipePolicy });
+    void permissions.publish("policyUpdated", { recipePolicy }, undefined);
   }
 
   return { success: true };
@@ -60,10 +140,85 @@ const updateVideoConfig = adminProcedure
   .mutation(async ({ input, ctx }) => {
     log.info({ userId: ctx.user.id, enabled: input.enabled }, "Updating video config");
 
+    const stored = await getConfig<VideoConfig>(ServerConfigKeys.VIDEO_CONFIG);
+
     // VideoConfig contains transcription API key, so mark as sensitive
-    await setConfig(ServerConfigKeys.VIDEO_CONFIG, input, ctx.user.id, true);
+    await setConfig(ServerConfigKeys.VIDEO_CONFIG, input, ctx.user.id, true, {
+      dropSecrets: providerChangedFrom(stored?.transcriptionProvider, input.transcriptionProvider)
+        ? ["transcriptionApiKey"]
+        : [],
+    });
 
     return { success: true };
+  });
+
+/**
+ * Update the Image Generation configuration block (ADR-0024): its own
+ * provider, model, endpoint and key. Sensitive because of the key; an omitted
+ * key preserves the stored one, exactly as the AI and video blocks do.
+ */
+const updateImageGenerationConfig = adminProcedure
+  .input(ImageGenerationConfigSchema)
+  .mutation(async ({ input, ctx }) => {
+    log.info({ userId: ctx.user.id, provider: input.provider }, "Updating image generation config");
+
+    const stored = await getConfig<ImageGenerationConfig>(ServerConfigKeys.IMAGE_GENERATION_CONFIG);
+
+    await setConfig(ServerConfigKeys.IMAGE_GENERATION_CONFIG, input, ctx.user.id, true, {
+      dropSecrets: providerChangedFrom(stored?.provider, input.provider) ? ["apiKey"] : [],
+    });
+
+    return { success: true };
+  });
+
+/**
+ * Update the Decision Model block (ADR-0035): its own provider, key, model,
+ * endpoint and the uses an administrator selected. Sensitive because of the
+ * key; an omitted key preserves the stored one and a provider change drops
+ * it, exactly as the sibling blocks do.
+ */
+const updateDecisionConfig = adminProcedure
+  .input(DecisionConfigSchema)
+  .mutation(async ({ input, ctx }) => {
+    log.info({ userId: ctx.user.id, provider: input.provider }, "Updating Decision Model config");
+
+    const stored = await getConfig<DecisionConfig>(ServerConfigKeys.DECISION_CONFIG);
+
+    await setConfig(ServerConfigKeys.DECISION_CONFIG, input, ctx.user.id, true, {
+      dropSecrets: providerChangedFrom(stored?.provider, input.provider) ? ["apiKey"] : [],
+    });
+
+    return { success: true };
+  });
+
+/**
+ * Test the Decision Model: one trivial Boolean question through the AI
+ * Runtime, against the settings as typed. A key omitted from the form means
+ * the stored one, as the AI test does, so a saved key can be re-tested
+ * without being retyped. The provider's own reason comes back on failure — a
+ * refused key reads as a refused key.
+ */
+const testDecisionEndpoint = adminProcedure
+  .input(
+    z.object({
+      provider: DecisionProviderSchema,
+      apiKey: z.string().optional(),
+      model: z.string().optional(),
+      endpoint: z.url().optional(),
+    })
+  )
+  .mutation(async ({ input, ctx }) => {
+    log.info({ userId: ctx.user.id, provider: input.provider }, "Testing Decision Model");
+
+    let apiKey = input.apiKey;
+
+    if (!apiKey) {
+      const stored = await getConfig<DecisionConfig>(ServerConfigKeys.DECISION_CONFIG, true);
+
+      apiKey = stored?.provider === input.provider ? stored.apiKey : undefined;
+    }
+
+    return await testDecisionModel({ ...input, apiKey });
   });
 
 /**
@@ -73,7 +228,7 @@ const updateVideoConfig = adminProcedure
 const testAIEndpoint = adminProcedure
   .input(
     z.object({
-      provider: AIConfigSchema.shape.provider,
+      provider: AIConfigInputSchema.shape.provider,
       endpoint: z.string().url().optional(),
       apiKey: z.string().optional(),
     })
@@ -99,7 +254,7 @@ const testAIEndpoint = adminProcedure
 const listAvailableModels = adminProcedure
   .input(
     z.object({
-      provider: AIConfigSchema.shape.provider,
+      provider: AIConfigInputSchema.shape.provider,
       endpoint: z.string().optional(),
       apiKey: z.string().optional(),
     })
@@ -118,18 +273,12 @@ const listAvailableModels = adminProcedure
       }
     }
 
-    const listedModels = await listModels(input.provider, {
-      endpoint: input.endpoint,
-      apiKey,
-    });
-
-    const models: ListedModel[] = listedModels.map((model) => ({
-      id: model.id,
-      name: model.name,
-      supportsVision: model.supportsVision,
-    }));
-
-    return { models };
+    return listOrExplain(input.provider, () =>
+      listModels(input.provider, {
+        endpoint: input.endpoint,
+        apiKey,
+      })
+    );
   });
 
 /**
@@ -166,51 +315,89 @@ const listAvailableTranscriptionModels = adminProcedure
       }
     }
 
-    const listedModels = await listTranscriptionModels(input.provider, {
-      endpoint: input.endpoint,
-      apiKey,
-    });
-
-    const models: ListedModel[] = listedModels.map((model) => ({
-      id: model.id,
-      name: model.name,
-      supportsVision: model.supportsVision,
-    }));
-
-    return { models };
+    return listOrExplain(input.provider, () =>
+      listTranscriptionModels(input.provider, {
+        endpoint: input.endpoint,
+        apiKey,
+      })
+    );
   });
 
-const categorizeAllRecipes = adminProcedure.mutation(async ({ ctx }) => {
-  log.info({ userId: ctx.user.id }, "Bulk categorization requested");
+/**
+ * Enroll every enabled enrichment kind for every recipe on the server.
+ *
+ * Deliberately the automatic origin: the automatic switches decide which kinds
+ * run, and by default Supplied Recipe Data keeps winning, so the sweep fills
+ * gaps without replacing anything a person or an import source provided.
+ *
+ * `replaceExisting` is the destructive variant, and it is a per-request choice
+ * rather than stored configuration on purpose: a stored switch would also
+ * govern the automatic enrollment every newly imported recipe triggers, which
+ * would turn "enrich what is missing" into "overwrite what the source said".
+ */
+const enrichAllRecipes = adminProcedure
+  .input(z.object({ replaceExisting: z.boolean().default(false) }).default({}))
+  .mutation(async ({ input, ctx }) => {
+    log.info(
+      { userId: ctx.user.id, replaceExisting: input.replaceExisting },
+      "Bulk enrichment requested"
+    );
 
-  const uncategorized = await getRecipesWithoutCategories();
+    if (!(await isAIEnabled())) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "AI is disabled on this server. Enable AI before running enrichment.",
+      });
+    }
 
-  if (uncategorized.length === 0) {
-    log.info("No uncategorized recipes found");
+    const result = await enrollEnrichmentForAllRecipes(
+      {
+        userId: ctx.user.id,
+        householdKey: ctx.household?.id ?? "",
+      },
+      { replaceExisting: input.replaceExisting }
+    );
 
-    return { queued: 0 };
+    log.info({ ...result, replaceExisting: input.replaceExisting }, "Bulk enrichment jobs queued");
+
+    return result;
+  });
+
+/**
+ * How many images an Enrich All Recipes sweep would generate, for the
+ * confirmation to name before it starts (ADR-0025) — the one kind whose cost
+ * is per recipe and lands on a bill. A per-request read, never stored.
+ *
+ * `enabled: false` when the kind's automatic switch is off (or AI is), so
+ * the modal renders exactly as it does today. With the switch on but no
+ * image provider configured, both counts are honestly zero: every origin
+ * would skip.
+ */
+const imageGenerationSweepCount = adminProcedure.query(async () => {
+  const automatic = await getAutomaticEnrichmentConfig();
+
+  if (!automatic.imageGeneration) {
+    return { enabled: false as const };
   }
 
-  const queues = getQueues();
-
-  for (const recipe of uncategorized) {
-    await addAutoCategorizationJob(queues.autoCategorization, {
-      recipeId: recipe.id,
-      userId: ctx.user.id,
-      householdKey: ctx.household?.id ?? "",
-    });
+  if (!(await isImageGenerationConfigured())) {
+    return { enabled: true as const, gapOnly: 0, overwrite: 0 };
   }
 
-  log.info({ count: uncategorized.length }, "Bulk categorization jobs queued");
+  const counts = await getImageGenerationSweepCounts();
 
-  return { queued: uncategorized.length };
+  return { enabled: true as const, gapOnly: counts.missingImage, overwrite: counts.eligible };
 });
 
 export const aiConfigProcedures = router({
   updateAIConfig,
   updateVideoConfig,
+  updateImageGenerationConfig,
+  updateDecisionConfig,
   testAIEndpoint,
+  testDecisionEndpoint,
   listAvailableModels,
   listAvailableTranscriptionModels,
-  categorizeAllRecipes,
+  enrichAllRecipes,
+  imageGenerationSweepCount,
 });

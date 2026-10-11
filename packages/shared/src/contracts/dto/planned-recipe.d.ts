@@ -28,5 +28,4 @@ export type PlannedRecipeDeleteInput = z.infer<typeof PlannedRecipeDeleteSchema>
 export type PlannedRecipeUpdateDateInput = z.infer<typeof PlannedRecipeUpdateDateSchema>;
 
 export type CalendarItemViewDto =
-  | (PlannedRecipeViewDto & { itemType: "recipe" })
-  | (NoteViewDto & { itemType: "note" });
+  (PlannedRecipeViewDto & { itemType: "recipe" }) | (NoteViewDto & { itemType: "note" });

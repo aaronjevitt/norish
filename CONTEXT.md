@@ -1,0 +1,338 @@
+# Norish
+
+Self-hostable recipe manager and meal planner: recipes, groceries, stores, and a meal calendar shared across a household, served by a single self-hosted backend with web and mobile clients.
+
+## Language
+
+### Recipes
+
+**Usable Recipe**:
+A recipe whose creation transaction has succeeded and whose stored state can be loaded. Automatic enrichment adds no second completeness check beyond the existing creation contract.
+_Avoid_: Complete Recipe (suggests optional fields must be present)
+
+**Recipe Enrichment**:
+Optional AI-assisted processing that adds or refreshes recipe tags, allergy indications, meal categories, nutrition values, provenance, Step Ingredients, or a picture of the dish after a recipe is usable. It includes both automatic runs for newly usable recipes and manually requested runs; its outcome does not determine whether recipe creation or import succeeded. A run's own claims may be checked by the Decision Model before they are written (Enrichment Validation); what is already stored is never re-judged, so a person's tags, categories and links stay out of its reach.
+_Avoid_: Post-Import Enrichment (excludes manual creation and manual runs)
+
+**Automatic Recipe Enrichment**:
+Recipe Enrichment enrolled once for every newly usable recipe, whether created manually or through any import path, according to deployment settings and safely supplied recipe data. Later recipe edits do not enroll it again. It is quiet background work: failure neither changes recipe creation or import success nor presents an operational error to the user.
+_Avoid_: Auto-enhancement
+
+**Automatic Enrichment Enrollment**:
+The post-commit event-driven handoff from a usable recipe to its eligible Automatic Recipe Enrichment jobs. A listener is part of the normal server runtime, but the event is not persisted or replayed; a brief process or Redis interruption can therefore miss enrollment by accepted design.
+_Avoid_: Scheduled enrichment, Enrichment saga
+
+**Manual Recipe Enrichment**:
+A single enrichment explicitly requested by a recipe editor. Its lifecycle remains visible and a terminal failure is reported to the requester.
+
+**Supplied Recipe Data**:
+Recipe information intentionally entered by a person or explicitly present in an import source and stored with the recipe. It outranks Automatic Recipe Enrichment for exactly what it covers: substantive supplied categories and complete Nutrition Information suppress their kinds, any stored image suppresses automatic Image Generation, and supplied Recipe Provenance slots are kept while an automatic run fills the rest of the group (ADR-0018). Null and empty values do not count. AI may read source material to extract supplied facts, but information inferred beyond the source is Recipe Enrichment.
+
+**Imported Recipe Data**:
+Supplied Recipe Data explicitly present in an import source and preserved during import. It remains imported data even when AI is required to read the source.
+_Avoid_: AI-imported data (describes the mechanism, not the source evidence)
+
+**Nutrition Information**:
+A recipe's calories, fat, carbohydrates, and protein considered as one atomic group. Blank values are absent; any substantive supplied value makes the stored group authoritative for Automatic Recipe Enrichment.
+_Avoid_: Macros (does not include calories)
+
+**Recipe Provenance**:
+Where a recipe comes from: a single origin country, an optional finer-grained region within it, its Cuisines, and a short written explanation of how that was concluded. A dish claimed by several countries still gets the single strongest claim, with rivals acknowledged in the explanation; only a genuinely unplaceable dish has no country. The country's written name, the region, and the explanation are recipe content, not interface chrome: they speak the language of the recipe itself when inferred (or the supplier's own words when supplied) and are never translated. Flags, pickers, and tooltips are chrome and follow the reader's language. It is one kind of Recipe Enrichment. An automatic run fills the group's gaps — supplied slots are settled facts the inference builds around, and only a complete group (country, note, Cuisines) leaves it nothing to do (ADR-0018); a manual run replaces the whole group.
+_Avoid_: Origin (names only one part), Provenance Inference (names the process, not the data)
+
+**Cuisine**:
+A named culinary style a recipe belongs to, drawn from a controlled vocabulary that an administrator owns — extended by them directly, or by AI only under an explicitly permissive strategy setting. A recipe may carry several, so fusion dishes remain describable. A Cuisine name is a canonical identifier shown verbatim in every locale, never a translated label.
+_Avoid_: Cuisine Tag (a Tag is open, a Cuisine is curated), Category (that is the meal-time taxonomy)
+
+**Tag**:
+A free-form keyword attached to a recipe, mintable by anyone and by AI. Tags are an open folksonomy and deliberately overlap other taxonomies; Cuisines and Categories are the curated lists.
+
+**Step Ingredient**:
+A step's use of one of the recipe's ingredient lines, carried as a fractional share of that line (half the water is 0.5, "the spices" is several lines at their full share). An amount is entry vocabulary, not a stored form: the editor and the AI claim both accept "3 of the 5 eggs", and it becomes the equivalent share (0.6) at entry time. Attaching an amounted line asks for its amount on the spot — the ask — and dismissing the ask keeps the whole line. The step's prose is never rewritten to express it; readers see the resolved names and amounts presented with the step. Amounts are always derived from the ingredient line at the moment of display, so they follow edits and the active measurement system.
+_Avoid_: Ingredient Link (suggests a hyperlink in the text rather than a usage relation), Cooklang (names a foreign syntax Norish does not use)
+
+**Ingredient Linking**:
+The Recipe Enrichment kind that infers Step Ingredients. It is a gap-filler in every case — automatic or manual, it only ever adds links to steps that have none, so it can never replace or remove what a person attached and needs no supplied-data suppression: a step that already has Step Ingredients is simply not its business. Heading rows are never linked. A step that genuinely uses nothing stays bare and may be examined again by later runs.
+
+**Image Generation**:
+The Recipe Enrichment kind that draws a recipe a picture of its dish. It is the only kind whose output is invented rather than inferred: a tag, a category or a provenance note can be right or wrong about the recipe, while a Generated Image can only be apt or unconvincing. An automatic run is the strictest gap-filler in the product: any stored image at all, of any origin, and it stands down — while a manual request and an administrator's refresh run whatever is stored (ADR-0025). It is also the one kind that cannot follow the server's configured AI provider, because most providers cannot draw at all (ADR-0024).
+_Avoid_: Auto Image (names the automatic path only), Image Inference (nothing is inferred; the picture is invented)
+
+**Generated Image**:
+A picture of a dish that AI drew rather than a camera captured, stored in the recipe's gallery like any other image and recorded as generated. A recipe holds at most one, always as its primary image, and producing a new one destroys whatever held that slot before (ADR-0025). The marking is for the record and never for the reader — no surface distinguishes it from a photograph — but it is stored content rather than derivation, so unlike the Dish Colour it travels in a Recipe Archive with its marking intact and a receiving instance is told what it received.
+_Avoid_: AI Photo (it is a photograph of nothing), Placeholder Image (it is the recipe's real primary image, not a stand-in for one)
+
+**Hidden Item**:
+Something a reader has chosen not to be shown: Recipe Provenance, Nutrition Information, a recipe's notes, its rating, favourites, the cookbooks it is in, the measurement conversion control, or recipe timers. Hiding belongs to that reader alone and is kept per device, like every visibility preference — a cramped phone can hide what a desktop keeps. It suppresses the item everywhere it would appear for them, so hiding the rating takes the recipe page's stars, the Library chip and the rating filter together, while the items that exist only on the recipe page simply make it slimmer. It settles nothing about the recipe: what is stored, what may be edited and what Recipe Enrichment produces are all unchanged, and a recipe read by someone signed out shows everything. An origin flag beside a recipe's title is chrome rather than Recipe Provenance, so it stays when Recipe Provenance is hidden.
+_Avoid_: Disabled (suggests the thing stops working), Hidden Section (not every hidden item is a section), Display Preference (names where it is stored, not what it is)
+
+**Glance Bar**:
+The short row of facts a recipe leads with on a phone — its total time, its servings, and its calories — placed between the description and the first section so the whole answer to "can I cook this tonight?" arrives before any scrolling. It restates facts the sections below own rather than holding any of its own, so a Hidden Item takes its entry with it and a recipe that stores none of them has no bar at all.
+_Avoid_: Meta row (names the position, not the purpose), Quick facts
+
+**Other Time**:
+The part of a recipe's total time that is neither preparation nor cooking — resting, chilling, proving, marinating. It is never stored and never entered: it is what remains when a recipe's prep and cook times fall short of its total, and Norish shows it rather than quietly redrawing the total to fit. Its nature is unknown by definition, so it is named for what it is not.
+_Avoid_: Resting Time (claims to know which kind it is), Idle time
+
+**Cooking Session**:
+One stretch of cooking a recipe with cooking mode open. It begins when the reader opens cooking mode and ends when they close it — nothing about it is written down, so a session is never resumed, never shared with the household, and never outlives the screen it runs on. Reopening cooking mode begins a new session at the first step.
+_Avoid_: Cooking Progress (implies something is kept)
+
+**Ready At**:
+The clock time a recipe is projected to be done: the moment its Cooking Session began plus the recipe's total time. It is a projection and never a promise — nothing checks whether the cook actually started, paused, or wandered off — so it is only ever shown inside cooking mode, where the session that anchors it exists. A recipe with no total time has none.
+_Avoid_: Finish time, ETA (both read as a commitment Norish is not making)
+
+**Dish Colour**:
+One colour taken from a recipe's primary image when that image is stored, and kept with the recipe so a page can be tinted before the photo has even arrived. Only its hue and a clamped amount of its saturation are ever used: lightness always comes from the reader's theme, so a recipe colours its page without ever deciding how readable that page is. A recipe with no image, or one stored before the colour existed, simply has none and renders on the plain theme background. A reader may also decline the tint outright and read every recipe on that plain background, which is a preference about their own device and never a change to the recipe. It is derived from the image rather than supplied with the recipe, so it is never Supplied Recipe Data and never travels in a Recipe Archive — a receiving instance takes its own from the image it received.
+_Avoid_: Dominant colour (names the algorithm), Theme colour (collides with the reader's light and dark themes), Accent (that is the app's own, and it never shifts)
+
+### Library & Cookbooks
+
+**Library**:
+Everything a reader can see on the dashboard, recipes and cookbooks together, under the recipe view policy the instance's administrator has set. It is a view rather than a container: nothing is ever "in" the Library, and the same instance shows two readers different Libraries.
+_Avoid_: Collection (a Cookbook is a collection), All recipes (the library is no longer only recipes)
+
+**Orphaned**:
+A recipe or cookbook whose owner's account no longer exists. Deleting an account detaches what it made rather than destroying it, and what is detached belongs to nobody: every reader may see it, edit it and delete it, under every view policy including the strictest, where it was private a moment earlier. The widening is the price of the guarantee — a household keeps cooking from the recipes and maintaining the cookbooks it already had, and no departure quietly empties a shared Library. It is a one-way state: nothing hands an orphan to a new owner.
+_Avoid_: Unowned (suggests it never had an owner), Deleted user's recipes (names the cause rather than the state), Ownerless
+
+**Cookbook**:
+A titled set of recipes, owned by the person who made it and seen, edited and deleted under the same policy as a recipe. A recipe may belong to several cookbooks, and a cookbook holding none is an ordinary cookbook rather than a broken one: it may be made empty and filled later, or made from the recipe that prompted it, and taking the last recipe out never destroys the title someone chose. It is a set and not a sequence, so it keeps no order of its own and shows its members in whatever sort the reader is already using. Everything beyond its title is derived from its members at read time rather than supplied — the cover, the description that names what is inside, the members' cooking time added up, the smallest number of people any member serves, and the tags a reader finds their allergens among — so a cookbook has nothing to keep up to date and nothing that can go stale.
+_Avoid_: Collection (names the shape, and collides with the Library), Folder (suggests a recipe lives in exactly one), Album
+
+### Groceries & Stores
+
+**Grocery**:
+A line on the household's shopping list: a name, optionally an amount and unit, optionally assigned to a Store. It is transient by design — it is ticked off and cleared every week — so nothing worth keeping may live on it alone. What a shop sells is a Store Product; the two are never the same thing.
+_Avoid_: Item, Product (a Store Product is the shop's, a Grocery is the household's)
+
+**Store**:
+A place the household shops, named, coloured and ordered by them, that groceries are grouped under. A Store may additionally point at a real shop's website, which is what lets it carry a Search Address and Store Products. A Store without a website is an ordinary Store and always was: pricing is something a Store gains, never something it requires.
+_Avoid_: Shop, Supermarket (a Store may be a market stall, a butcher, or nothing but a heading)
+
+**Unsorted**:
+The groceries assigned to no Store, kept together and shown before every Store so they are noticed and given one. It is not a Store and never becomes one: it has no colour, no Aisles, no Search Address and no Store Products. It is a different absence from unfiled: an unsorted grocery has no Store, an unfiled grocery has a Store but no Aisle within it.
+_Avoid_: Unassigned, No store, Unfiled (that is a grocery with a Store but no Aisle), Store "None" (it is not a Store)
+
+**Search Address**:
+The Store's search page with a `{query}` slot standing where the search term goes — `https://www.ah.nl/zoeken?query={query}`, `https://www.dirk.nl/zoeken/producten/{query}`. It is derived from whatever the user pastes rather than demanded of them: a homepage Norish finds a search form on, or a search the user ran themselves, whose term is replaced by the slot. A Store has at most one, and it is editable, because a guess that reads the wrong slot must be one keystroke from correct.
+_Avoid_: Search template, URL pattern (the user pastes an address they already have, and never authors a template), Query URL
+
+**Store Product**:
+Something a Store sells, as Norish last read it: a name, the page it lives on, and its Shelf Price. It belongs to its Store, so a household shares products through the store it already shares. A Store Product may also be typed by hand for a shop Norish cannot read; a hand-made one has no page, so nothing ever overwrites what its owner typed.
+_Avoid_: Grocery (that is the list line), Article, SKU
+
+**Shelf Price**:
+What the shop charges for its unit of sale of a Store Product — one pack, or one kilo of what is sold loose — in the shop's own currency and the shop's own words for the size ("150 gram", "1,5 l", "per stuk", "per kg"): the number on the shelf edge, not the comparable price per kilo printed beside a pack. Norish keeps only the price it last read and the moment it read it; a Shelf Price has no history, and the one it replaces is gone.
+_Avoid_: Unit price, Price per unit (both mean the comparison number beside a pack to a shopper, which Norish does not show)
+
+**Product Link**:
+What a Store has learned a grocery name means: a Store, a normalized grocery name, and the Store Product it resolves to. It is deliberately keyed by name rather than by Grocery, so it outlives the list line that prompted it — next week's "melk" is priced without asking the shop again — and so a rename asks a new question instead of carrying the old answer to a name it was never about.
+_Avoid_: Match, Mapping, Assignment (a Grocery is assigned to a Store; it is linked to a Store Product)
+
+**Miss**:
+A Product Link that resolved to nothing, holding when it was last tried. It exists so a name the shop does not stock is not searched again every time the list is opened. A Miss is not an error: it shows the user an unpriced Grocery and an invitation to pick or type a price, and nothing else.
+_Avoid_: Failure, Not found, Unmatched
+
+**Pending Link**:
+A Product Link the Store has been asked for and has not yet answered. It is a fact about the Store rather than about the screen that asked, so every member of the household sees the same waiting row until it becomes a link or a Miss; a shop that says nothing leaves no Pending Link behind, and the name is asked again later.
+_Avoid_: Loading, In flight, Lookup (that is the queue's work, not the link's state)
+
+**Pack Size**:
+What one Shelf Price buys, as a quantity and a unit: 500 grams, 1.5 litres, 6 pieces, or a kilo of what is sold loose. Norish reads it out of the shop's size words, and its owner may set it by hand when the reading is wrong; a hand-set Pack Size is the last word and no later reading replaces it.
+_Avoid_: Size (that is the shop's words), Unit (that is the grocery's own measure), Package, Quantity
+
+**Purchase Amount**:
+How many of a Store Product the household intends to buy for a Grocery. Calculated from the grocery requirement unless the shopper chooses an amount; that choice leaves the original requirement intact and applies to this shopping trip.
+_Avoid_: Pack Size (what one product holds), Amount (the grocery's original measure)
+
+**Line Cost**:
+What a Grocery costs at its Store: as many whole packs as its amount needs, at the Shelf Price, or its weight at a by-weight price. A bare number is a number of packs, unless the shop counts the pack in pieces, in which case it is a number of pieces. A grocery whose measure cannot be matched against the Pack Size, or that states no amount, costs one pack; a count still multiplies the Shelf Price when no Pack Size is known. A chosen Purchase Amount takes precedence. A Store's total is the sum of the Line Costs still to buy under it, and a deal that only pays off across packs is shown in the shop's words and never worked into the number.
+_Avoid_: Price (that is the Shelf Price), Subtotal, Amount (that is the grocery's measure)
+
+**Sale**:
+A Shelf Price the shop presents with the regular price it replaces beside it, together with the shop's own words for the deal. It is whatever the shop shows as the price, so a deal the shop keeps as a label over its regular price is shown in words and not priced, and Norish never guesses whether a card or a membership stands behind a number. A Sale lasts until the shop presents another price.
+_Avoid_: Discount, Promotion, Offer (the shop's markup word, which is not always a markdown), Bonus
+
+**Aisle**:
+A heading within a Store, named and ordered by the household, standing for where in that shop things are found: groceries under a Store are shown by Aisle, in the order the household walks them. Aisles belong to their Store, so a household shares them through the store it already shares, and a Store with no Aisles shows its groceries exactly as it always has. A grocery outside any Aisle is unfiled, and unfiled groceries are shown first, under no heading, so they are noticed and filed.
+_Avoid_: Category (a meal category is something else in Norish), Department, Section (that is the Store's own block in the list)
+
+**Aisle Link**:
+Where a Store has learned a grocery name is found: a Store, a normalized grocery name, and one of that Store's Aisles. Like a Product Link it is keyed by name rather than by Grocery, so filing one "melk" files every "melk" at that Store, the memory outlives the list line that prompted it, and a rename or a move to another Store asks what that name is filed under there instead of carrying the old answer along. A name the Store has never been told about stays unfiled; Norish never guesses an Aisle from words.
+_Avoid_: Assignment (a Grocery is assigned to a Store, linked to a Store Product, and filed in an Aisle), Placement, Preference (the store preference is a different memory, kept per person)
+
+**Pantry**:
+The household's list of what it already has at home, kept so a recipe's staples are not bought again every week. It is one list per household, shared the way Stores are, and holds names and nothing else: no amounts, no dates. It is edited in a panel of the groceries page and consulted in one place, when a recipe is added to the groceries.
+_Avoid_: Inventory (promises quantities Norish does not track), Stock, Cupboard
+
+**Pantry Ingredient**:
+One Ingredient Name the household has at home; the row points at it, as a recipe line does, and the name and its fold are read from it. An ingredient is *in the pantry* only when its folded name equals a Pantry Ingredient's, using the one folding a Product Link and an Aisle Link use; Norish never guesses from words (ADR-0036). When a recipe is added to the groceries, its stocked lines are shown apart and left off the list unless ticked. A Pantry Ingredient is never a Grocery: it is what stops a Grocery being made.
+_Avoid_: Staple (a judgement about the food, not a fact about the household), Stocked ingredient (names the ingredient's state, not the thing the household keeps)
+
+### Imports & AI
+
+**Recipe Archive**:
+The portable file a Norish instance writes so recipes can leave it: every recipe the exporter can see, complete with its media, the author's display name as attribution, and the exporter's own rating and favourite mark. It carries recipe content rather than the exporter's Library, so cookbooks stay behind and an importer receives loose recipes to file as they please. It is an exchange of recipe content, never a backup — whoever imports it owns what that creates, and no accounts, emails, or instance state travel inside, so an archive is safe to hand around. Cuisine names travel as words and attach only where the receiving instance's curated vocabulary already knows them; an archive never extends a vocabulary its administrator owns. Norish reads foreign archives (Mela, Paprika, Mealie, Tandoor) through the same import door as its own.
+_Avoid_: Export (the act, not the artifact), Backup (promises restoration an archive refuses to make), Instance export (suggests instance state is inside)
+
+**AI Runtime**:
+The single seam through which Norish issues a model request — structured generation, transcription, image generation, and a Decision, all on one shared transport. A feature never constructs a provider client, never reads Generation Preferences, and never calls the SDK: it hands the runtime its Prompt's name and its Prompt Sections, plus a schema where there is something to validate — or, for a Decision, a state and typed questions — and gets a result or a typed error that says whether retrying is worth it (ADR-0015, ADR-0024, ADR-0035). It owns all AI egress but no longer reads one configuration: structured generation follows the server's AI provider, transcription, image generation and Decisions each follow their own block.
+_Avoid_: AI executor (names the deleted prototype that had no callers), AI client (suggests a per-provider object, which is what the runtime hides)
+
+**Prompt**:
+The administrator-editable base every language-model request starts from. There are eleven, one per request shape, each stored in configuration with a shipped default, and the runtime will not accept a finished prompt string in their place — which is what makes every request tunable by construction (ADR-0016). A Decision is the one request shape that has none: its criteria are the domain's own option set and its instructions are code-owned, so there is no wording to tune (ADR-0035).
+_Avoid_: Prompt template (implies placeholders a feature fills; a Prompt is appended to, not filled in)
+
+**Prompt Section**:
+An input block a feature composes and the AI Runtime appends after the Prompt — the recipe under analysis, the household's allergens, the webpage text. Sections are appended, never interpolated into placeholders, so an administrator's customised Prompt keeps working when a feature's input changes shape (ADR-0016).
+_Avoid_: Prompt variable (names the rejected placeholder mechanism)
+
+**Generation Preference**:
+A generation parameter Norish asks a model for — temperature today — that the model is free to refuse. Norish never claims to know in advance which parameters a model accepts, because a self-hoster chooses the model. A refused preference is dropped and the request answered without it, so a preference is never the reason a feature fails (ADR-0014).
+_Avoid_: Model Capability (claims foreknowledge Norish does not have), Generation Setting (a setting is honoured, a preference may be declined)
+
+**Decision Model**:
+The optional second AI provider that answers closed questions and generates nothing: TypeSafe's Jev today. Given a state and named questions it returns, for every question, a pick and a probability for every option — much faster and cheaper than a language model for the same decision, and honest about how sure it is. Configured on its own with its own key, beside the Image Generation block it structurally resembles; it follows the global AI switch and is never required by any feature, which keeps its language-model or heuristic path and takes it whenever the Decision Model is unconfigured, switched off for that use, or fails (ADR-0035).
+_Avoid_: Decision provider (names the settings block, not the thing), Classifier (it also scores and ranks), Jev (a product name; the glossary names the role)
+
+**Decision**:
+One request to the Decision Model: a state — text or structured JSON, composed by the feature — plus named Choice, Score and Boolean questions, answered together with a probability for every option. The AI Runtime's fourth entry point, `decide`, beside structured generation, transcription and image generation. It has no Prompt: its criteria come from the domain (the four categories, the household's allergens, the administrator's Cuisines) and its instructions are code-owned, exactly as system messages are (ADR-0035).
+_Avoid_: Evaluation (the SDK's word; it reads as judging quality), Classification (only one of the three question shapes)
+
+**Clear Case**:
+A Decision answer above the asking feature's threshold, and therefore acted on. Anything below is handed to the path the feature had before: the language model, the heuristic, or a person. The threshold is a named constant in the feature's own file with a test at the boundary, never a setting and never the runtime's. A Choice whose owner is the Decision has no threshold: Recipe Provenance's country is the top option however sure the Decision is, with "none" among the options for a dish no country claims.
+_Avoid_: Confident answer (TypeSafe's confidence is a separate statistic from the probability the threshold reads)
+
+**Decision Use**:
+One thing the Decision Model does for a household — categorising, tagging, allergy tagging, provenance, grocery linking, validating enrichments — chosen by an administrator from one list, all selected by default once a Decision Model is configured. What the Decision Model does for Norish's own algorithms (import triage) is not a Decision Use and is not in the list: those questions only ever make an import cheaper or refuse a page that was never a recipe, and there is nothing for a household to opt out of.
+_Avoid_: Decision feature (a feature is the kind; the use is whether the kind asks)
+
+**Enrichment Validation**:
+The check every enrichment run's output gets from the Decision Model before it is written: every claim the run added is written only if the model does not answer "no" to it (allergen tags keep a far stricter bar, because a missing one can hurt someone), and an estimate clearly out of reason sends the run back to ask again once that check is promoted from shadow. It sees only the run's own claims, never what is stored, which is what keeps a person's own tags, categories and links out of its reach. Tags, categories, Cuisines and Step Ingredients are enforced from the start; the nutrition estimate, the provenance country and recipe extraction's faithfulness are logged only until their disagreement rate is known. The Validate enrichments use governs enforcing, except where a kind's own Decision Use makes the yes/no its flow — the language model's tags under the Auto-tagging use, its Cuisines under the Recipe Provenance use — which enforces whenever that use is on; the logging is the algorithm's and always runs.
+_Avoid_: Recipe validation (suggests the stored recipe is judged; it is not), Cleanup
+
+**Unclassified Post**:
+A post whose source gave no evidence either way about a video stream. It is not a post without video: reading that silence as absence is what sent reels down the caption-only path, losing the video and the creator.
+_Avoid_: Unknown post
+
+**Site Auth Token**:
+One cookie or one request header a user saves so their imports reach a site that only answers a signed-in visitor. It belongs to the person who saved it, never to the server, and its value is encrypted at rest and never returned to a browser. Its domain decides which imports carry it: only a URL whose hostname the domain matches, so one site's session cannot travel to another's.
+_Avoid_: Credential (a Site Auth Token is a fragment of a session, not a login Norish can perform), Site cookie (half the tokens are headers)
+
+**Site Account**:
+Which of a user's logins on a site a Site Auth Token belongs to, as a label they choose. It is what tells two Instagram sessions apart, since both are a `sessionid` cookie on the same domain. A token left without one is not tied to a login and travels with every import for its domain — the shape of a CSRF cookie every account on the site shares, and the shape every server has until someone names an account.
+_Avoid_: Profile (taken by the person's own Norish profile), Token group (names the mechanism, not the thing the user has)
+
+**Credential Set**:
+The tokens one import actually sends: a site's unlabelled tokens plus one Site Account's. A site with several accounts has several sets, and each import picks one at random, so imports spread over the logins instead of one login carrying all of them. Random rather than round-robin because a worker keeps nothing between jobs, and the job records which set it was given as parsing starts — a rate-limited or expired login has to be nameable from an import that failed on it.
+_Avoid_: Token rotation (names the picking, not the thing picked), Session pool (implies Norish holds sessions open)
+
+**yt-dlp Version**:
+The release of the downloader binary a server is actually running. A report, not a setting: production fixes it by image and development by first download, and no Norish setting changes it.
+_Avoid_: Configured yt-dlp version
+
+### People & Presentation
+
+**Avatar**:
+A person's profile picture, shown as a circle at every size wherever the person appears; absent or unloadable, it degrades to their initials. Offline it is best-effort: initials are the accepted rendering, not a defect.
+_Avoid_: User icon (ambiguous with App Icon), profile photo
+
+**App Icon**:
+The Norish mark as an installed platform presents it — home screen, dock, favicon. Norish supplies a flat, fully opaque, full-bleed square; the platform applies its own shape, masking, and effects, which Norish neither imitates nor overrides.
+_Avoid_: PWA icon (names one mechanism, not the thing), User icon
+
+### Connectivity & Offline
+
+**Offline**:
+The state in which the web client cannot reach the Norish backend — because the client lost its network, the backend is down or unreachable, or it was forced via the (development-only) Offline Toggle. Not synonymous with "no internet".
+_Avoid_: disconnected (that is the WebSocket status, a narrower thing)
+
+**Live**:
+The state in which the web client can reach the Norish backend and data exchange is permitted. Live does not require the realtime channel to be up — reaching the backend at all is what counts.
+_Avoid_: online (ambiguous with general internet connectivity)
+
+**Reachability Deadline**:
+The single bounded wait — five seconds — after which the backend counts as unreachable for the attempt at hand. The connectivity verdict and a launching page navigation observe the same deadline: a launch that outlives it proceeds Offline with what is cached rather than waiting indefinitely.
+_Avoid_: Network timeout (a mechanism, not the meaning), Launch timeout (the deadline is shared, not launch-specific)
+
+**App Shell**:
+The static assets (HTML, JS, CSS, fonts, icons) required to boot the web app without any backend response.
+
+**Offline Cache**:
+The personalized persisted copy of previously fetched server data that the web app serves while Offline. It contains at minimum the Warm Set, treats everything else as best-effort, and excludes both the mutation Outbox and the static App Shell.
+
+**Warm Set**:
+The content guaranteed to be in the Offline Cache: the 50 most recent recipes in full (each with its primary image; further gallery images and videos are excluded from the guarantee), all groceries (including recurring) and stores, every cookbook the reader can see together with its membership, and the calendar's initial view window (roughly the current week on desktop, two weeks back/forward on mobile — enough to see the coming week's planned days). The Warm Set is a guaranteed floor — anything else fetched while Live is kept best-effort. A recipe the user creates joins the Warm Set on create (ADR-0008), so it is offline-available immediately rather than only at the next warm. A cookbook's members are guaranteed only insofar as they fall inside the fifty, so an Offline cookbook may list a recipe that cannot be opened.
+
+**Cache Warmer**:
+The background process that, while Live, tops the Offline Cache up until the Warm Set is present.
+
+**Offline Toggle**:
+A development-only debug affordance that forces Offline, faithfully blocking every backend exchange (probes, realtime, refetches, Replay) at the transport layer so the offline runtime can be exercised without taking the backend down. Gated out of production builds; persists across reloads; cleared only by an explicit action. Not a shipped user control (ADR-0007).
+
+**Recovery**:
+The process that makes the Live view trustworthy whenever queued work may exist: initial Live startup, return from Offline, WebSocket reconnection, a Live verdict while the Outbox holds pending work, manual synchronization, or automatic retry continuation. Recovery replays the Outbox to a terminal state, refetches active queries from server truth without clearing their visible cached data, then tops up the Warm Set. Its only public progress state is `isSyncing`. On a WebSocket reconnection, Resume delivers the missed Realtime Events first; Recovery still refetches afterwards and remains the convergence guarantee (ADR-0034).
+_Avoid_: Reconnect Sequence (too narrow; Recovery is not limited to an Offline-to-Live transition)
+
+**Outbox**:
+The persisted queue of mutations that could not reach the backend, held for Replay. Admission is universal — any mutation qualifies, with no per-feature list. An admission while Live is a reachability hint: it asks the connectivity loop to probe at once, and the Live verdict that follows drains the queue. Flows outside the data API (authentication) are outside the Outbox.
+
+**Queued**:
+The third outcome of a mutation, beside success and failure: the change is held in the Outbox and presented to the user as tentatively applied. Server-side-effect mutations (e.g. import-from-URL) simply run at Replay time.
+
+**Replay**:
+Re-sending Outbox entries, in order, once the backend is reachable again. Replay is idempotent: delivering the same operation twice has no additional effect.
+
+**Parked**:
+The state of an Outbox entry that Replay has given up on automatically (deterministic rejection, or retries exhausted). Parked entries stay visible for manual retry or discard; they are never silently dropped. A parked create parks its dependent edits with it.
+
+**Conflicted**:
+A Parked flavour: the entry's target changed on the backend while the change waited in the Outbox, so the backend kept the first write and dropped this one (first write wins). The user can reapply by hand.
+
+**Client-Minted Id**:
+An entity id generated by the creating client and honoured by the backend, so that changes queued behind a create keep pointing at the right entity across Replay.
+
+### Realtime
+
+**Realtime Event**:
+A named fact about a committed change, published after the transaction and delivered to connected clients over the WebSocket. It is never a command: a client handler merges it idempotently by identity, and the same event arriving twice changes nothing.
+_Avoid_: Notification (suggests something shown to a person), Message (names the transport, not the fact)
+
+**Realtime Catalogue**:
+The one client-safe declaration of a domain's Realtime Events: each event's name, its Scope and its zod payload schema. Server publishers, tRPC subscription procedures and client handler types all derive from it; there is no second place to declare an event (ADR-0032).
+
+**Envelope**:
+The wire shape of a Realtime Event, `{ meta, payload }`, where `meta` carries the event id, the originating operation id when there is one, the Scope and the channel. Clients always receive Envelopes; a raw payload on the wire is a defect.
+
+**Scope**:
+Who a Realtime Event is routed to: `household`, `user`, `broadcast`, `policy` (one of the first three, chosen at publish time from the recipe view policy) or `internal` (server-to-server only, never subscribable, never buffered).
+_Avoid_: Global (the retired name for internal)
+
+**Realtime Hub**:
+The one per-process subscriber to Redis pub/sub. It subscribes to exact channels on demand and fans out in-process through bounded queues; server-internal listeners register callbacks on it and tRPC subscriptions iterate it. Nothing else opens a Redis subscriber connection.
+_Avoid_: Multiplexer (the retired per-connection design)
+
+**Lagged**:
+The state of a subscription the server ended because the client could not be brought up to date: its queue overflowed, Redis reconnected, or its Cursor was unusable. The client's only reaction is to refetch that domain and resubscribe. Lagged is the only failure a subscription reports.
+
+**Resume**:
+Delivering, on reconnect, the Realtime Events a subscription missed since its Cursor, in order, from the Resume Buffer, before continuing live. It is bounded: when it cannot, the subscription is Lagged. Distinct from Replay, which re-sends the Outbox (ADR-0034).
+_Avoid_: Replay (already means Outbox Replay), Catch-up
+
+**Cursor**:
+The opaque, identity-bound token attached to every delivered Realtime Event that names the subscriber's position on each channel the subscription merges, and that the client resends on reconnect without inspecting it. A Cursor Mark is a Cursor delivered without an event, at the start of every subscription, so a quiet subscription is resumable too.
+
+**Resume Buffer**:
+The per-channel Redis Stream holding recent Realtime Events — about a thousand, for a day — written by the same atomic script that publishes them. A delivery buffer, not an Outbox: a publish can still be lost between the database commit and the buffer, and nothing reconciles the two.
+
+**Scope Change**:
+An identity change — household created, joined or left, member kicked, account deleted — after which the server closes the user's sockets so every subscription restarts against the current identity, and a Cursor minted under the old identity is refused (ADR-0033).
+
+### Releases & Docs
+
+**Target Version**:
+The version currently being worked toward: the editable docs carry its label, and its release-notes page accrues a short section per feature as work lands.
+
+**Release Checkpoint**:
+The maintainer-chosen committed Git boundary for a release, recorded as provenance in its release notes. Executing it freezes the outgoing docs version and advances the editable docs to the next Target Version (ADR-0010).

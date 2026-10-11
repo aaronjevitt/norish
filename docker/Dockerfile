@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.26
+
 ##############################
 # Base image (minimal, no pnpm needed at runtime)
 ##############################
@@ -16,9 +18,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ##############################
 FROM base AS builder-base
 
-RUN npm install -g pnpm@10.30.1
+RUN npm install -g pnpm@10.34.5
 
-COPY --from=ghcr.io/astral-sh/uv:0.11.4 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.12.5 /uv /uvx /bin/
 
 ENV UV_LINK_MODE=copy \
   UV_PYTHON_DOWNLOADS=0 \
@@ -34,7 +36,7 @@ RUN apk add --no-cache python3 make g++ pkgconfig libpq-dev vips-dev
 # Tell sharp to use system libvips
 ENV SHARP_IGNORE_GLOBAL_LIBVIPS=0
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY apps/web/package.json ./apps/web/package.json
 COPY apps/parser-api/pyproject.toml ./apps/parser-api/pyproject.toml
 COPY apps/parser-api/uv.lock ./apps/parser-api/uv.lock
@@ -44,6 +46,7 @@ COPY packages/api/package.json ./packages/api/package.json
 COPY packages/auth/package.json ./packages/auth/package.json
 COPY packages/config/package.json ./packages/config/package.json
 COPY packages/db/package.json ./packages/db/package.json
+COPY packages/db-schema/package.json ./packages/db-schema/package.json
 COPY packages/i18n/package.json ./packages/i18n/package.json
 COPY packages/queue/package.json ./packages/queue/package.json
 COPY packages/shared/package.json ./packages/shared/package.json
@@ -56,10 +59,10 @@ COPY packages/ui/package.json ./packages/ui/package.json
 COPY tooling/eslint/package.json ./tooling/eslint/package.json
 COPY tooling/prettier/package.json ./tooling/prettier/package.json
 COPY tooling/tailwind/package.json ./tooling/tailwind/package.json
+COPY tooling/tailwind/heroui-theme.css ./tooling/tailwind/heroui-theme.css
+COPY tooling/tailwind/heroui-theme.js ./tooling/tailwind/heroui-theme.js
+COPY tooling/tailwind/postcss-config.js ./tooling/tailwind/postcss-config.js
 COPY tooling/typescript/package.json ./tooling/typescript/package.json
-
-# patches (required for patchedDependencies in pnpm-workspace.yaml)
-COPY patches/ ./patches/
 
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
   SKIP_PARSER_API_INSTALL=1 pnpm install --frozen-lockfile
@@ -95,7 +98,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
   --mount=type=cache,target=/root/.local/share/uv/python \
   UV_PYTHON_DOWNLOADS=0 uv sync --project /app/apps/parser-api --locked --python 3.14
 
-ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" \
+# NODE_ENV matches what CI exports around the same `pnpm run build` (and turbo
+# passes it through to every package build), so the image build can never
+# silently diverge from the build the gates tested. `next build` forces
+# production internally either way; this pins the rest of the task graph.
+ENV NODE_ENV=production \
+  DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" \
   SKIP_ENV_VALIDATION=1
 
 RUN pnpm run build && \
@@ -105,7 +113,11 @@ RUN pnpm run build && \
   apps/web/.next/standalone/node_modules/ffmpeg-static
 
 # Create isolated production deployment with pnpm deploy.
-RUN pnpm deploy --filter @norish/web --prod /app/deploy && \
+# --legacy: pnpm v10's default deploy requires injectWorkspacePackages, which
+# this repo deliberately does not set (injected copies of packages/* went stale
+# against their sources during development). The workspace copies deploy makes
+# are deleted on the next line regardless, so legacy deploy is equivalent here.
+RUN pnpm deploy --legacy --filter @norish/web --prod /app/deploy && \
   cd /app/deploy/node_modules && \
   # Remove workspace copies (source is in packages/, server code in dist-server/)
   rm -rf @norish && \
@@ -156,7 +168,10 @@ RUN find /app/packages -type d -name '__tests__' -exec rm -rf {} + 2>/dev/null; 
 ##############################
 FROM base AS ytdlp
 
-ARG YT_DLP_VERSION=2026.03.17
+# Keep in step with DEFAULT_YT_DLP_VERSION in packages/config/src/zod/server-config.ts:
+# this is the binary the image actually ships, and that constant is the version
+# the server reports for it.
+ARG YT_DLP_VERSION=2026.08.19
 ARG TARGETARCH
 
 RUN apk add --no-cache curl
@@ -197,6 +212,12 @@ ENV NODE_ENV=production \
   PORT=3000 \
   HOST="0.0.0.0"
 
+ARG NORISH_VERSION_REPORT_JSON
+
+RUN test -n "${NORISH_VERSION_REPORT_JSON}"
+
+ENV NORISH_VERSION_REPORT_JSON=${NORISH_VERSION_REPORT_JSON}
+
 # Use non-root user for runtime.
 # node:22-alpine already has user 'node' with UID/GID 1000.
 # For custom UID/GID, create a new user; otherwise reuse 'node'.
@@ -212,12 +233,8 @@ RUN if [ "${UID}" != "1000" ] || [ "${GID}" != "1000" ]; then \
 # We run our own bundled server from dist-server, so we only need the built
 # `.next` output plus the small config files Next reads at startup.
 COPY --from=build --chown=${UID}:${GID} /app/apps/web/.next/standalone/apps/web/.next/ ./apps/web/.next/
-COPY --from=build --chown=${UID}:${GID} /app/apps/web/package.json ./apps/web/package.json
-COPY --from=build --chown=${UID}:${GID} /app/apps/mobile/package.json ./apps/mobile/package.json
 COPY --from=build --chown=${UID}:${GID} /app/apps/web/next.config.js ./apps/web/next.config.js
 COPY --from=build --chown=${UID}:${GID} /app/apps/web/config/next-intl-request-config-path.js ./apps/web/config/next-intl-request-config-path.js
-# Root package.json needed by next.config.js (reads version from ../../package.json)
-COPY --from=build --chown=${UID}:${GID} /app/package.json ./package.json
 
 # --- Production node_modules from pnpm deploy (complete runtime deps) ---
 COPY --from=build --chown=${UID}:${GID} /app/deploy/node_modules/ ./node_modules/

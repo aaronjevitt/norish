@@ -3,13 +3,17 @@ export const LOCALE_CATALOG = {
   nl: { name: "Nederlands" },
   "de-formal": { name: "Deutsch (Sie)" },
   "de-informal": { name: "Deutsch (Du)" },
-  fr: { name: "Francais" },
-  es: { name: "Espanol" },
-  ru: { name: "Russkii" },
-  ko: { name: "Hangugeo" },
+  fr: { name: "Français" },
+  es: { name: "Español" },
+  ru: { name: "Русский" },
+  ko: { name: "한국어" },
+  no: { name: "Norsk" },
   pl: { name: "Polski" },
   da: { name: "Dansk" },
   it: { name: "Italiano" },
+  "pt-BR": { name: "Português (Brasil)" },
+  bg: { name: "Български" },
+  fi: { name: "Suomi" },
 } as const;
 
 export type LocaleCatalogCode = keyof typeof LOCALE_CATALOG;

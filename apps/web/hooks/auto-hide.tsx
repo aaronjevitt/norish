@@ -4,6 +4,27 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useMotionValueEvent, useScroll } from "motion/react";
 
+/**
+ * The slack in "the reader is at the foot of the page": enough to absorb
+ * sub-pixel layout and a browser's own rounding, not enough to fire a screen
+ * early.
+ */
+const BOTTOM_EDGE_TOLERANCE_PX = 8;
+
+/**
+ * The last screen of a page reserves room for the nav pill and the dock row
+ * floating above it, so at the foot of the page the chrome is covering
+ * nothing. A reader who has arrived at the end gets it back at full size and
+ * keeps it — shrinking there only takes away controls to buy space that is
+ * already spare.
+ */
+function isAtPageBottom(scrollTop: number = window.scrollY) {
+  return (
+    scrollTop + window.innerHeight >=
+    document.documentElement.scrollHeight - BOTTOM_EDGE_TOLERANCE_PX
+  );
+}
+
 interface AutoHideOptions {
   scrollThreshold?: number;
   idleDelay?: number;
@@ -46,6 +67,13 @@ export function useAutoHide({
       if (wasScrollable && !hasVerticalScroll) {
         setIsVisible(true);
       }
+
+      // A page can also shrink under a reader who is already scrolled — one
+      // deleted row is enough — leaving them at the foot of it with no scroll
+      // event to notice by.
+      if (isAtPageBottom()) {
+        setIsVisible(true);
+      }
     };
 
     checkScrollable();
@@ -70,6 +98,9 @@ export function useAutoHide({
 
   const hide = useCallback(() => {
     if (disabledRef.current || !isScrollableRef.current) return;
+    // Guarded here rather than at each call site, so the idle timer and the
+    // hover timer cannot shrink the chrome at the foot of the page either.
+    if (isAtPageBottom()) return;
     if (!isHoveringRef.current) {
       setIsVisible(false);
     }
@@ -114,6 +145,15 @@ export function useAutoHide({
 
     // Always visible near top
     if (latest < topOffset) {
+      show();
+      lastScrollY.current = latest;
+
+      return;
+    }
+
+    // And at the foot of the page, where the reserved space means the chrome
+    // is in nobody's way. `show()` also drops any idle hide already pending.
+    if (isAtPageBottom(latest)) {
       show();
       lastScrollY.current = latest;
 

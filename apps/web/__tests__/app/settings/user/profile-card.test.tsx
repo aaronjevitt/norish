@@ -24,22 +24,21 @@ vi.mock("@/app/(app)/settings/user/context", () => ({
 }));
 
 vi.mock("@heroui/react", () => ({
-  Card: ({ children }: any) => <div>{children}</div>,
-  CardHeader: ({ children }: any) => <div>{children}</div>,
-  CardBody: ({ children }: any) => <div>{children}</div>,
-  Avatar: ({ onClick, src }: any) => (
-    <button aria-label="avatar-trigger" type="button" onClick={onClick}>
-      <img alt="profile avatar" src={src} />
-    </button>
-  ),
-  Input: ({ value, onValueChange, isReadOnly, isDisabled }: any) => (
+  Card: Object.assign(({ children }: any) => <div>{children}</div>, {
+    Header: ({ children }: any) => <div>{children}</div>,
+    Content: ({ children }: any) => <div>{children}</div>,
+  }),
+  TextField: ({ children, value, onChange, isReadOnly, isDisabled }: any) => (
     <input
       disabled={isDisabled}
       readOnly={isReadOnly}
       value={value}
-      onChange={(event) => onValueChange?.(event.target.value)}
+      aria-label={children?.props?.children ?? undefined}
+      onChange={(event) => onChange?.(event.target.value)}
     />
   ),
+  Label: ({ children }: any) => <span>{children}</span>,
+  Input: () => null,
   Button: ({ children, onPress, isDisabled, type = "button" }: any) => (
     <button disabled={isDisabled} type={type} onClick={onPress}>
       {children}
@@ -100,7 +99,8 @@ describe("ProfileCard", () => {
 
     render(<ProfileCard />);
 
-    const src = screen.getByAltText("profile avatar").getAttribute("src");
+    const avatar = screen.getByRole("img", { name: "Alice" });
+    const src = avatar.querySelector("img")?.getAttribute("src");
 
     expect(src).toBe("/avatars/user-1.png");
   });

@@ -1,14 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import type { StepIngredientDraft } from "@/components/recipes/step-ingredient-chips";
+import type { SmartTextInputIngredientSuggestion } from "@/components/shared/smart-text-input";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { StepIngredientChips } from "@/components/recipes/step-ingredient-chips";
 import SmartTextInput from "@/components/shared/smart-text-input";
 import { useRecipeImages } from "@/hooks/recipes";
 import { Bars3Icon, PhotoIcon, XMarkIcon } from "@heroicons/react/16/solid";
-import { Button, Image } from "@heroui/react";
+import { Button } from "@heroui/react";
 import { Reorder, useDragControls } from "motion/react";
 import { useTranslations } from "next-intl";
 
 import { MeasurementSystem } from "@norish/shared/contracts";
+import { toLineAmount } from "@norish/shared/lib/step-ingredients";
 
 export interface StepImage {
   id?: string;
@@ -16,20 +20,32 @@ export interface StepImage {
   order: number;
   version?: number;
 }
-
+export interface StepIngredientRef {
+  ingredientOrder: number;
+  share: number;
+  order?: number;
+}
 export interface Step {
   step: string;
   order: number;
   systemUsed: MeasurementSystem;
   version?: number;
   images?: StepImage[];
+  stepIngredients?: StepIngredientRef[];
 }
-
+export interface StepInputIngredient {
+  ingredientName: string;
+  amount: number | null;
+  unit: string | null;
+  systemUsed: MeasurementSystem;
+  order: number;
+}
 export interface StepInputProps {
   steps: Step[];
   onChange: (steps: Step[]) => void;
   systemUsed?: MeasurementSystem;
   recipeId?: string; // Required for image uploads
+  ingredients?: StepInputIngredient[];
 }
 
 // Internal type with stable IDs for reordering
@@ -37,29 +53,62 @@ interface StepItem {
   id: string;
   text: string;
   images: StepImage[];
+  stepIngredients: StepIngredientDraft[];
   version?: number;
 }
-
 let nextId = 0;
 
-function createStepItem(text: string, images: StepImage[] = [], version?: number): StepItem {
-  return { id: `step-${nextId++}`, text, images, version };
+function createStepItem(
+  text: string,
+  images: StepImage[] = [],
+  version?: number,
+  stepIngredients: StepIngredientDraft[] = []
+): StepItem {
+  return {
+    id: `step-${nextId++}`,
+    text,
+    images,
+    stepIngredients,
+    version,
+  };
 }
-
 export default function StepInput({
   steps,
   onChange,
   systemUsed = "metric",
   recipeId,
+  ingredients = [],
 }: StepInputProps) {
   const t = useTranslations("recipes.stepInput");
   const [items, setItems] = useState<StepItem[]>([createStepItem("", [])]);
+  // A freshly mentioned line whose chip should ask for its amount: the row
+  // it landed on, and the line's order for the chips to open once rendered.
+  const [pendingMentionEntry, setPendingMentionEntry] = useState<{
+    index: number;
+    order: number;
+  } | null>(null);
   const textareaRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
   const fileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const dragConstraintsRef = useRef<HTMLUListElement>(null);
-
   const { uploadStepImage, deleteStepImage } = useRecipeImages();
+  // Chips derive amounts, so they get the active system's lines only — an
+  // entered "100" means 100 in the units the editor is looking at.
+  const chipLines = useMemo(
+    () => ingredients.filter((ingredient) => ingredient.systemUsed === systemUsed),
+    [ingredients, systemUsed]
+  );
+  const ingredientSuggestions = useMemo(
+    () =>
+      chipLines
+        .filter((ingredient) => !ingredient.ingredientName.trim().startsWith("#"))
+        .map((ingredient): SmartTextInputIngredientSuggestion => ({
+          key: `${ingredient.order}`,
+          label: ingredient.ingredientName,
+          ingredientOrder: ingredient.order,
+        })),
+    [chipLines]
+  );
 
   // Initialize from steps prop
   useEffect(() => {
@@ -70,13 +119,21 @@ export default function StepInput({
       items[0].images.length === 0
     ) {
       setItems([
-        ...steps.map((s) => createStepItem(s.step, s.images || [], s.version)),
+        ...steps.map((s) =>
+          createStepItem(
+            s.step,
+            s.images || [],
+            s.version,
+            [...(s.stepIngredients ?? [])]
+              .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+              .map((ref) => ({ ingredientOrder: ref.ingredientOrder, share: ref.share }))
+          )
+        ),
         createStepItem("", []),
       ]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [steps.length]);
-
   const emitChanges = useCallback(
     (updatedItems: StepItem[]) => {
       const parsed = updatedItems
@@ -86,6 +143,11 @@ export default function StepInput({
           systemUsed,
           version: item.version,
           images: item.images,
+          // Chips on a heading row cannot exist; a row that became a heading
+          // sheds any it had rather than saving links a reader never sees.
+          stepIngredients: item.text.trim().startsWith("#")
+            ? []
+            : item.stepIngredients.map((ref, refIdx) => ({ ...ref, order: refIdx })),
         }))
         .filter((s) => s.step || s.images.length > 0);
 
@@ -93,24 +155,83 @@ export default function StepInput({
     },
     [onChange, systemUsed]
   );
-
-  const handleInputChange = useCallback(
-    (index: number, value: string) => {
+  const handleStepIngredientsChange = useCallback(
+    (index: number, refs: StepIngredientDraft[]) => {
       const updated = [...items];
 
-      updated[index] = { ...updated[index], text: value };
-
-      // Auto-add empty line at the end
-      if (index === items.length - 1 && value.trim()) {
-        updated.push(createStepItem("", []));
-      }
-
+      updated[index] = {
+        ...updated[index],
+        stepIngredients: refs,
+      };
       setItems(updated);
       emitChanges(updated);
     },
     [items, emitChanges]
   );
+  const handleIngredientMention = useCallback(
+    (index: number, suggestion: SmartTextInputIngredientSuggestion, newText: string): boolean => {
+      // One update for both halves of the gesture: the plain word lands in
+      // the sentence and the chip attaches beneath it, at the full share.
+      const updated = [...items];
+      const target = updated[index];
+      const alreadyAttached = target.stepIngredients.some(
+        (ref) => ref.ingredientOrder === suggestion.ingredientOrder
+      );
 
+      updated[index] = {
+        ...target,
+        text: newText,
+        stepIngredients: alreadyAttached
+          ? target.stepIngredients
+          : [...target.stepIngredients, { ingredientOrder: suggestion.ingredientOrder, share: 1 }],
+      };
+
+      // Mentioning in the trailing row grows the list, exactly like typing.
+      if (index === items.length - 1 && newText.trim()) {
+        updated.push(createStepItem("", []));
+      }
+      setItems(updated);
+      emitChanges(updated);
+
+      // A newly attached, amounted line gets asked how much of it the step
+      // uses; the chips take focus for the ask, so the mention reports it.
+      // Re-mentions, amountless lines, and heading rows ask nothing. This
+      // predicts what the chips' pending-entry effect will decide — the two
+      // must agree, or the mention gives up focus for an ask that never
+      // opens and the keyboard is left nowhere.
+      const line = chipLines.find((candidate) => candidate.order === suggestion.ingredientOrder);
+      const willAsk =
+        !alreadyAttached &&
+        !newText.trim().startsWith("#") &&
+        line != null &&
+        toLineAmount(line.amount) != null;
+
+      if (willAsk) {
+        setPendingMentionEntry({ index, order: suggestion.ingredientOrder });
+      }
+
+      return willAsk;
+    },
+    [items, emitChanges, chipLines]
+  );
+  const handleInputChange = useCallback(
+    (index: number, value: string) => {
+      const updated = [...items];
+
+      updated[index] = {
+        ...updated[index],
+        text: value,
+      };
+
+      // Auto-add empty line at the end
+      if (index === items.length - 1 && value.trim()) {
+        updated.push(createStepItem("", []));
+      }
+      setItems(updated);
+      emitChanges(updated);
+    },
+    [items, emitChanges]
+  );
   const handleKeyDown = useCallback(
     (index: number, e: React.KeyboardEvent) => {
       if (e.key === "Enter" && !e.shiftKey) {
@@ -138,7 +259,6 @@ export default function StepInput({
     },
     [items, emitChanges]
   );
-
   const handleBlur = useCallback(
     (index: number) => {
       // Auto-remove empty rows on blur (except the last one)
@@ -156,7 +276,6 @@ export default function StepInput({
     },
     [items, emitChanges]
   );
-
   const handleRemove = useCallback(
     (index: number) => {
       // Delete all images for this step
@@ -168,7 +287,6 @@ export default function StepInput({
           console.error("Failed to delete step image:", err);
         });
       });
-
       const updated = items.filter((_, i) => i !== index);
 
       if (updated.length === 0) updated.push(createStepItem("", []));
@@ -177,13 +295,10 @@ export default function StepInput({
     },
     [items, emitChanges, deleteStepImage]
   );
-
   const handleImageUpload = useCallback(
     async (index: number, file: File) => {
       if (!recipeId) return;
-
       setUploadingIndex(index);
-
       try {
         const result = await uploadStepImage(file, recipeId);
 
@@ -207,7 +322,6 @@ export default function StepInput({
     },
     [recipeId, items, emitChanges, uploadStepImage]
   );
-
   const handleRemoveImage = useCallback(
     (stepIndex: number, imageIndex: number) => {
       const imageUrl = items[stepIndex].images[imageIndex]?.image;
@@ -218,25 +332,25 @@ export default function StepInput({
           console.error("Failed to delete step image:", err);
         });
       }
-
       const updated = [...items];
 
       updated[stepIndex] = {
         ...updated[stepIndex],
         images: updated[stepIndex].images
           .filter((_, i) => i !== imageIndex)
-          .map((img, i) => ({ ...img, order: i })),
+          .map((img, i) => ({
+            ...img,
+            order: i,
+          })),
       };
       setItems(updated);
       emitChanges(updated);
     },
     [items, emitChanges, deleteStepImage]
   );
-
   const handleFileSelect = (index: number) => {
     fileInputRefs.current[index]?.click();
   };
-
   const handleReorder = useCallback(
     (newOrder: StepItem[]) => {
       const normalized = normalizeStepItems(newOrder);
@@ -246,6 +360,7 @@ export default function StepInput({
     },
     [emitChanges]
   );
+  const clearPendingMentionEntry = useCallback(() => setPendingMentionEntry(null), []);
 
   // Track step numbers excluding headings
   const getStepNumber = (index: number): number | null => {
@@ -270,30 +385,42 @@ export default function StepInput({
       {items.map((item, index) => (
         <StepRow
           key={item.id}
+          autoEntryOrder={pendingMentionEntry?.index === index ? pendingMentionEntry.order : null}
           dragConstraintsRef={dragConstraintsRef}
           fileInputRefs={fileInputRefs}
           index={index}
+          ingredientSuggestions={ingredientSuggestions}
+          ingredients={chipLines}
+          textareaRefs={textareaRefs}
           isLast={index === items.length - 1}
           item={item}
           recipeId={recipeId}
           showRemove={items.length > 1 && (!!item.text || item.images.length > 0)}
           stepNumber={getStepNumber(index)}
-          stepPlaceholder={t("stepPlaceholder", { number: index + 1 })}
-          stepPlaceholderShort={t("stepPlaceholderShort", { number: index + 1 })}
+          stepPlaceholder={t("stepPlaceholder", {
+            number: index + 1,
+          })}
+          stepPlaceholderShort={t("stepPlaceholderShort", {
+            number: index + 1,
+          })}
           uploadingIndex={uploadingIndex}
+          onAutoEntryHandled={clearPendingMentionEntry}
           onBlur={() => handleBlur(index)}
           onFileSelect={() => handleFileSelect(index)}
           onImageUpload={(file) => handleImageUpload(index, file)}
           onKeyDown={(e) => handleKeyDown(index, e)}
           onRemove={() => handleRemove(index)}
+          onIngredientMention={(suggestion, newText) =>
+            handleIngredientMention(index, suggestion, newText)
+          }
           onRemoveImage={(imgIndex) => handleRemoveImage(index, imgIndex)}
+          onStepIngredientsChange={(refs) => handleStepIngredientsChange(index, refs)}
           onValueChange={(v) => handleInputChange(index, v)}
         />
       ))}
     </Reorder.Group>
   );
 }
-
 function normalizeStepItems(next: StepItem[]): StepItem[] {
   const withoutTrailingEmpty = next.filter(
     (it) => it.text.trim().length > 0 || (it.images && it.images.length > 0)
@@ -313,9 +440,14 @@ interface StepRowProps {
   recipeId?: string;
   uploadingIndex: number | null;
   fileInputRefs: React.RefObject<(HTMLInputElement | null)[]>;
+  textareaRefs: React.RefObject<(HTMLTextAreaElement | null)[]>;
   dragConstraintsRef: React.RefObject<HTMLUListElement | null>;
   stepPlaceholder: string;
   stepPlaceholderShort: string;
+  ingredientSuggestions: SmartTextInputIngredientSuggestion[];
+  ingredients: StepInputIngredient[];
+  autoEntryOrder: number | null;
+  onAutoEntryHandled: () => void;
   onValueChange: (value: string) => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
   onBlur: () => void;
@@ -323,8 +455,12 @@ interface StepRowProps {
   onImageUpload: (file: File) => void;
   onRemoveImage: (imageIndex: number) => void;
   onFileSelect: () => void;
+  onStepIngredientsChange: (refs: StepIngredientDraft[]) => void;
+  onIngredientMention: (
+    suggestion: SmartTextInputIngredientSuggestion,
+    newText: string
+  ) => boolean | void;
 }
-
 function StepRow({
   item,
   index,
@@ -334,9 +470,14 @@ function StepRow({
   recipeId,
   uploadingIndex,
   fileInputRefs,
+  textareaRefs,
   dragConstraintsRef,
   stepPlaceholder,
   stepPlaceholderShort,
+  ingredientSuggestions,
+  ingredients,
+  autoEntryOrder,
+  onAutoEntryHandled,
   onValueChange,
   onKeyDown,
   onBlur,
@@ -344,10 +485,15 @@ function StepRow({
   onImageUpload,
   onRemoveImage,
   onFileSelect,
+  onStepIngredientsChange,
+  onIngredientMention,
 }: StepRowProps) {
   const controls = useDragControls();
   const hasContent = !!item.text || item.images.length > 0;
   const canDrag = !isLast && hasContent;
+  // Heading rows cannot receive chips, and the trailing empty row has no step
+  // for them to belong to yet.
+  const canCarryStepIngredients = !!item.text.trim() && !item.text.trim().startsWith("#");
 
   return (
     <Reorder.Item
@@ -358,51 +504,67 @@ function StepRow({
       dragElastic={0}
       dragListener={false}
       dragMomentum={false}
-      style={{ position: "relative" }}
+      style={{
+        position: "relative",
+      }}
       value={item}
     >
       <div className="flex items-start gap-1 md:gap-2">
         {/* Drag handle - only show for non-empty, non-last items */}
         <div
-          className={`flex h-10 w-5 flex-shrink-0 touch-none items-center justify-center md:w-6 ${
-            !isLast && hasContent ? "cursor-grab active:cursor-grabbing" : ""
-          }`}
+          className={`flex h-10 w-5 flex-shrink-0 touch-none items-center justify-center md:w-6 ${!isLast && hasContent ? "cursor-grab active:cursor-grabbing" : ""}`}
           onPointerDown={(e) => {
             if (canDrag) {
               controls.start(e);
             }
           }}
         >
-          {canDrag ? <Bars3Icon className="text-default-400 h-4 w-4" /> : null}
+          {canDrag ? <Bars3Icon className="text-muted h-4 w-4" /> : null}
         </div>
 
         {/* Step number */}
-        <div className="text-default-500 flex h-10 w-5 flex-shrink-0 items-center justify-center text-sm font-medium md:w-6 md:text-base">
+        <div className="text-muted flex h-10 w-5 flex-shrink-0 items-center justify-center text-sm font-medium md:w-6 md:text-base">
           {stepNumber !== null ? `${stepNumber}.` : ""}
         </div>
 
         <div className="flex flex-1 flex-col gap-2">
           <SmartTextInput
+            ref={(element) => {
+              textareaRefs.current[index] = element;
+            }}
+            ingredientSuggestions={ingredientSuggestions}
             minRows={2}
             placeholder={index === 0 ? stepPlaceholder : stepPlaceholderShort}
             value={item.text}
             onBlur={onBlur}
+            onIngredientMention={onIngredientMention}
             onKeyDown={onKeyDown}
             onValueChange={onValueChange}
           />
+
+          {canCarryStepIngredients && (
+            <StepIngredientChips
+              autoEntryOrder={autoEntryOrder}
+              ingredients={ingredients}
+              refs={item.stepIngredients}
+              onAutoEntryHandled={onAutoEntryHandled}
+              onChange={onStepIngredientsChange}
+              onEntryKeyboardClose={() => textareaRefs.current[index]?.focus()}
+            />
+          )}
 
           {/* Image thumbnails */}
           {item.images.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {item.images.map((img, imgIndex) => (
                 <div key={imgIndex} className="relative h-18 w-18 md:h-20 md:w-20">
-                  <Image
-                    alt={`Step ${index + 1} image ${imgIndex + 1}`}
+                  <img
+                    alt={`Step ${index + 1}, attachment ${imgIndex + 1}`}
                     className="h-14 w-14 rounded-lg object-cover md:h-16 md:w-16"
                     src={img.image}
                   />
                   <button
-                    className="bg-danger hover:bg-danger-600 absolute top-0 right-0 z-10 flex h-6 w-6 items-center justify-center rounded-full shadow-lg transition-colors"
+                    className="bg-danger hover:bg-danger/90 absolute top-0 right-0 z-10 flex h-6 w-6 items-center justify-center rounded-full shadow-lg transition-colors"
                     type="button"
                     onClick={() => onRemoveImage(imgIndex)}
                   >
@@ -437,9 +599,9 @@ function StepRow({
               />
               <Button
                 isIconOnly
-                isLoading={uploadingIndex === index}
+                isPending={uploadingIndex === index}
                 size="sm"
-                variant="light"
+                variant="tertiary"
                 onPress={onFileSelect}
               >
                 <PhotoIcon className="h-4 w-4" />
@@ -449,7 +611,7 @@ function StepRow({
 
           {/* Remove button */}
           {showRemove && (
-            <Button isIconOnly size="sm" variant="light" onPress={onRemove}>
+            <Button isIconOnly size="sm" variant="tertiary" onPress={onRemove}>
               <XMarkIcon className="h-4 w-4" />
             </Button>
           )}

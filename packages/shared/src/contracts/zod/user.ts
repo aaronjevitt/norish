@@ -1,10 +1,9 @@
 import z from "zod";
 
+// Hidden Items left this contract with ticket 23: the hidden list is a device
+// preference on the `norish_hidden_items` cookie, not server state. A stored
+// `hidden` key from before the move is simply ignored by this parse.
 export const UserPreferencesSchema = z.object({
-  timersEnabled: z.boolean().optional(),
-  showConversionButton: z.boolean().optional(),
-  showRatings: z.boolean().optional(),
-  showFavorites: z.boolean().optional(),
   locale: z.string().nullable().optional(),
 });
 

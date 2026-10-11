@@ -1,11 +1,5 @@
 name: Docker Build Test
 
-env:
-  NODE_ENV: production
-  DATABASE_URL: postgres://ci-user:ci-password@localhost:5432/ci-db
-  MASTER_KEY: test-master-key
-  SKIP_ENV_VALIDATION: "1"
-
 on:
   pull_request:
     branches:
@@ -15,9 +9,25 @@ on:
 
 permissions:
   contents: read
+  # Read-only: this build reads the GHCR layer cache and never writes to it.
+  packages: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   docker-build:
+    name: Docker image
+    # Pushing to an rc/** branch already builds and publishes a multi-arch
+    # image from this SHA, so a PR whose head is that branch would build the
+    # very same image a second time and throw it away.
+    if: ${{ github.event_name == 'workflow_dispatch' || !startsWith(github.head_ref, 'rc/') }}
     uses: ./.github/workflows/_docker-build.yml
+    secrets: inherit
     with:
-      image-tags: norish:test
+      # A smoke test of the Dockerfile does not need a second architecture;
+      # arm64 is exercised on every rc push by the publish build.
+      arches: '["amd64"]'
+      # No `primary-image`: nothing is pushed, and the layer cache this reads
+      # lives in its own GHCR repo rather than in the published one.

@@ -6,118 +6,115 @@ env:
   MASTER_KEY: QmFzZTY0RW5jb2RlZE1hc3RlcktleU1pbjMyQ2hhcnM=
   SKIP_ENV_VALIDATION: "1"
   AUTH_URL: http://localhost:3000
-  CHROME_WS_ENDPOINT: ws://localhost:3000
+  OBSCURA_ENDPOINT: ws://localhost:9222
 
 on:
   workflow_call:
-    inputs:
-      run-build:
-        required: false
-        type: boolean
-        default: false
-      run-tests:
-        required: false
-        type: boolean
-        default: false
-      run-lint:
-        required: false
-        type: boolean
-        default: false
-      run-format:
-        required: false
-        type: boolean
-        default: false
-      run-i18n:
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: read
 
 jobs:
-  install:
-    name: Install dependencies
-    if: ${{ inputs.run-build || inputs.run-tests || inputs.run-lint || inputs.run-format || inputs.run-i18n }}
+  # One job on purpose. Actions jobs do not share a filesystem, so every extra
+  # job pays another checkout plus a full `pnpm install`, and any build it
+  # depends on has to be redone. Running the gates in sequence here costs a few
+  # minutes of wall clock and saves five installs and five rebuilds.
+  verify:
+    # Named for what it runs, not for its role: this is the only check covering
+    # the unit tests now that they are steps rather than their own job, and
+    # "Verify" gave no hint that a red here could be a failing test.
+    name: Build, test & lint
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup toolchain and install dependencies
+        id: setup
         uses: ./tooling/github/setup
 
-  build:
-    name: Build
-    if: ${{ inputs.run-build || inputs.run-tests || inputs.run-lint || inputs.run-format || inputs.run-i18n }}
-    runs-on: ubuntu-latest
-    needs: install
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      # Gate order is cheapest-first so a trivial break reports in a minute
+      # instead of behind the build. Everything up to and including the unit
+      # tests runs on the bare checkout; only the e2e suites need build output.
+      #
+      # Each gate is guarded on the *install* rather than on the gate before
+      # it, so one red gate still lets the rest report. That preserves what the
+      # old `fail-fast: false` matrix gave us now that they share a job.
+      - name: Dependency cycles
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm run deps:cycles
 
-      - name: Setup toolchain and install dependencies
-        uses: ./tooling/github/setup
+      # "format:check", not "format" — the latter writes, which on a throwaway
+      # checkout means the gate reformats the runner's copy and then passes
+      # whatever the branch happens to look like.
+      - name: Format check
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm run format:check
 
-      - name: Run build
-        run: pnpm run build
+      - name: Locale keys check
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm run i18n:check
 
-  tests:
-    name: Tests
-    if: ${{ inputs.run-tests }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup toolchain and install dependencies
-        uses: ./tooling/github/setup
-
-      - name: Run tests
-        run: pnpm run test
-
-  lint:
-    name: Lint
-    if: ${{ inputs.run-lint }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup toolchain and install dependencies
-        uses: ./tooling/github/setup
-
-      - name: Run lint
+      - name: Lint
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: pnpm run lint
 
-  format:
-    name: Format Check
-    if: ${{ inputs.run-format }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      # Unit tests need NODE_ENV=test: under the workflow-wide "production"
+      # Vite resolves Node builtins as browser externals, and every jsdom suite
+      # that reaches one dies with "No such built-in module: node:" before a
+      # single test runs.
+      - name: Tests
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm run test
+        env:
+          NODE_ENV: test
 
-      - name: Setup toolchain and install dependencies
-        uses: ./tooling/github/setup
+      # The one build. Note what does *not* follow it: the e2e step below calls
+      # the @norish/web script directly rather than the root `test:e2e`, which
+      # prefixes `build:web && build:server` — precisely the build this step
+      # just did. The suites boot dist-server/index.mjs (the harness at
+      # apps/web/__tests__/e2e/harness/production-stack.ts), which is what
+      # `build:server` emits here.
+      #
+      # That reuse leans on turbo actually running @norish/web#build. It always
+      # does today: the task graph has no remote cache and each run starts from
+      # a bare checkout. If remote caching is ever turned on, add ".next/**" to
+      # the build task's `outputs` in turbo.json first — it is missing there, so
+      # a cache replay would restore dist-server/ but leave .next/ absent and
+      # the browser gate would boot against nothing.
+      - name: Build
+        id: build
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm run build
 
-      - name: Run format check
-        run: pnpm run format
+      - name: Install Playwright browsers
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: pnpm --filter @norish/web exec playwright install --with-deps chromium
 
-  i18n:
-    name: Locale Keys Check
-    if: ${{ inputs.run-i18n }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      # setup-uv stopped publishing floating major tags with v8; pin exactly.
+      - name: Install uv
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        uses: astral-sh/setup-uv@v10.0.1
 
-      - name: Setup toolchain and install dependencies
-        uses: ./tooling/github/setup
+      # The production server boots the embedded parser and refuses to run
+      # without its runtime; the shared setup skips it for everything else.
+      - name: Install the embedded parser runtime
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: pnpm --filter @norish/parser-api run install:deps
 
-      - name: Check locale keys
-        run: pnpm run i18n:check
+      - name: Browser E2E
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: pnpm --filter @norish/web run test:e2e
+
+      - name: Upload traces and results on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-results
+          path: apps/web/__tests__/e2e/.results
+          retention-days: 7
+          if-no-files-found: ignore
+          # Everything lives under dot-directories, which the action skips
+          # by default — without this the upload silently finds nothing.
+          include-hidden-files: true

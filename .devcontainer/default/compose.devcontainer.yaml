@@ -22,7 +22,7 @@ services:
     networks:
       - norish-devcontainer-network
 
-  chrome-headless:
+  obscura:
     networks:
       - norish-devcontainer-network
 

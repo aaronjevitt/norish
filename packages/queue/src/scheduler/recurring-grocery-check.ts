@@ -5,8 +5,8 @@ import {
   updateRecurringGrocery,
 } from "@norish/db/repositories/recurring-groceries";
 import { schedulerLogger } from "@norish/shared-server/logger";
+import { groceries } from "@norish/shared-server/realtime/groceries";
 import { calculateNextOccurrence } from "@norish/shared/lib/recurrence/calculator";
-import { groceryEmitter } from "@norish/trpc/routers/groceries/emitter";
 
 /**
  * Get the household key for a user (household ID or user ID if no household)
@@ -60,17 +60,21 @@ export async function checkRecurringGroceries(): Promise<{ unchecked: number }> 
         // Broadcast to household members via tRPC emitter
         const householdKey = await getHouseholdKeyForUser(item.recurringGrocery.userId);
 
-        groceryEmitter.emitToHousehold(householdKey, "recurringUpdated", {
-          recurringGrocery: {
-            ...item.recurringGrocery,
-            nextPlannedFor: nextDate,
-            lastCheckedDate: item.recurringGrocery.nextPlannedFor,
+        void groceries.publish(
+          "recurringUpdated",
+          {
+            recurringGrocery: {
+              ...item.recurringGrocery,
+              nextPlannedFor: nextDate,
+              lastCheckedDate: item.recurringGrocery.nextPlannedFor,
+            },
+            grocery: {
+              ...item.grocery,
+              isDone: false,
+            },
           },
-          grocery: {
-            ...item.grocery,
-            isDone: false,
-          },
-        });
+          { householdKey }
+        );
 
         unchecked++;
         schedulerLogger.info(

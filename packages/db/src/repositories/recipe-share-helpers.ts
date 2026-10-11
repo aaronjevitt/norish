@@ -99,6 +99,9 @@ export function mapRecipeToPublicRecipeView(
     notes: recipe.notes ?? null,
     url: recipe.url ?? null,
     image: toSharedMediaUrl(recipe.image, shareToken),
+    // The Dish Colour travels to the share page so a shared link tints the
+    // way the app does (ADR-0023); it stays a colour, never a media URL.
+    dishColor: recipe.dishColor ?? null,
     servings: recipe.servings,
     prepMinutes: recipe.prepMinutes ?? null,
     cookMinutes: recipe.cookMinutes ?? null,
@@ -125,6 +128,7 @@ export function mapRecipeToPublicRecipeView(
         image: toSharedMediaUrl(image.image, shareToken),
         order: image.order,
       })),
+      stepIngredients: step.stepIngredients ?? [],
     })),
     author: recipe.author
       ? {

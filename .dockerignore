@@ -11,6 +11,8 @@ node_modules
 .git
 .gitignore
 .env*
+# A local .env.production is deliberately copied into locally-built images;
+# CI builds from a clean checkout never have one.
 !.env.production
 dist-server
 coverage
@@ -51,6 +53,8 @@ tooling/**/dist
 apps/mobile/**
 !apps/mobile/package.json
 
-# OpenSpec artifacts — not needed in Docker build
-openspec/
+# Community app references
+apps/quick-import-extension/**
+
+# Docs — not needed in Docker build
 docs/

@@ -1,7 +1,7 @@
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
-import { recipeVideos } from "@norish/db/schema";
+import { recipeVideos } from "@norish/db-schema/schema";
 
 /** Maximum number of videos allowed per recipe */
 export const MAX_RECIPE_VIDEOS = 5;
@@ -13,7 +13,7 @@ export const RecipeVideoInsertSchema = createInsertSchema(recipeVideos).omit({
 });
 
 export const RecipeVideoOutputSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   video: z.string(),
   thumbnail: z.string().nullish(),
   duration: z.coerce.number().nullish(),
@@ -22,7 +22,7 @@ export const RecipeVideoOutputSchema = z.object({
 });
 
 export const RecipeVideoSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: z.uuid().optional(),
   video: z.string(),
   thumbnail: z.string().nullish(),
   duration: z.coerce.number().nullish(),
@@ -38,7 +38,7 @@ export const RecipeVideoInputSchema = z.object({
 });
 
 export const DeleteRecipeVideoInputSchema = z.object({
-  videoId: z.string().uuid(),
+  videoId: z.uuid(),
   version: z.number().int().positive(),
 });
 

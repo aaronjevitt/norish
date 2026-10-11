@@ -6,7 +6,7 @@ import { getServings } from "@norish/api/parser/parsers/metadata";
 import { extractNutrition } from "@norish/api/parser/parsers/nutrition";
 import { parseSteps } from "@norish/api/parser/parsers/steps";
 import { parseVideos } from "@norish/api/parser/parsers/videos";
-import { getUnits } from "@norish/config/server-config-loader";
+import { getUnits } from "@norish/shared-server/config/server-config-loader";
 import { parserLogger as log } from "@norish/shared-server/logger";
 import { hasRecipeName } from "@norish/shared/lib/helpers";
 

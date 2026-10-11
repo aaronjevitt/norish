@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTRPC } from "@/app/providers/trpc-provider";
 import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
-import { addToast } from "@heroui/react";
+import { toast } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -19,37 +19,24 @@ export function useRecipeSubscription(recipeId: string | null) {
   const router = useRouter();
 
   useSharedRecipeSubscription(recipeId, {
-    onConverted: (rawPayload) => {
-      const payload = rawPayload as { recipe: { systemUsed: string } };
-
-      addToast({
-        severity: "success",
-        title: "Measurements converted",
+    onConverted: (payload) => {
+      toast("Measurements converted", {
         description: `Recipe converted to ${payload.recipe.systemUsed} units`,
-        shouldShowTimeoutProgress: true,
-        radius: "full",
+        variant: "success",
       });
     },
     onDeleted: () => {
-      addToast({
-        severity: "warning",
-        title: "Recipe deleted",
-        description: "This recipe has been removed.",
-        shouldShowTimeoutProgress: true,
-        radius: "full",
-      });
+      toast("Recipe deleted", { description: "This recipe has been removed.", variant: "warning" });
 
       router.push("/");
     },
-    onFailed: (rawPayload) => {
-      const payload = rawPayload as { reason: string; recipeId: string | null };
-
+    onFailed: (payload) => {
       showSafeErrorToast({
         title: tErrors("operationFailed"),
         description: tErrors("technicalDetails"),
         error: payload.reason,
         context: "recipe-subscription:onFailed",
-        metadata: { recipeId, payloadRecipeId: payload.recipeId },
+        metadata: { recipeId, payloadRecipeId: payload.recipeId ?? null },
       });
     },
   });

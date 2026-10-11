@@ -1,23 +1,33 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import UiSwitch from "@/components/shared/ui-switch";
 import { DevicePhoneMobileIcon } from "@heroicons/react/20/solid";
-import { Switch, Tooltip } from "@heroui/react";
+import { Tooltip } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import { useWakeLockContext } from "./wake-lock-context";
 
-export default function WakeLockToggle() {
+type WakeLockToggleProps = {
+  /**
+   * Off where the surface already took the wake lock itself — cooking mode
+   * does, so its toggle only ever hands it back rather than racing it for a
+   * second one.
+   */
+  autoEnable?: boolean;
+};
+
+export default function WakeLockToggle({ autoEnable = true }: WakeLockToggleProps) {
   const { isSupported, isActive, toggle } = useWakeLockContext();
   const t = useTranslations("recipes.wakeLock");
   const hasAttemptedAutoEnableRef = useRef(false);
 
   useEffect(() => {
-    if (!isSupported || isActive || hasAttemptedAutoEnableRef.current) return;
+    if (!autoEnable || !isSupported || isActive || hasAttemptedAutoEnableRef.current) return;
 
     hasAttemptedAutoEnableRef.current = true;
     toggle();
-  }, [isSupported, isActive, toggle]);
+  }, [autoEnable, isSupported, isActive, toggle]);
 
   if (!isSupported) {
     return (
@@ -34,7 +44,7 @@ export default function WakeLockToggle() {
     <Tooltip content={isActive ? t("activeTooltip") : t("inactiveTooltip")}>
       <div className="flex items-center gap-2">
         <DevicePhoneMobileIcon className="h-5 w-5" />
-        <Switch
+        <UiSwitch
           aria-label={t("ariaLabel")}
           color="success"
           isSelected={isActive}

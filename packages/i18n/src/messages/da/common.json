@@ -12,6 +12,8 @@
     "apply": "Anvend",
     "reset": "Nulstil",
     "clear": "Ryd",
+    "selectAll": "Vælg alle",
+    "deselectAll": "Fravælg alle",
     "confirm": "Bekræft",
     "back": "Tilbage",
     "next": "Næste",
@@ -28,11 +30,12 @@
     "test": "Test",
     "format": "Formater",
     "restoreDefaults": "Gendan standardindstillinger",
-    "saveChanges": "Gem ændringer",
-    "revealSecret": "Vis hemmelighed",
-    "hideSecret": "Skjul hemmelighed",
-    "enterNewValue": "Indtast ny værdi",
-    "cancelEditing": "Annuller redigering"
+    "saveChanges": "Gem ændringer"
+  },
+  "secret": {
+    "reveal": "Vis hemmelighed",
+    "hide": "Skjul hemmelighed",
+    "keepsCurrent": "Lad feltet stå tomt for at beholde den gemte værdi."
   },
   "status": {
     "loading": "Indlæser...",
@@ -46,6 +49,7 @@
   "filters": {
     "title": "Filtre",
     "search": "Søg",
+    "searchIn": "Søg i",
     "sort": "Sorter",
     "mode": "Tilstand",
     "modeAll": "Alle",
@@ -92,19 +96,21 @@
   },
   "connection": {
     "connecting": "Opretter forbindelse til Norish...",
-    "syncing": "Synkroniserer, vent venligst...",
     "checkInternet": "Tjek venligst din internetforbindelse",
-    "gettingUpdates": "Et øjeblik mens vi henter de seneste opdateringer",
     "offlineBanner": "Du er offline og ser cachelagrede data",
-    "serverUnreachableBanner": "Norish-serveren er ikke tilgængelig, ser cachelagrede data"
+    "serverUnreachableBanner": "Norish-serveren er ikke tilgængelig, ser cachelagrede data",
+    "live": "Forbundet",
+    "offline": "Offline",
+    "openDetails": "Connection details"
   },
   "language": {
     "title": "Sprog"
   },
   "notFound": {
     "code": "404",
-    "title": "Side ikke fundet",
-    "message": "Ups! Nora kunne ikke finde det, du leder efter.\nSiden kan være blevet flyttet eller eksisterer ikke."
+    "title": "Nora er forvirret.",
+    "message": "Hun snuser rundt for at finde ud af, hvor du ville hen.",
+    "imageAlt": "Nora ser forvirret ud"
   },
   "import": {
     "url": {
@@ -113,6 +119,9 @@
       "placeholder": "https://eksempel.dk/din-opskrift",
       "failed": "Kunne ikke importere opskrift",
       "failedWithAI": "Kunne ikke importere opskrift med AI"
+    },
+    "clipboard": {
+      "title": "Importér en opskrift fra det link, du har kopieret?"
     },
     "paste": {
       "title": "Importer fra indsætning",
@@ -155,6 +164,7 @@
     "heading": "Start en linje med <strong>#</strong> for en overskrift",
     "bold": "Omslut med <strong>**dobbelte stjerner**</strong> for fed skrift",
     "recipeLink": "Skriv <strong>/opskriftsnavn</strong> for at linke til en anden opskrift",
+    "ingredientMention": "Skriv <strong>@</strong> for at tilknytte en ingrediens til trinnet — ordet lander i sætningen, tilknytningen bliver en brik nedenunder",
     "helpAriaLabel": "Hjælp til formatering"
   },
   "tagInput": {
@@ -213,5 +223,74 @@
     "notification_body": "{label} er færdig!",
     "notifications_disabled": "Notifikationer er deaktiveret",
     "notifications_disabled_hint": "Aktiver notifikationer i dine browserindstillinger for at modtage alarmer, når timere afsluttes i baggrunden."
+  },
+  "offlineStatus": {
+    "title": "Connection & offline",
+    "connection": {
+      "heading": "Connection",
+      "live": "Live",
+      "offline": "Offline",
+      "forced": "Offline (forced)",
+      "liveDescription": "Connected to Norish. Changes sync as you make them.",
+      "offlineDescription": "Can't reach Norish. Showing cached data; changes are queued and sync when you're back.",
+      "forcedDescription": "Offline is forced for development. The backend is reachable but every request is blocked.",
+      "devBadge": "dev"
+    },
+    "cache": {
+      "heading": "Offline cache",
+      "recipes": "Recipes",
+      "cookbooks": "Kogebøger",
+      "groceries": "Groceries",
+      "stores": "Stores",
+      "planned": "This week",
+      "dataAge": "Data from {when}",
+      "dataAgeUnknown": "Not warmed yet",
+      "wipe": "Clear cached data",
+      "wipeConfirmBody": "Remove the offline copy of your recipes, groceries, stores and plan? Your queued changes are kept.",
+      "wipeConfirmOfflineBody": "You're offline — clearing now leaves nothing to show until you reconnect. Your queued changes are kept.",
+      "wipeConfirm": "Clear",
+      "wipeCancel": "Keep"
+    },
+    "outbox": {
+      "heading": "Queued changes",
+      "empty": "Nothing queued — everything's synced.",
+      "pending": "{count, plural, =0 {No changes waiting} one {# change waiting} other {# changes waiting}}",
+      "syncing": "{count, plural, =0 {Syncing} one {Syncing # change} other {Syncing # changes}}",
+      "syncNow": "Sync now",
+      "retryAll": "Retry all",
+      "discardAll": "Discard all",
+      "discardConfirmBody": "{count, plural, one {Permanently discard # queued change? It won't be sent.} other {Permanently discard # queued changes? They won't be sent.}}",
+      "discardConfirm": "Discard",
+      "discardCancel": "Keep",
+      "status": {
+        "pending": "Syncing",
+        "parked": "Needs attention",
+        "conflicted": "Conflict"
+      }
+    },
+    "devToggle": {
+      "heading": "Developer",
+      "force": "Force offline",
+      "description": "Blocks the backend transport to exercise the offline runtime. Dev builds only.",
+      "on": "On",
+      "off": "Off"
+    }
+  },
+  "offlineFallback": {
+    "title": "Nora er også offline.",
+    "body": "Denne side er ikke gemt til offline — sider, du har besøgt for nylig, er her stadig.",
+    "backOnlineTitle": "Nora har fundet forbindelsen!",
+    "backOnlineBody": "Norish kan nås igen — prøv at indlæse denne side igen.",
+    "retry": "Prøv igen",
+    "home": "Åbn Norish"
+  },
+  "queuedOffline": {
+    "title": "Du er offline",
+    "description": "Sat i kø — Norish fuldfører dette automatisk, når du er online igen."
+  },
+  "storageUnavailable": {
+    "title": "Kunne ikke starte",
+    "description": "Norish kunne ikke læse sin sikre lagring og ved derfor ikke, hvilken server appen hører til. Intet er ændret. Prøv igen, eller genstart appen.",
+    "detailsLabel": "Tekniske detaljer"
   }
 }

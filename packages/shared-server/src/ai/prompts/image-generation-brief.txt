@@ -1,0 +1,12 @@
+Turn the recipe below into one short visual brief for an image model: a
+single paragraph of at most 60 words describing what a finished serving of
+this dish looks like.
+
+- Describe only the plated dish: its colours, textures, the ingredients that
+  remain visible once it is cooked, and the plate or bowl it is served in.
+- Leave out amounts, ingredients that dissolve or disappear during cooking,
+  and every preparation step.
+- Do not name the recipe, mention cameras, lenses, styles or text, or give
+  instructions. Describe the food only.
+
+Write the brief in English, whatever language the recipe is written in.

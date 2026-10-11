@@ -1,7 +1,6 @@
 {
   "page": {
     "title": "Einstellungen",
-    "loading": "Wird geladen...",
     "ariaLabel": "Einstellungen-Reiter"
   },
   "tabs": {
@@ -62,13 +61,22 @@
     },
     "archiveImport": {
       "title": "Rezeptarchiv importieren",
-      "description": "Importiere Rezepte aus Mela (.melarecipes), Paprika (.paprikarecipes) oder Mealie/Tandoor (.zip)-Exporten"
+      "description": "Importiere Rezepte aus Norish (.norishrecipes), Mela (.melarecipes), Paprika (.paprikarecipes) oder Mealie/Tandoor (.zip)-Exporten"
+    },
+    "archiveExport": {
+      "title": "Rezeptarchiv exportieren",
+      "description": "Laden Sie alle Rezepte herunter, die Sie sehen können.",
+      "button": "Exportieren"
     },
     "siteAuthTokens": {
       "title": "Website-Authentifizierungstoken",
       "description": "Fügen Sie Header oder Cookies hinzu, die beim Importieren von Rezepten von bestimmten Websites gesendet werden. Nützlich für Websites, die eine Anmeldung erfordern (z.B. Instagram, Facebook).",
+      "accountsDescription": "Benennen Sie ein Konto, wenn Sie mehrere Anmeldungen für eine Website haben. Jeder Import verwendet dann eines der Konten dieser Website, zufällig ausgewählt, sodass nicht eine einzelne Anmeldung alle Importe trägt. Ein Token ohne Kontonamen wird bei jedem Import für diese Domain gesendet.",
       "domain": "Domain",
       "domainPlaceholder": "z.B. instagram.com",
+      "account": "Konto",
+      "accountPlaceholder": "z.B. mein_handle (optional)",
+      "accountShared": "Alle Konten",
       "name": "Name",
       "namePlaceholder": "z.B. Cookie oder Authorization",
       "value": "Wert",
@@ -80,6 +88,7 @@
       "noTokens": "Keine Website-Authentifizierungstoken konfiguriert.",
       "tableHeaders": {
         "domain": "DOMAIN",
+        "account": "KONTO",
         "name": "NAME",
         "type": "TYP",
         "created": "ERSTELLT",
@@ -111,21 +120,37 @@
         "title": "Sprache",
         "description": "Wählen Sie Ihre bevorzugte Sprache"
       },
-      "timers": {
-        "title": "Rezept-Timer aktivieren",
-        "description": "Interaktive Timer in Rezeptanweisungen anzeigen"
+      "hidden": {
+        "title": "Ausgeblendete Elemente",
+        "description": "Wählen Sie, was Ihnen lieber nicht angezeigt werden soll. Standardmäßig wird alles angezeigt, und dies ändert nur Ihre eigene Ansicht.",
+        "placeholder": "Nichts ausgeblendet",
+        "options": {
+          "provenance": "Herkunft",
+          "nutrition": "Nährwerte",
+          "notes": "Notizen",
+          "rating": "Bewertungen",
+          "favorites": "Favoriten",
+          "conversion": "Zutatenumrechnung",
+          "timers": "Rezept-Timer",
+          "cookbooks": "Kochbücher"
+        }
       },
-      "conversion": {
-        "title": "Konvertier-Button anzeigen",
-        "description": "Zeige auf Rezeptseiten einen Button, um zwischen Maßsystemen umzurechnen"
+      "todaySection": {
+        "title": "Heute-Bereich",
+        "description": "Wählen Sie, wie der Heute-Bereich auf dem Dashboard auf diesem Gerät angezeigt wird",
+        "options": {
+          "always": "Immer sichtbar",
+          "planned": "Nur geplante Mahlzeiten",
+          "hidden": "Ausgeblendet"
+        }
       },
-      "ratings": {
-        "title": "Bewertungen anzeigen",
-        "description": "Sternebewertungen auf Rezeptkarten und Detailseiten anzeigen"
-      },
-      "favorites": {
-        "title": "Favoriten anzeigen",
-        "description": "Favoriten-/Herzsymbole auf Rezeptkarten und Detailseiten anzeigen"
+      "recipePageColor": {
+        "title": "Farbe der Rezeptseiten",
+        "description": "Färben Sie jede Rezeptseite im Ton ihres eigenen Fotos, oder behalten Sie auf diesem Gerät die normalen Themenfarben",
+        "options": {
+          "dish": "Aus dem Foto des Gerichts",
+          "theme": "Normale Themenfarben"
+        }
       },
       "applyError": "Einstellung konnte nicht angewendet werden"
     },
@@ -301,7 +326,8 @@
       },
       "emptyFiltered": "Keine {status}-Einträge gefunden",
       "emptyDefault": "Keine Synchronisierungsdatensätze gefunden",
-      "errorDetails": "Fehlerdetails"
+      "errorDetails": "Fehlerdetails",
+      "pagination": "Page {current} of {total}"
     }
   },
   "admin": {
@@ -344,7 +370,40 @@
       "saveLocales": "Spracheinstellungen speichern",
       "localesSaved": "Spracheinstellungen gespeichert",
       "localesError": "Spracheinstellungen konnten nicht gespeichert werden",
-      "atLeastOneLocale": "Mindestens eine Sprache muss aktiviert sein"
+      "atLeastOneLocale": "Mindestens eine Sprache muss aktiviert sein",
+      "export": {
+        "title": "Rezeptarchiv",
+        "description": "Laden Sie jedes Rezept auf diesem Server herunter.",
+        "button": "Rezeptarchiv exportieren"
+      }
+    },
+    "users": {
+      "title": "Benutzer",
+      "description": "Verwalten Sie alle, die über ein Konto auf diesem Server verfügen.",
+      "table": {
+        "user": "Benutzer",
+        "role": "Rolle",
+        "household": "Haushalt",
+        "joined": "Beigetreten",
+        "actions": "Aktionen"
+      },
+      "roles": {
+        "owner": "Owner",
+        "admin": "Admin"
+      },
+      "noHousehold": "Kein Haushalt",
+      "loading": "Benutzer werden geladen…",
+      "empty": "Noch keine Benutzer.",
+      "loadFailed": "Die Benutzerliste konnte nicht geladen werden.",
+      "actions": {
+        "makeAdmin": "Zum Admin machen",
+        "revokeAdmin": "Admin-Zugriff entziehen",
+        "delete": "Benutzer löschen"
+      },
+      "deleteTitle": "{name} löschen?",
+      "deleteConfirm": "Dies löscht das Konto dieses Benutzers dauerhaft und entfernt ihn aus seinem Haushalt. Dies kann nicht rückgängig gemacht werden.",
+      "deleteSuccess": "{name} wurde gelöscht",
+      "countSummary": "{count, plural, one {# Benutzer} other {# Benutzer}} insgesamt"
     },
     "registration": {
       "title": "Registrierung",
@@ -507,18 +566,39 @@
         "title": "Videoverarbeitung",
         "subtitle": "Social-Media-Video-Extraktion & Transkription"
       },
+      "imageGeneration": {
+        "title": "Bildgenerierung",
+        "subtitle": "Zeichnet ein Bild des Gerichts für Rezepte ohne Foto"
+      },
+      "decisionModel": {
+        "title": "Entscheidungsmodell",
+        "subtitle": "Schnelle, günstige Antworten auf geschlossene Fragen"
+      },
       "prompts": {
         "title": "Prompts",
         "subtitle": "Passe KI-Anweisungen für Rezept-Verarbeitung an"
       },
-      "bulkCategorization": {
-        "title": "Massenkategorisierung",
-        "subtitle": "Nicht kategorisierte Rezepte mit KI kategorisieren",
-        "description": "Alle nicht kategorisierten Rezepte für KI-basierte Kategorieerkennung in die Warteschlange stellen. Kategorien sind Frühstück, Mittagessen, Abendessen und Snack.",
-        "button": "Alle Rezepte kategorisieren",
-        "queued": "{count, plural, =0 {Keine Rezepte zu kategorisieren} one {# Rezept in Warteschlange} other {# Rezepte in Warteschlange}}",
-        "success": "Kategorisierung gestartet",
-        "error": "Kategorisierung konnte nicht gestartet werden"
+      "cuisines": {
+        "title": "Küchen",
+        "subtitle": "Das Vokabular, aus dem Rezepte und KI wählen"
+      },
+      "bulkEnrichment": {
+        "title": "Massen-Anreicherung",
+        "subtitle": "Aktivierte Anreicherung für alle Rezepte ausführen",
+        "description": "Stellen Sie für alle Rezepte auf diesem Server jede Anreicherungsart in die Warteschlange, deren automatischer Schalter aktiviert ist. Standardmäßig werden nur Lücken gefüllt; in der Bestätigung können Sie vorhandene Daten überschreiben lassen.",
+        "button": "Alle Rezepte anreichern",
+        "confirmTitle": "Anreicherung für alle Rezepte ausführen?",
+        "confirmMessage": "Dies stellt KI-Arbeit für jedes Rezept auf diesem Server in die Warteschlange. Jede Anreicherungsart, deren automatischer Schalter aktiviert ist, läuft überall dort, wo Daten fehlen.",
+        "replaceExisting": "Vorhandene Daten überschreiben",
+        "replaceExistingDescription": "Kategorien, Nährwerte, Herkunft und Schritt-Zutaten neu ermitteln, auch wenn ein Rezept sie bereits hat. Tags und Allergiehinweise werden immer nur ergänzt.",
+        "replaceWarning": "Dies kann nicht rückgängig gemacht werden. Auch selbst eingegebene Daten werden ersetzt, einschließlich von Hand verknüpfter Schritt-Zutaten: Es ist nirgends festgehalten, welche Werte von der KI stammen.",
+        "costWarning": "Dies kann ein teurer Vorgang sein: Bei vielen Rezepten kann es lange dauern und bei einem kostenpflichtigen KI-Anbieter erhebliches Guthaben verbrauchen.",
+        "confirmButton": "Für alle Rezepte ausführen",
+        "confirmButtonReplace": "Alle Rezepte überschreiben",
+        "queued": "{queued, plural, =0 {Keine Läufe in Warteschlange} one {# Lauf in Warteschlange} other {# Läufe in Warteschlange}} für {recipes, plural, one {# Rezept} other {# Rezepte}}",
+        "aiDisabled": "KI ist auf diesem Server deaktiviert. Aktivieren Sie zuerst KI.",
+        "error": "Massen-Anreicherung konnte nicht gestartet werden",
+        "imageCount": "{count, plural, =0 {Es werden keine Bilder generiert.} one {Es wird # Bild generiert.} other {Es werden # Bilder generiert.}}"
       }
     },
     "aiConfig": {
@@ -551,25 +631,52 @@
       "temperatureHint": "Niedriger = fokussierter, Höher = kreativer",
       "maxTokens": "Max Token",
       "requestTimeout": "Zeitüberschreitung der Anforderung (ms)",
-      "autoTagAllergies": "Allergene automatisch erkennen",
-      "autoTagAllergiesDescription": "Füge automatisch allergiebezogene Tags beim Importieren von Rezepten hinzu",
       "alwaysUseAI": "Immer KI-Import verwenden",
       "alwaysUseAIDescription": "Überspringe strukturierte Parser und extrahiere Rezepte nur mit KI",
-      "autoTaggingMode": "Auto-Tagging-Modus",
-      "autoTaggingModeDescription": "Weise importierten Rezepten automatisch Tags/Schlüsselwörter mit KI zu",
-      "autoTaggingModes": {
-        "disabled": "Deaktiviert",
+      "connectionSuccess": "Verbindung erfolgreich",
+      "testConnection": "Verbindung testen",
+      "vision": "Vision",
+      "automaticEnrichment": "Automatische Rezeptanreicherung",
+      "automaticEnrichmentDescription": "Wählen Sie, welche KI-Anreicherung für neue Rezepte automatisch läuft. Mitglieder können jede Anreicherung weiterhin manuell starten, solange KI aktiviert ist.",
+      "automaticEnrichmentPlaceholder": "Nichts läuft automatisch",
+      "automaticEnrichmentKinds": {
+        "autoTagging": "Automatische Tags",
+        "autoTaggingDescription": "Fügt neuen Rezepten KI-vorgeschlagene Tags hinzu, ohne vorhandene Tags zu entfernen",
+        "allergyDetection": "Allergieerkennung",
+        "allergyDetectionDescription": "Füge automatisch allergiebezogene Tags beim Importieren von Rezepten hinzu",
+        "autoCategorization": "Automatische Kategorisierung",
+        "autoCategorizationDescription": "Setzt Mahlzeitkategorien für neue Rezepte, die noch keine haben",
+        "nutritionEstimation": "Nährwertschätzung",
+        "nutritionEstimationDescription": "Schätzt Kalorien, Fett, Kohlenhydrate und Eiweiß für neue Rezepte ohne Angaben",
+        "recipeProvenance": "Rezept-Herkunft",
+        "recipeProvenanceDescription": "Land, Region, Küchen und eine kurze Notiz für neue Rezepte ermitteln, nur fehlende Angaben werden ergänzt, Ihre eigenen bleiben erhalten",
+        "ingredientLinking": "Zutatenverknüpfung",
+        "ingredientLinkingDescription": "Verknüpft jeden Schritt mit den Zutatenzeilen, die er verwendet, nur für Schritte ohne Verknüpfungen",
+        "imageGeneration": "Bildgenerierung",
+        "imageGenerationDescription": "Zeichnet ein Bild des Gerichts für neue Rezepte, die gar kein Bild haben"
+      },
+      "tagStrategy": "Tag-Strategie",
+      "tagStrategyDescription": "Welche Tags die automatische Verschlagwortung verwenden darf, ob automatisch oder manuell",
+      "tagStrategies": {
         "predefined": "Nur vordefinierte Tags",
         "predefinedDb": "Vordefinierte + existierende Tags",
         "freeform": "KI kann neue Tags erstellen"
       },
-      "connectionSuccess": "Verbindung erfolgreich",
-      "testConnection": "Verbindung testen",
-      "vision": "Vision"
+      "cuisineStrategy": "Küchen-Strategie",
+      "cuisineStrategyDescription": "Ob die Herkunftsermittlung Küchen zu Ihrem Vokabular hinzufügen darf oder nur daraus wählen",
+      "cuisineStrategies": {
+        "existing": "Nur vorhandene Küchen",
+        "extend": "KI darf neue Küchen anlegen"
+      }
+    },
+    "modelListing": {
+      "empty": "Keine Modelle erhalten. Prüfen Sie den API-Schlüssel oder den Endpunkt, oder geben Sie einen Modellnamen ein.",
+      "refused": "{provider} hat die Anfrage abgelehnt ({status}). Prüfen Sie den API-Schlüssel.",
+      "unreachable": "{provider} ist nicht erreichbar. Prüfen Sie den Endpunkt."
     },
     "videoConfig": {
       "enableVideo": "Video-Parsing aktivieren",
-      "enableVideoDescription": "Extrahieren Sie Rezepte aus TikTok, Instagram, YouTube Shorts oder Facebook",
+      "enableVideoDescription": "Extrahieren Sie Rezepte aus TikTok, Instagram, YouTube Shorts, Facebook, Pinterest und mehr",
       "configureWarning": "Konfigurieren Sie einen Transkriptions-Anbieter unten, um Video-Verarbeitung zu aktivieren.",
       "aiDisabledWarning": "Aktivieren Sie die KI-Konfiguration, bevor Sie die Video-Verarbeitung einschalten.",
       "maxLength": "Max. Videolänge (Sekunden)",
@@ -577,7 +684,10 @@
       "maxFileSize": "Max. Videodateigröße",
       "maxFileSizeDescription": "Maximale Größe für heruntergeladene Videodateien",
       "ytDlpVersion": "yt-dlp-Version",
-      "ytDlpVersionDescription": "Version von yt-dlp zum Verwenden für Video-Downloads",
+      "ytDlpVersionDescription": "Version von yt-dlp, die dieser Server ausführt. Hier nicht änderbar.",
+      "ytDlpVersionMissing": "Keine yt-dlp-Binärdatei gefunden",
+      "ytDlpVersionUnknown": "Konnte nicht geprüft werden",
+      "ytDlpVersionLoading": "Wird abgefragt …",
       "ytDlpProxy": "yt-dlp Proxy",
       "ytDlpProxyDescription": "HTTP/SOCKS5-Proxy für yt-dlp",
       "transcription": "Transkription",
@@ -604,10 +714,65 @@
       "transcriptionApiKeyOptionalDescription": "Die meisten lokalen Whisper-Server benötigen keinen API-Schlüssel",
       "transcriptionApiKeyOptionalPlaceholder": "Leer lassen für lokale Server"
     },
+    "imageGenerationConfig": {
+      "description": "Die Bildgenerierung nutzt einen eigenen Anbieter, da die meisten KI-Anbieter nicht zeichnen können. Bilder werden mit diesem Anbieter erzeugt; der KI-Anbieter oben übernimmt alles andere.",
+      "provider": "Bild-Anbieter",
+      "providers": {
+        "disabled": "Deaktiviert",
+        "openai": "OpenAI",
+        "google": "Google AI",
+        "azure": "Azure OpenAI",
+        "ollama": "Ollama (Lokal)",
+        "lmStudio": "LM Studio",
+        "genericOpenai": "Generisch OpenAI-kompatibel"
+      },
+      "endpoint": "Endpoint-URL",
+      "endpointOptional": "Optional: eigene Azure-Ressourcen-URL",
+      "apiKey": "API-Schlüssel",
+      "apiKeyPlaceholder": "API-Schlüssel eingeben...",
+      "apiKeyInherited": "Es wird der API-Schlüssel Ihrer KI-Konfiguration verwendet.",
+      "model": "Bildmodell",
+      "modelPlaceholder": "z. B. gpt-image-1",
+      "modelDescription": "Das Modell, das das Bild zeichnet. Es muss ein Bildmodell sein, kein Textmodell.",
+      "fallbackHint": "Gleicher Anbieter wie Ihre KI-Konfiguration: Endpoint und API-Schlüssel werden von dort übernommen, sofern Sie sie hier nicht setzen."
+    },
+    "decisionConfig": {
+      "provider": "Entscheidungsanbieter",
+      "providers": {
+        "disabled": "Deaktiviert",
+        "typesafe": "TypeSafe AI"
+      },
+      "apiKey": "API-Schlüssel",
+      "apiKeyPlaceholder": "API-Schlüssel eingeben...",
+      "apiKeyDescription": "Einen Schlüssel erhalten Sie in Ihrem Konto auf typesafe.ai",
+      "model": "Entscheidungsmodell",
+      "uses": "Entscheidungsmodell verwenden für",
+      "usesPlaceholder": "Nichts",
+      "useNames": {
+        "autoCategorization": "Automatische Kategorisierung",
+        "autoCategorizationDescription": "Entscheiden, ob ein Rezept ein Frühstück, Mittagessen, Abendessen oder Snack ist",
+        "autoTagging": "Automatische Tags",
+        "autoTaggingDescription": "Tags aus der vordefinierten Liste wählen und jeden von der KI vorgeschlagenen Tag bestätigen",
+        "allergyDetection": "Allergieerkennung",
+        "allergyDetectionDescription": "Entscheiden, welche Allergene des Haushalts ein Rezept enthält",
+        "recipeProvenance": "Rezept-Herkunft",
+        "recipeProvenanceDescription": "Land und Küchen festlegen, bevor die Notiz geschrieben wird",
+        "groceryLinking": "Einkäufe verknüpfen",
+        "groceryLinkingDescription": "Die angebotenen Produkte eines Geschäfts ordnen und eines verknüpfen, bei dem es sicher ist",
+        "validateEnrichments": "Anreicherungen prüfen",
+        "validateEnrichmentsDescription": "Die eigenen Aussagen jedes Anreicherungslaufs prüfen, bevor sie gespeichert werden"
+      },
+      "testConnection": "Verbindung testen",
+      "connectionSuccess": "Verbindung erfolgreich",
+      "aiDisabledHint": "KI ist auf diesem Server deaktiviert. Aktivieren Sie sie in der KI-Konfiguration, um das Entscheidungsmodell zu testen und zu nutzen."
+    },
     "promptsConfig": {
       "recipeExtraction": "Rezept-Extraktions-Prompt",
       "recipeExtractionDescription": "Dieser Prompt wird verwendet, wenn Rezeptdaten von Webseiten oder Video-Transkripten extrahiert werden.",
       "recipeExtractionPlaceholder": "Geben Sie den Rezept-Extraktions-Prompt ein...",
+      "imageExtraction": "Prompt für Bildextraktion",
+      "imageExtractionDescription": "Dieser Prompt wird verwendet, um Rezeptdaten aus hochgeladenen Bildern zu extrahieren, z. B. Fotos eines Kochbuchs oder einer Rezeptkarte.",
+      "imageExtractionPlaceholder": "Geben Sie den Prompt für die Bildextraktion ein...",
       "unitConversion": "Einheiten-Konvertierungs-Prompt",
       "unitConversionDescription": "Dieser Prompt wird verwendet, wenn Rezeptmaße zwischen metrischen und US-Systemen konvertiert werden. Verfügbare Variablen: sourceSystem, targetSystem, units",
       "unitConversionPlaceholder": "Geben Sie den Einheiten-Konvertierungs-Prompt ein...",
@@ -616,7 +781,25 @@
       "nutritionEstimationPlaceholder": "Geben Sie den Nährwert-Schätzungs-Prompt ein...",
       "autoTagging": "Auto-Tagging-Prompt",
       "autoTaggingDescription": "Dieser Prompt wird verwendet, um Tags für importierte Rezepte zu generieren. Definiere Tagging-Regeln und vordefinierte Tags-Liste.",
-      "autoTaggingPlaceholder": "Geben Sie den Auto-Tagging-Prompt ein..."
+      "autoTaggingPlaceholder": "Geben Sie den Auto-Tagging-Prompt ein...",
+      "autoCategorization": "Prompt für Auto-Kategorisierung",
+      "autoCategorizationDescription": "Dieser Prompt wird verwendet, um Rezepte in Mahlzeitenkategorien einzuordnen (Frühstück, Mittagessen, Abendessen, Snack).",
+      "autoCategorizationPlaceholder": "Geben Sie den Prompt für die Auto-Kategorisierung ein...",
+      "allergyDetection": "Prompt für Allergenerkennung",
+      "allergyDetectionDescription": "Dieser Prompt wird verwendet, um die konfigurierten Allergene des Haushalts in den Zutaten eines Rezepts zu erkennen.",
+      "allergyDetectionPlaceholder": "Geben Sie den Prompt für die Allergenerkennung ein...",
+      "recipeProvenance": "Prompt für Rezept-Herkunft",
+      "recipeProvenanceDescription": "Dieser Prompt ermittelt die Herkunft eines Rezepts. Die entstehende Notiz ist in der Sprache des Rezepts selbst verfasst. Verfügbare Variablen: recipeName, description, ingredients",
+      "recipeProvenancePlaceholder": "Prompt für die Rezept-Herkunft eingeben ...",
+      "ingredientLinking": "Prompt für Zutatenverknüpfung",
+      "ingredientLinkingDescription": "Wird verwendet, um jeden Schritt mit den verwendeten Zutatenzeilen zu verknüpfen",
+      "ingredientLinkingPlaceholder": "Prompt zum Verknüpfen von Zutaten mit Schritten...",
+      "imageGenerationBrief": "Bildbeschreibungs-Prompt",
+      "imageGenerationBriefDescription": "Wird verwendet, um ein Rezept vor der Bildgenerierung in eine kurze visuelle Beschreibung zu verwandeln. Das Rezept wird an den Prompt angehängt.",
+      "imageGenerationBriefPlaceholder": "Prompt für die visuelle Beschreibung...",
+      "imageGenerationStyle": "Bildstil-Prompt",
+      "imageGenerationStyleDescription": "Wird mit der angehängten visuellen Beschreibung an das Bildmodell gesendet. Bestimmt den Stil aller generierten Bilder.",
+      "imageGenerationStylePlaceholder": "Prompt für den Bildstil..."
     },
     "unsavedChanges": "Ungespeicherte Änderungen",
     "jsonEditor": {
@@ -624,6 +807,140 @@
       "invalidJson": "Ungültiges JSON-Format",
       "failedToSave": "Speichern fehlgeschlagen",
       "failedToRestore": "Wiederherstellen der Standard fehlgeschlagen"
+    },
+    "jobQueue": {
+      "title": "Job Queues",
+      "description": "Monitor background jobs across all queues: status, current step, duration, and failures.",
+      "empty": "No jobs found",
+      "filters": {
+        "queue": "Queue",
+        "allQueues": "All queues"
+      },
+      "status": {
+        "waiting": "Waiting",
+        "active": "Active",
+        "delayed": "Delayed",
+        "completed": "Completed",
+        "failed": "Failed",
+        "paused": "Paused",
+        "prioritized": "Prioritized",
+        "unknown": "Unknown",
+        "hanging": "Hanging"
+      },
+      "stepStatus": {
+        "done": "Done",
+        "failed": "Failed",
+        "running": "Running",
+        "skipped": "Skipped",
+        "pending": "Pending"
+      },
+      "steps": {
+        "dedupe-check": "Check existing",
+        "fetch-allergies": "Fetch allergies",
+        "parsing": "Parse recipe",
+        "saving": "Save recipe",
+        "post-processing": "Post processing",
+        "preparing-images": "Prepare images",
+        "ai-extraction": "AI extraction",
+        "parsing-text": "Parse pasted text",
+        "creating-recipes": "Create recipes",
+        "ai-request": "AI request",
+        "syncing-event": "Sync calendar event",
+        "deleting-event": "Delete calendar event",
+        "running": "Run task",
+        "searching": "Search the shop",
+        "reading-product": "Read the product page",
+        "saving-link": "Save the link"
+      },
+      "queues": {
+        "recipe-import": "Recipe import",
+        "image-recipe-import": "Image import",
+        "paste-recipe-import": "Paste import",
+        "nutrition-estimation": "Nutrition estimation",
+        "auto-tagging": "Auto-tagging",
+        "auto-categorization": "Auto-categorization",
+        "allergy-detection": "Allergy detection",
+        "recipe-provenance": "Rezeptherkunft",
+        "ingredient-linking": "Zutatenverknüpfung",
+        "caldav-sync": "CalDAV sync",
+        "scheduled-tasks": "Scheduled tasks",
+        "image-generation": "Bildgenerierung",
+        "store-lookup": "Geschäftsabfrage"
+      },
+      "summary": {
+        "failed": "{count} failed"
+      },
+      "table": {
+        "job": "Job",
+        "status": "Status",
+        "step": "Step",
+        "duration": "Duration",
+        "created": "Created",
+        "runsAt": "Runs {time}"
+      },
+      "detail": {
+        "title": "Job Details",
+        "notFound": "Job not found. It may have been cleaned up.",
+        "sections": {
+          "error": "Error",
+          "pipelineSteps": "Pipeline Steps",
+          "input": "Input",
+          "logs": "Logs",
+          "errors": "Errors"
+        },
+        "fields": {
+          "queue": "Queue",
+          "jobId": "Job ID",
+          "description": "Description",
+          "recipe": "Recipe",
+          "created": "Created",
+          "started": "Started",
+          "finished": "Finished",
+          "duration": "Duration",
+          "attempts": "Attempts",
+          "models": "Modelle",
+          "runsAt": "Runs at",
+          "nextRun": "Next run"
+        },
+        "attempt": "Attempt {number}",
+        "stackTrace": "Stack trace"
+      },
+      "actions": {
+        "retry": "Retry",
+        "remove": "Remove"
+      },
+      "removeModal": {
+        "message": "Permanently remove this job?",
+        "confirm": "Remove job"
+      },
+      "retention": {
+        "title": "Job Retention",
+        "keepCompleted": "Keep completed jobs",
+        "keepFailed": "Keep failed jobs",
+        "maxAgeDays": "Max age (days)",
+        "description": "How many finished jobs to keep per queue for monitoring. Changes require a server restart."
+      },
+      "pagination": "Page {current} of {total}"
+    },
+    "cuisineVocabulary": {
+      "description": "Küchen sind ein kuratiertes Vokabular, das Ihnen gehört. Namen werden in jeder Sprache genau so angezeigt, wie sie hier stehen.",
+      "namePlaceholder": "Name der Küche",
+      "addLabel": "Küche hinzufügen",
+      "renameLabel": "{name} umbenennen",
+      "deleteLabel": "{name} löschen",
+      "deleteConfirm": "\"{name}\" löschen? Rezepte, die sie verwenden, verlieren sie.",
+      "empty": "Noch keine Küchen.",
+      "duplicate": "Eine Küche mit diesem Namen existiert bereits.",
+      "saveFailed": "Diese Küche konnte nicht gespeichert werden."
+    }
+  },
+  "archiveExport": {
+    "progress": "Wird exportiert… {size}",
+    "errors": {
+      "failedTitle": "Export fehlgeschlagen",
+      "failedDescription": "Das Rezeptarchiv konnte nicht heruntergeladen werden. Bitte versuchen Sie es erneut.",
+      "signedOut": "Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an, um zu exportieren.",
+      "notAllowed": "Sie haben keine Berechtigung, dies zu exportieren."
     }
   }
 }

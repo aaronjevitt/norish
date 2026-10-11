@@ -1,12 +1,13 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { trackedEvent } from "../realtime-test-utils";
 import { createTestQueryClient, createTestWrapper } from "./test-utils";
 
 const subscriptionCallbacks: Record<string, ((data: unknown) => void) | undefined> = {};
 
 function emitPayload(payload: unknown) {
-  return { payload };
+  return trackedEvent(payload);
 }
 
 vi.mock("@/app/providers/trpc-provider", () => ({
@@ -48,15 +49,6 @@ vi.mock("@/app/providers/trpc-provider", () => ({
         }),
       },
     },
-    permissions: {
-      onPolicyUpdated: {
-        subscriptionOptions: vi.fn((_, options) => {
-          subscriptionCallbacks.onPolicyUpdated = options?.onData;
-
-          return { enabled: true };
-        }),
-      },
-    },
   }),
 }));
 
@@ -69,7 +61,7 @@ vi.mock("@trpc/tanstack-react-query", () => ({
 }));
 
 vi.mock("@heroui/react", () => ({
-  addToast: vi.fn(),
+  toast: vi.fn(),
 }));
 
 vi.mock("next-intl", () => ({
@@ -102,7 +94,7 @@ describe("useRecipeSubscription", () => {
 
   it("shows a generic failure toast instead of backend details", async () => {
     const { useRecipeSubscription } = await import("@/hooks/recipes/use-recipe-subscription");
-    const { addToast } = await import("@heroui/react");
+    const { toast } = await import("@heroui/react");
 
     renderHook(() => useRecipeSubscription("recipe-1"), {
       wrapper: createTestWrapper(queryClient),
@@ -117,10 +109,11 @@ describe("useRecipeSubscription", () => {
       );
     });
 
-    expect(addToast).toHaveBeenCalledWith(
+    expect(toast).toHaveBeenCalledWith(
+      "operationFailed",
       expect.objectContaining({
-        title: "operationFailed",
         description: "technicalDetails",
+        variant: "danger",
       })
     );
   });

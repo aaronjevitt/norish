@@ -1,10 +1,10 @@
 import { eq, sql } from "drizzle-orm";
 
-import { decrypt, encrypt } from "@norish/auth/crypto";
+import { decrypt, encrypt } from "@norish/config/crypto";
+import { db } from "@norish/db/drizzle";
 import { dbLogger } from "@norish/db/logger";
 
 import type { ServerConfigKey, ServerConfigMetadata } from "../zodSchemas/server-config";
-import { db } from "../drizzle";
 import { serverConfig } from "../schema/server-config";
 import {
   normalizeConfigValue,
@@ -29,11 +29,23 @@ export async function getConfig<T = unknown>(
   return (raw?.value as T) ?? null;
 }
 
+export type SetConfigOptions = {
+  /**
+   * Sensitive fields to forget rather than preserve when the incoming value
+   * omits them. A key belongs to the provider it was issued for, so switching
+   * providers has to be able to leave the old key behind — otherwise the block
+   * keeps authenticating with a key the new provider will not accept, and
+   * never falls back to the key it was meant to inherit.
+   */
+  dropSecrets?: readonly string[];
+};
+
 export async function setConfig(
   key: ServerConfigKey,
   value: unknown,
   userId: string | null,
-  isSensitive?: boolean
+  isSensitive?: boolean,
+  options?: SetConfigOptions
 ): Promise<void> {
   const shouldEncrypt = isSensitive ?? SENSITIVE_CONFIG_KEYS.includes(key);
 
@@ -59,7 +71,7 @@ export async function setConfig(
       try {
         const existingDecrypted = JSON.parse(decrypt(existing.valueEnc));
 
-        finalValue = mergeSensitiveFields(existingDecrypted, normalizedValue);
+        finalValue = mergeSensitiveFields(existingDecrypted, normalizedValue, options?.dropSecrets);
       } catch (error) {
         dbLogger.error({ err: error, key }, "Failed to merge sensitive fields");
       }
@@ -224,9 +236,14 @@ const SENSITIVE_FIELDS = [
 /**
  * Merge sensitive fields from existing config with new values.
  * If a sensitive field in the new value is empty/undefined or matches the mask,
- * preserve the existing value.
+ * preserve the existing value — unless the caller named it in `dropSecrets`,
+ * which forgets it instead.
  */
-function mergeSensitiveFields(existing: unknown, incoming: unknown): unknown {
+function mergeSensitiveFields(
+  existing: unknown,
+  incoming: unknown,
+  dropSecrets: readonly string[] = []
+): unknown {
   if (
     typeof existing !== "object" ||
     existing === null ||
@@ -251,6 +268,12 @@ function mergeSensitiveFields(existing: unknown, incoming: unknown): unknown {
       incomingValue === "" ||
       incomingValue === "••••••••"
     ) {
+      if (dropSecrets.includes(field)) {
+        delete merged[field];
+
+        continue;
+      }
+
       if (existingValue !== undefined && existingValue !== null) {
         merged[field] = existingValue;
       }
@@ -290,7 +313,7 @@ function normalizeForComparison(value: unknown): string {
 function getStoredConfigValue(
   config: typeof serverConfig.$inferSelect,
   includeSecrets: boolean,
-  key: ServerConfigKey
+  key: string
 ): { value: unknown } | null {
   if (config.isSensitive && config.valueEnc) {
     if (includeSecrets) {

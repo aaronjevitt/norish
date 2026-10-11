@@ -3,6 +3,7 @@ import { useCalendarSubscription } from "@/hooks/calendar/use-calendar-subscript
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { trackedEvent } from "../realtime-test-utils";
 import { createTestQueryClient, createTestWrapper } from "./test-utils";
 
 type SubscriptionCallback = (data: unknown) => void;
@@ -16,7 +17,12 @@ vi.mock("@/app/providers/trpc-provider", () => ({
   useTRPC: () => ({
     calendar: {
       listItems: {
-        queryKey: (input: { startISO: string; endISO: string }) => ["calendar", "listItems", input],
+        // The shape @trpc/tanstack-react-query mints: the path, then the
+        // input under `input` — what the cross-range merge reads back.
+        queryKey: (input?: { startISO: string; endISO: string }) =>
+          input
+            ? [["calendar", "listItems"], { input, type: "query" }]
+            : [["calendar", "listItems"]],
       },
       onItemCreated: {
         subscriptionOptions: (_input: unknown, options: { onData: SubscriptionCallback }) => {
@@ -116,7 +122,7 @@ describe("useCalendarSubscription", () => {
   }
 
   function getQueryKey() {
-    return ["calendar", "listItems", { startISO, endISO }];
+    return [["calendar", "listItems"], { input: { startISO, endISO }, type: "query" }];
   }
 
   describe("onItemCreated subscription", () => {
@@ -128,8 +134,8 @@ describe("useCalendarSubscription", () => {
 
       expect(callback).toBeDefined();
 
-      callback({
-        payload: {
+      callback(
+        trackedEvent({
           item: {
             id: "new-item-1",
             userId: "user-1",
@@ -145,8 +151,8 @@ describe("useCalendarSubscription", () => {
             calories: 300,
             version: 3,
           },
-        },
-      });
+        })
+      );
 
       const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
 
@@ -169,8 +175,8 @@ describe("useCalendarSubscription", () => {
 
       const callback = subscriptionCallbacks["onItemCreated"];
 
-      callback({
-        payload: {
+      callback(
+        trackedEvent({
           item: {
             id: "existing-1",
             userId: "user-1",
@@ -186,8 +192,8 @@ describe("useCalendarSubscription", () => {
             calories: 500,
             version: 2,
           },
-        },
-      });
+        })
+      );
 
       const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
 
@@ -213,8 +219,8 @@ describe("useCalendarSubscription", () => {
 
       const callback = subscriptionCallbacks["onItemCreated"];
 
-      callback({
-        payload: {
+      callback(
+        trackedEvent({
           item: {
             id: "item-3",
             userId: "user-1",
@@ -230,8 +236,8 @@ describe("useCalendarSubscription", () => {
             calories: null,
             version: 4,
           },
-        },
-      });
+        })
+      );
 
       const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
 
@@ -240,6 +246,37 @@ describe("useCalendarSubscription", () => {
       expect(data![1].date).toBe("2025-01-15");
       expect(data![1].slot).toBe("Breakfast");
       expect(data![2].slot).toBe("Lunch");
+    });
+
+    it("ignores created items outside the subscribed date range", () => {
+      queryClient.setQueryData(getQueryKey(), []);
+      renderSubscriptionHook();
+
+      const callback = subscriptionCallbacks["onItemCreated"];
+
+      callback(
+        trackedEvent({
+          item: {
+            id: "tomorrow-item",
+            userId: "user-1",
+            date: "2025-02-01",
+            slot: "Dinner",
+            sortOrder: 0,
+            itemType: "recipe",
+            recipeId: "recipe-456",
+            title: null,
+            recipeName: "Tomorrow Recipe",
+            recipeImage: null,
+            servings: 2,
+            calories: 300,
+            version: 1,
+          },
+        })
+      );
+
+      const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
+
+      expect(data).toEqual([]);
     });
   });
 
@@ -255,7 +292,7 @@ describe("useCalendarSubscription", () => {
 
       expect(callback).toBeDefined();
 
-      callback({ payload: { itemId: "item-1", date: "2025-01-15", slot: "Breakfast" } });
+      callback(trackedEvent({ itemId: "item-1", date: "2025-01-15", slot: "Breakfast" }));
 
       const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
 
@@ -280,8 +317,8 @@ describe("useCalendarSubscription", () => {
 
       expect(callback).toBeDefined();
 
-      callback({
-        payload: {
+      callback(
+        trackedEvent({
           item: {
             id: "moved-item",
             userId: "user-1",
@@ -302,8 +339,8 @@ describe("useCalendarSubscription", () => {
           oldDate: "2025-01-15",
           oldSlot: "Breakfast",
           oldSortOrder: 0,
-        },
-      });
+        })
+      );
 
       const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
 
@@ -327,8 +364,8 @@ describe("useCalendarSubscription", () => {
 
       const callback = subscriptionCallbacks["onItemMoved"];
 
-      callback({
-        payload: {
+      callback(
+        trackedEvent({
           item: {
             id: "item-3",
             userId: "user-1",
@@ -353,8 +390,8 @@ describe("useCalendarSubscription", () => {
           oldDate: "2025-01-15",
           oldSlot: "Breakfast",
           oldSortOrder: 2,
-        },
-      });
+        })
+      );
 
       const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
 
@@ -380,8 +417,8 @@ describe("useCalendarSubscription", () => {
 
       const callback = subscriptionCallbacks["onItemMoved"];
 
-      callback({
-        payload: {
+      callback(
+        trackedEvent({
           item: {
             id: "b-1",
             userId: "user-1",
@@ -405,8 +442,8 @@ describe("useCalendarSubscription", () => {
           oldDate: "2025-01-15",
           oldSlot: "Breakfast",
           oldSortOrder: 0,
-        },
-      });
+        })
+      );
 
       const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
 
@@ -438,8 +475,8 @@ describe("useCalendarSubscription", () => {
 
       const callback = subscriptionCallbacks["onItemMoved"];
 
-      callback({
-        payload: {
+      callback(
+        trackedEvent({
           item: {
             id: "item-2",
             userId: "user-1",
@@ -463,14 +500,96 @@ describe("useCalendarSubscription", () => {
           oldDate: "2025-01-15",
           oldSlot: "Breakfast",
           oldSortOrder: 1,
-        },
-      });
+        })
+      );
 
       const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
       const sorted = [...data!].sort((a, b) => a.sortOrder - b.sortOrder);
 
       expect(sorted[0].id).toBe("item-2");
       expect(sorted[1].id).toBe("item-1");
+    });
+
+    it("adds items moved into the subscribed date range", () => {
+      queryClient.setQueryData(getQueryKey(), []);
+      renderSubscriptionHook();
+
+      const callback = subscriptionCallbacks["onItemMoved"];
+
+      callback(
+        trackedEvent({
+          item: {
+            id: "moved-into-range",
+            userId: "user-1",
+            date: "2025-01-20",
+            slot: "Dinner",
+            sortOrder: 0,
+            itemType: "recipe",
+            recipeId: "recipe-123",
+            title: null,
+            recipeName: "Moved Recipe",
+            recipeImage: null,
+            servings: 4,
+            calories: 500,
+            version: 2,
+          },
+          targetSlotItems: [{ id: "moved-into-range", sortOrder: 0 }],
+          sourceSlotItems: null,
+          oldDate: "2025-02-01",
+          oldSlot: "Dinner",
+          oldSortOrder: 0,
+        })
+      );
+
+      const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
+
+      expect(data).toHaveLength(1);
+      expect(data![0]).toMatchObject({
+        id: "moved-into-range",
+        date: "2025-01-20",
+        recipeName: "Moved Recipe",
+      });
+    });
+
+    it("removes items moved outside the subscribed date range", () => {
+      const item = createMockPlannedItem({
+        id: "moved-out-of-range",
+        date: "2025-01-20",
+      });
+
+      queryClient.setQueryData(getQueryKey(), [item]);
+      renderSubscriptionHook();
+
+      const callback = subscriptionCallbacks["onItemMoved"];
+
+      callback(
+        trackedEvent({
+          item: {
+            id: "moved-out-of-range",
+            userId: "user-1",
+            date: "2025-02-01",
+            slot: "Dinner",
+            sortOrder: 0,
+            itemType: "recipe",
+            recipeId: "recipe-123",
+            title: null,
+            recipeName: "Moved Recipe",
+            recipeImage: null,
+            servings: 4,
+            calories: 500,
+            version: 2,
+          },
+          targetSlotItems: [{ id: "moved-out-of-range", sortOrder: 0 }],
+          sourceSlotItems: null,
+          oldDate: "2025-01-20",
+          oldSlot: "Breakfast",
+          oldSortOrder: 0,
+        })
+      );
+
+      const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
+
+      expect(data).toEqual([]);
     });
   });
 
@@ -485,8 +604,8 @@ describe("useCalendarSubscription", () => {
 
       expect(callback).toBeDefined();
 
-      callback({
-        payload: {
+      callback(
+        trackedEvent({
           item: {
             id: "updated-item",
             userId: "user-1",
@@ -502,8 +621,8 @@ describe("useCalendarSubscription", () => {
             calories: null,
             version: 2,
           },
-        },
-      });
+        })
+      );
 
       const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
 
@@ -527,7 +646,7 @@ describe("useCalendarSubscription", () => {
 
       expect(callback).toBeDefined();
 
-      callback({ payload: { reason: "Something went wrong" } });
+      callback(trackedEvent({ reason: "Something went wrong" }));
 
       expect(invalidateSpy).toHaveBeenCalledWith({
         queryKey: getQueryKey(),

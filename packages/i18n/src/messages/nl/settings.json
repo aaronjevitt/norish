@@ -1,7 +1,6 @@
 {
   "page": {
     "title": "Instellingen",
-    "loading": "Laden...",
     "ariaLabel": "Instellingen tabs"
   },
   "tabs": {
@@ -61,14 +60,23 @@
       }
     },
     "archiveImport": {
-      "title": "Importeer Receptarchief",
-      "description": "Importeer recepten van Mela (.melarecipes), Paprika (.paprikarecipes), of Mealie/Tandoor (.zip) exports"
+      "title": "Archief importeren",
+      "description": "Importeer recepten van Norish (.norishrecipes), Mela (.melarecipes), Paprika (.paprikarecipes), of Mealie/Tandoor (.zip) exports"
+    },
+    "archiveExport": {
+      "title": "Archief exporteren",
+      "description": "Download alle recepten die je kunt zien.",
+      "button": "Exporteren"
     },
     "siteAuthTokens": {
       "title": "Site-authenticatietokens",
       "description": "Voeg headers of cookies toe die worden meegestuurd bij het importeren van recepten van specifieke sites. Handig voor sites die inloggen vereisen (bijv. Instagram, Facebook).",
+      "accountsDescription": "Geef een account een naam als je meerdere logins voor een site hebt. Elke import gebruikt dan één van de accounts van die site, willekeurig gekozen, zodat niet één login alle imports draagt. Een token zonder accountnaam wordt bij elke import voor dat domein meegestuurd.",
       "domain": "Domein",
       "domainPlaceholder": "bijv. instagram.com",
+      "account": "Account",
+      "accountPlaceholder": "bijv. mijn_handle (optioneel)",
+      "accountShared": "Alle accounts",
       "name": "Naam",
       "namePlaceholder": "bijv. Cookie of Authorization",
       "value": "Waarde",
@@ -80,6 +88,7 @@
       "noTokens": "Geen site-authenticatietokens geconfigureerd.",
       "tableHeaders": {
         "domain": "DOMEIN",
+        "account": "ACCOUNT",
         "name": "NAAM",
         "type": "TYPE",
         "created": "AANGEMAAKT",
@@ -111,22 +120,38 @@
         "title": "Taal",
         "description": "Kies je voorkeurstaal"
       },
-      "timers": {
-        "title": "Recepttimers inschakelen",
-        "description": "Interactieve timers in receptinstructies tonen"
-      },
       "applyError": "Instelling kon niet worden toegepast",
-      "conversion": {
-        "title": "Toon conversieknop",
-        "description": "Toon de converteer knop op de recept pagina's"
+      "hidden": {
+        "title": "Verborgen onderdelen",
+        "description": "Kies wat je liever niet ziet. Standaard wordt alles getoond en dit verandert alleen jouw eigen weergave.",
+        "placeholder": "Niets verborgen",
+        "options": {
+          "provenance": "Herkomst",
+          "nutrition": "Voedingswaarden",
+          "notes": "Notities",
+          "rating": "Beoordelingen",
+          "favorites": "Favorieten",
+          "conversion": "Ingrediëntconversie",
+          "timers": "Recepttimers",
+          "cookbooks": "Kookboeken"
+        }
       },
-      "ratings": {
-        "title": "Beoordelingen tonen",
-        "description": "Sterbeoordelingen op receptkaarten en detailpagina's weergeven"
+      "todaySection": {
+        "title": "Vandaag-sectie",
+        "description": "Kies hoe de Vandaag-sectie op het dashboard op dit apparaat wordt weergegeven",
+        "options": {
+          "always": "Altijd zichtbaar",
+          "planned": "Alleen geplande maaltijden",
+          "hidden": "Verborgen"
+        }
       },
-      "favorites": {
-        "title": "Favorieten tonen",
-        "description": "Favoriet-/hartpictogrammen op receptkaarten en detailpagina's weergeven"
+      "recipePageColor": {
+        "title": "Kleur van receptpagina's",
+        "description": "Geef elke receptpagina een tint uit de eigen foto, of houd op dit apparaat de gewone themakleuren",
+        "options": {
+          "dish": "Uit de foto van het gerecht",
+          "theme": "Gewone themakleuren"
+        }
       }
     },
     "shareLinks": {
@@ -301,7 +326,8 @@
       },
       "emptyFiltered": "Geen {status} items gevonden",
       "emptyDefault": "Geen synchronisatiegegevens gevonden",
-      "errorDetails": "Foutdetails"
+      "errorDetails": "Foutdetails",
+      "pagination": "Page {current} of {total}"
     }
   },
   "admin": {
@@ -344,7 +370,40 @@
       "saveLocales": "Taalinstellingen opslaan",
       "localesSaved": "Taalinstellingen opgeslagen",
       "localesError": "Taalinstellingen opslaan mislukt",
-      "atLeastOneLocale": "Minimaal één taal moet ingeschakeld zijn"
+      "atLeastOneLocale": "Minimaal één taal moet ingeschakeld zijn",
+      "export": {
+        "title": "Archief",
+        "description": "Download elk recept op deze server.",
+        "button": "Archief exporteren"
+      }
+    },
+    "users": {
+      "title": "Gebruikers",
+      "description": "Beheer iedereen met een account op deze server.",
+      "table": {
+        "user": "Gebruiker",
+        "role": "Rol",
+        "household": "Huishouden",
+        "joined": "Lid sinds",
+        "actions": "Acties"
+      },
+      "roles": {
+        "owner": "Eigenaar",
+        "admin": "Admin"
+      },
+      "noHousehold": "Geen huishouden",
+      "loading": "Gebruikers laden…",
+      "empty": "Nog geen gebruikers.",
+      "loadFailed": "Kan de gebruikerslijst niet laden.",
+      "actions": {
+        "makeAdmin": "Admin maken",
+        "revokeAdmin": "Adminrechten intrekken",
+        "delete": "Gebruiker verwijderen"
+      },
+      "deleteTitle": "{name} verwijderen?",
+      "deleteConfirm": "Dit verwijdert het account van deze gebruiker permanent en verwijdert hem/haar uit het huishouden. Dit kan niet ongedaan worden gemaakt.",
+      "deleteSuccess": "{name} is verwijderd",
+      "countSummary": "{count, plural, one {# gebruiker} other {# gebruikers}} totaal"
     },
     "registration": {
       "title": "Registratie",
@@ -507,18 +566,39 @@
         "title": "Video Verwerking",
         "subtitle": "Social media video-extractie & transcriptie"
       },
+      "imageGeneration": {
+        "title": "Afbeeldingen Genereren",
+        "subtitle": "Teken een foto van het gerecht voor recepten zonder afbeelding"
+      },
+      "decisionModel": {
+        "title": "Beslismodel",
+        "subtitle": "Snelle, goedkope antwoorden op gesloten vragen"
+      },
       "prompts": {
         "title": "Prompts",
         "subtitle": "Pas AI-instructies aan voor receptverwerking"
       },
-      "bulkCategorization": {
-        "title": "Bulkcategorisatie",
-        "subtitle": "Categoriseer niet-gecategoriseerde recepten met AI",
-        "description": "Zet alle niet-gecategoriseerde recepten in de wachtrij voor AI-gebaseerde categoriedetectie. Categorieën zijn Ontbijt, Lunch, Diner en Snack.",
-        "button": "Alle recepten categoriseren",
-        "queued": "{count, plural, =0 {Geen recepten om te categoriseren} one {# recept in wachtrij} other {# recepten in wachtrij}}",
-        "success": "Categorisatie gestart",
-        "error": "Categorisatie starten mislukt"
+      "cuisines": {
+        "title": "Keukens",
+        "subtitle": "De woordenlijst waaruit recepten en AI kiezen"
+      },
+      "bulkEnrichment": {
+        "title": "Bulkverrijking",
+        "subtitle": "Voer ingeschakelde verrijking uit op elk recept",
+        "description": "Zet voor alle recepten op deze server elke verrijkingssoort in de wachtrij waarvan de automatische schakelaar aanstaat. Standaard worden alleen ontbrekende gegevens aangevuld; in de bevestiging kun je kiezen om bestaande gegevens te overschrijven.",
+        "button": "Alle recepten verrijken",
+        "confirmTitle": "Verrijking op alle recepten uitvoeren?",
+        "confirmMessage": "Dit zet AI-werk in de wachtrij voor elk recept op deze server. Elke verrijkingssoort waarvan de automatische schakelaar aanstaat draait waar gegevens ontbreken.",
+        "replaceExisting": "Bestaande gegevens overschrijven",
+        "replaceExistingDescription": "Categorieën, voedingswaarden, herkomst en stapingrediënten opnieuw bepalen, ook als een recept ze al heeft. Tags en allergiemeldingen worden altijd alleen aangevuld.",
+        "replaceWarning": "Dit kan niet ongedaan worden gemaakt. Ook gegevens die je zelf hebt ingevoerd worden vervangen, inclusief stapingrediënten die je handmatig hebt gekoppeld: nergens is vastgelegd welke waarden van AI komen.",
+        "costWarning": "Dit kan een kostbare bewerking zijn: met veel recepten kan het lang duren en bij een betaalde AI-provider veel tegoed verbruiken.",
+        "confirmButton": "Op alle recepten uitvoeren",
+        "confirmButtonReplace": "Alle recepten overschrijven",
+        "queued": "{queued, plural, =0 {Geen runs in wachtrij} one {# run in wachtrij} other {# runs in wachtrij}} voor {recipes, plural, one {# recept} other {# recepten}}",
+        "aiDisabled": "AI is uitgeschakeld op deze server. Schakel eerst AI in.",
+        "error": "Bulkverrijking starten mislukt",
+        "imageCount": "{count, plural, =0 {Er worden geen afbeeldingen gegenereerd.} one {Er wordt # afbeelding gegenereerd.} other {Er worden # afbeeldingen gegenereerd.}}"
       }
     },
     "aiConfig": {
@@ -551,25 +631,52 @@
       "temperatureHint": "Lager = gefocuster, Hoger = creatiever",
       "maxTokens": "Max Tokens",
       "requestTimeout": "Time-out van aanvraag (ms)",
-      "autoTagAllergies": "Allergietags automatisch detecteren",
-      "autoTagAllergiesDescription": "Voeg automatisch allergiegerelateerde tags toe bij het importeren van recepten",
       "alwaysUseAI": "Altijd AI gebruiken voor import",
       "alwaysUseAIDescription": "Sla gestructureerde parsers over en extraheer recepten alleen met AI",
-      "autoTaggingMode": "Auto-tagging Modus",
-      "autoTaggingModeDescription": "Wijs automatisch tags/trefwoorden toe aan geïmporteerde recepten met AI",
-      "autoTaggingModes": {
-        "disabled": "Uitgeschakeld",
+      "connectionSuccess": "Verbinding succesvol",
+      "testConnection": "Test verbinding",
+      "vision": "vision",
+      "automaticEnrichment": "Automatische receptverrijking",
+      "automaticEnrichmentDescription": "Kies welke AI-verrijking automatisch draait voor nieuwe recepten. Leden kunnen elke verrijking handmatig blijven starten zolang AI aanstaat.",
+      "automaticEnrichmentPlaceholder": "Niets draait automatisch",
+      "automaticEnrichmentKinds": {
+        "autoTagging": "Automatisch taggen",
+        "autoTaggingDescription": "Voeg door AI voorgestelde tags toe aan nieuwe recepten zonder bestaande tags te verwijderen",
+        "allergyDetection": "Allergiedetectie",
+        "allergyDetectionDescription": "Voeg automatisch allergiegerelateerde tags toe bij het importeren van recepten",
+        "autoCategorization": "Automatisch categoriseren",
+        "autoCategorizationDescription": "Stel maaltijdcategorieën in op nieuwe recepten die er nog geen hebben",
+        "nutritionEstimation": "Voedingswaarde schatten",
+        "nutritionEstimationDescription": "Schat calorieën, vet, koolhydraten en eiwitten voor nieuwe recepten zonder opgegeven waarden",
+        "recipeProvenance": "Receptherkomst",
+        "recipeProvenanceDescription": "Bepaal land, streek, keukens en een korte toelichting voor nieuwe recepten, alleen wat nog ontbreekt wordt ingevuld, wat je zelf invulde blijft staan",
+        "ingredientLinking": "Ingrediëntkoppeling",
+        "ingredientLinkingDescription": "Koppel elke stap aan de ingrediëntregels die hij gebruikt, voor stappen zonder koppelingen",
+        "imageGeneration": "Afbeeldingen Genereren",
+        "imageGenerationDescription": "Teken een foto van het gerecht voor nieuwe recepten die helemaal geen afbeelding hebben"
+      },
+      "tagStrategy": "Tagstrategie",
+      "tagStrategyDescription": "Welke tags automatisch taggen mag gebruiken, of het nu automatisch of handmatig draait",
+      "tagStrategies": {
         "predefined": "Alleen voorgedefinieerde tags",
         "predefinedDb": "Voorgedefinieerd + bestaande tags",
         "freeform": "AI kan nieuwe tags maken"
       },
-      "connectionSuccess": "Verbinding succesvol",
-      "testConnection": "Test verbinding",
-      "vision": "vision"
+      "cuisineStrategy": "Keukenstrategie",
+      "cuisineStrategyDescription": "Of herkomstbepaling keukens aan je woordenlijst mag toevoegen of er alleen uit mag kiezen",
+      "cuisineStrategies": {
+        "existing": "Alleen bestaande keukens",
+        "extend": "AI kan nieuwe keukens toevoegen"
+      }
+    },
+    "modelListing": {
+      "empty": "Geen modellen ontvangen. Controleer de API-sleutel of het endpoint, of typ een modelnaam.",
+      "refused": "{provider} weigerde het verzoek ({status}). Controleer de API-sleutel.",
+      "unreachable": "{provider} is niet bereikbaar. Controleer het endpoint."
     },
     "videoConfig": {
       "enableVideo": "Video parsing inschakelen",
-      "enableVideoDescription": "Extraheer recepten van TikTok, Instagram, YouTube Shorts of Facebook",
+      "enableVideoDescription": "Extraheer recepten van TikTok, Instagram, YouTube Shorts, Facebook, Pinterest en meer",
       "configureWarning": "Configureer hieronder een transcriptieprovider om videobewerking in te schakelen.",
       "aiDisabledWarning": "Schakel eerst de AI-configuratie in voordat je videobewerking activeert.",
       "maxLength": "Max videolengte (seconden)",
@@ -577,7 +684,10 @@
       "maxFileSize": "Max videobestandsgrootte",
       "maxFileSizeDescription": "Maximale grootte voor gedownloade videobestanden",
       "ytDlpVersion": "yt-dlp Versie",
-      "ytDlpVersionDescription": "Versie van yt-dlp voor video-downloads",
+      "ytDlpVersionDescription": "Versie van yt-dlp die deze server draait. Hier niet te wijzigen.",
+      "ytDlpVersionMissing": "Geen yt-dlp-binary gevonden",
+      "ytDlpVersionUnknown": "Kon niet worden gecontroleerd",
+      "ytDlpVersionLoading": "Bezig met ophalen …",
       "ytDlpProxy": "yt-dlp Proxy",
       "ytDlpProxyDescription": "HTTP/SOCKS5-proxy voor yt-dlp",
       "transcription": "Transcriptie",
@@ -604,10 +714,65 @@
       "transcriptionApiKeyOptionalDescription": "De meeste lokale Whisper-servers vereisen geen API-sleutel",
       "transcriptionApiKeyOptionalPlaceholder": "Laat leeg voor lokale servers"
     },
+    "imageGenerationConfig": {
+      "description": "Afbeeldingen genereren gebruikt een eigen provider, omdat de meeste AI-providers niet kunnen tekenen. Afbeeldingen worden met deze provider gemaakt; de AI-provider hierboven doet al het andere.",
+      "provider": "Afbeeldingsprovider",
+      "providers": {
+        "disabled": "Uitgeschakeld",
+        "openai": "OpenAI",
+        "google": "Google AI",
+        "azure": "Azure OpenAI",
+        "ollama": "Ollama (Lokaal)",
+        "lmStudio": "LM Studio",
+        "genericOpenai": "Generieke OpenAI-compatibel"
+      },
+      "endpoint": "Endpoint URL",
+      "endpointOptional": "Optioneel: eigen Azure resource-URL",
+      "apiKey": "API-sleutel",
+      "apiKeyPlaceholder": "Voer API-sleutel in...",
+      "apiKeyInherited": "Gebruikt de API-sleutel uit je AI-configuratie.",
+      "model": "Afbeeldingsmodel",
+      "modelPlaceholder": "bijv. gpt-image-1",
+      "modelDescription": "Het model dat de afbeelding tekent. Het moet een afbeeldingsmodel zijn, geen tekstmodel.",
+      "fallbackHint": "Zelfde provider als je AI-configuratie: endpoint en API-sleutel vallen daarop terug tenzij je ze hier instelt."
+    },
+    "decisionConfig": {
+      "provider": "Beslisprovider",
+      "providers": {
+        "disabled": "Uitgeschakeld",
+        "typesafe": "TypeSafe AI"
+      },
+      "apiKey": "API-sleutel",
+      "apiKeyPlaceholder": "Voer API-sleutel in...",
+      "apiKeyDescription": "Haal een sleutel op in je account op typesafe.ai",
+      "model": "Beslismodel",
+      "uses": "Gebruik het Beslismodel voor",
+      "usesPlaceholder": "Niets",
+      "useNames": {
+        "autoCategorization": "Automatisch categoriseren",
+        "autoCategorizationDescription": "Bepaal of een recept een ontbijt, lunch, diner of snack is",
+        "autoTagging": "Automatisch taggen",
+        "autoTaggingDescription": "Kies tags uit de vaste lijst en bevestig elke tag die de AI voorstelt",
+        "allergyDetection": "Allergiedetectie",
+        "allergyDetectionDescription": "Bepaal welke allergenen van het huishouden een recept bevat",
+        "recipeProvenance": "Receptherkomst",
+        "recipeProvenanceDescription": "Leg het land en de Keukens vast voordat de notitie wordt geschreven",
+        "groceryLinking": "Boodschappen koppelen",
+        "groceryLinkingDescription": "Rangschik de aangeboden producten van een winkel en koppel er een waar het zeker van is",
+        "validateEnrichments": "Verrijkingen valideren",
+        "validateEnrichmentsDescription": "Controleer de eigen claims van elke verrijkingsrun voordat ze worden opgeslagen"
+      },
+      "testConnection": "Test verbinding",
+      "connectionSuccess": "Verbinding succesvol",
+      "aiDisabledHint": "AI is uitgeschakeld op deze server. Schakel het in bij AI-configuratie om het Beslismodel te testen en te gebruiken."
+    },
     "promptsConfig": {
       "recipeExtraction": "Receptextractie Prompt",
       "recipeExtractionDescription": "Deze prompt wordt gebruikt bij het extraheren van receptgegevens van webpagina's of videotranscripties.",
       "recipeExtractionPlaceholder": "Voer de receptextractie prompt in...",
+      "imageExtraction": "Prompt voor beeldextractie",
+      "imageExtractionDescription": "Deze prompt wordt gebruikt bij het extraheren van receptgegevens uit geüploade afbeeldingen, zoals foto's van een kookboek of een receptkaart.",
+      "imageExtractionPlaceholder": "Voer de prompt voor beeldextractie in...",
       "unitConversion": "Eenheidsconversie Prompt",
       "unitConversionDescription": "Deze prompt wordt gebruikt bij het converteren van receptmaten tussen metrische en US-systemen. Beschikbare variabelen: sourceSystem, targetSystem, units",
       "unitConversionPlaceholder": "Voer de eenheidsconversie prompt in...",
@@ -616,7 +781,25 @@
       "nutritionEstimationPlaceholder": "Voer de voedingswaarde prompt in...",
       "autoTagging": "Auto-tagging Prompt",
       "autoTaggingDescription": "Deze prompt wordt gebruikt om tags te genereren voor geïmporteerde recepten. Definieer taggingregels en een lijst met voorgedefinieerde tags.",
-      "autoTaggingPlaceholder": "Voer de auto-tagging prompt in..."
+      "autoTaggingPlaceholder": "Voer de auto-tagging prompt in...",
+      "autoCategorization": "Prompt voor automatische categorisering",
+      "autoCategorizationDescription": "Deze prompt wordt gebruikt om recepten in maaltijdcategorieën in te delen (ontbijt, lunch, diner, tussendoortje).",
+      "autoCategorizationPlaceholder": "Voer de prompt voor automatische categorisering in...",
+      "allergyDetection": "Prompt voor allergiedetectie",
+      "allergyDetectionDescription": "Deze prompt wordt gebruikt om de geconfigureerde allergenen van het huishouden in de ingrediënten van een recept te detecteren.",
+      "allergyDetectionPlaceholder": "Voer de prompt voor allergiedetectie in...",
+      "recipeProvenance": "Prompt voor receptherkomst",
+      "recipeProvenanceDescription": "Deze prompt bepaalt waar een recept vandaan komt. De toelichting die eruit komt staat in de taal van het recept zelf. Beschikbare variabelen: recipeName, description, ingredients",
+      "recipeProvenancePlaceholder": "Voer de prompt voor receptherkomst in...",
+      "ingredientLinking": "Prompt voor ingrediëntkoppeling",
+      "ingredientLinkingDescription": "Gebruikt bij het koppelen van elke stap aan de ingrediëntregels die hij gebruikt",
+      "ingredientLinkingPlaceholder": "Prompt voor het koppelen van ingrediënten aan stappen...",
+      "imageGenerationBrief": "Afbeeldingsomschrijving Prompt",
+      "imageGenerationBriefDescription": "Gebruikt om een recept om te zetten in een korte visuele omschrijving voordat de afbeelding wordt gegenereerd. Het recept wordt na de prompt toegevoegd.",
+      "imageGenerationBriefPlaceholder": "Prompt voor de visuele omschrijving...",
+      "imageGenerationStyle": "Afbeeldingsstijl Prompt",
+      "imageGenerationStyleDescription": "Wordt naar het afbeeldingsmodel gestuurd, met de visuele omschrijving erachter. Bepaalt de stijl die elke gegenereerde afbeelding deelt.",
+      "imageGenerationStylePlaceholder": "Prompt voor de afbeeldingsstijl..."
     },
     "unsavedChanges": "Niet-opgeslagen wijzigingen",
     "jsonEditor": {
@@ -624,6 +807,140 @@
       "invalidJson": "Ongeldig JSON-formaat",
       "failedToSave": "Opslaan mislukt",
       "failedToRestore": "Resetten herstellen mislukt"
+    },
+    "jobQueue": {
+      "title": "Job Queues",
+      "description": "Monitor background jobs across all queues: status, current step, duration, and failures.",
+      "empty": "No jobs found",
+      "filters": {
+        "queue": "Queue",
+        "allQueues": "All queues"
+      },
+      "status": {
+        "waiting": "Waiting",
+        "active": "Active",
+        "delayed": "Delayed",
+        "completed": "Completed",
+        "failed": "Failed",
+        "paused": "Paused",
+        "prioritized": "Prioritized",
+        "unknown": "Unknown",
+        "hanging": "Hanging"
+      },
+      "stepStatus": {
+        "done": "Done",
+        "failed": "Failed",
+        "running": "Running",
+        "skipped": "Skipped",
+        "pending": "Pending"
+      },
+      "steps": {
+        "dedupe-check": "Check existing",
+        "fetch-allergies": "Fetch allergies",
+        "parsing": "Parse recipe",
+        "saving": "Save recipe",
+        "post-processing": "Post processing",
+        "preparing-images": "Prepare images",
+        "ai-extraction": "AI extraction",
+        "parsing-text": "Parse pasted text",
+        "creating-recipes": "Create recipes",
+        "ai-request": "AI request",
+        "syncing-event": "Sync calendar event",
+        "deleting-event": "Delete calendar event",
+        "running": "Run task",
+        "searching": "Search the shop",
+        "reading-product": "Read the product page",
+        "saving-link": "Save the link"
+      },
+      "queues": {
+        "recipe-import": "Recipe import",
+        "image-recipe-import": "Image import",
+        "paste-recipe-import": "Paste import",
+        "nutrition-estimation": "Nutrition estimation",
+        "auto-tagging": "Auto-tagging",
+        "auto-categorization": "Auto-categorization",
+        "allergy-detection": "Allergy detection",
+        "recipe-provenance": "Herkomst van recept",
+        "ingredient-linking": "Ingrediëntkoppeling",
+        "caldav-sync": "CalDAV sync",
+        "scheduled-tasks": "Scheduled tasks",
+        "image-generation": "Afbeeldingen genereren",
+        "store-lookup": "Winkelopzoeking"
+      },
+      "summary": {
+        "failed": "{count} failed"
+      },
+      "table": {
+        "job": "Job",
+        "status": "Status",
+        "step": "Step",
+        "duration": "Duration",
+        "created": "Created",
+        "runsAt": "Runs {time}"
+      },
+      "detail": {
+        "title": "Job Details",
+        "notFound": "Job not found. It may have been cleaned up.",
+        "sections": {
+          "error": "Error",
+          "pipelineSteps": "Pipeline Steps",
+          "input": "Input",
+          "logs": "Logs",
+          "errors": "Errors"
+        },
+        "fields": {
+          "queue": "Queue",
+          "jobId": "Job ID",
+          "description": "Description",
+          "recipe": "Recipe",
+          "created": "Created",
+          "started": "Started",
+          "finished": "Finished",
+          "duration": "Duration",
+          "attempts": "Attempts",
+          "models": "Modellen",
+          "runsAt": "Runs at",
+          "nextRun": "Next run"
+        },
+        "attempt": "Attempt {number}",
+        "stackTrace": "Stack trace"
+      },
+      "actions": {
+        "retry": "Retry",
+        "remove": "Remove"
+      },
+      "removeModal": {
+        "message": "Permanently remove this job?",
+        "confirm": "Remove job"
+      },
+      "retention": {
+        "title": "Job Retention",
+        "keepCompleted": "Keep completed jobs",
+        "keepFailed": "Keep failed jobs",
+        "maxAgeDays": "Max age (days)",
+        "description": "How many finished jobs to keep per queue for monitoring. Changes require a server restart."
+      },
+      "pagination": "Page {current} of {total}"
+    },
+    "cuisineVocabulary": {
+      "description": "Keukens zijn een gecureerde woordenlijst die jij beheert. Namen worden in elke taal getoond zoals ze hier staan.",
+      "namePlaceholder": "Naam van keuken",
+      "addLabel": "Keuken toevoegen",
+      "renameLabel": "{name} hernoemen",
+      "deleteLabel": "{name} verwijderen",
+      "deleteConfirm": "\"{name}\" verwijderen? Recepten die deze gebruiken raken hem kwijt.",
+      "empty": "Nog geen keukens.",
+      "duplicate": "Er bestaat al een keuken met die naam.",
+      "saveFailed": "Kon die keuken niet opslaan."
+    }
+  },
+  "archiveExport": {
+    "progress": "Exporteren… {size}",
+    "errors": {
+      "failedTitle": "Exporteren mislukt",
+      "failedDescription": "Het archief kon niet worden gedownload. Probeer het opnieuw.",
+      "signedOut": "Je sessie is verlopen. Meld je opnieuw aan om te exporteren.",
+      "notAllowed": "Je hebt geen rechten om dit te exporteren."
     }
   }
 }

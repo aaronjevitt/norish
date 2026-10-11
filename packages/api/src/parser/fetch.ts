@@ -1,79 +1,114 @@
-import type { BrowserContext } from "playwright-core";
+import type { BrowserContext, Page } from "playwright-core";
 
 import type { SiteAuthTokenDecryptedDto } from "@norish/shared/contracts/dto/site-auth-tokens";
-import { getBrowser } from "@norish/api/playwright";
+import { getBrowser } from "@norish/api/obscura";
 import { parserLogger as log } from "@norish/shared-server/logger";
 
-const BROWSER_HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-  Accept:
-    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-  "Accept-Language": "en-US,en;q=0.9,nl;q=0.8",
-  "Cache-Control": "max-age=0",
-  "Sec-Ch-Ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-  "Sec-Ch-Ua-Mobile": "?0",
-  "Sec-Ch-Ua-Platform": '"Windows"',
-  "Sec-Fetch-Dest": "document",
-  "Sec-Fetch-Mode": "navigate",
-  "Sec-Fetch-Site": "cross-site",
-  "Sec-Fetch-User": "?1",
-  "Upgrade-Insecure-Requests": "1",
-  DNT: "1",
-  Connection: "keep-alive",
-} as const;
+/**
+ * The whole navigation budget. One deadline rather than a stack of them: the
+ * page settling and the recipe-shaped selector races that used to sit under
+ * this one are Obscura's job now, and the parser's. Waiting past the
+ * navigation for a page to become itself has its own deadline below, because
+ * only a caller can tell that it has not.
+ */
+const NAVIGATION_TIMEOUT_MS = 30_000;
 
-function getReferer(url: string): string {
-  try {
-    const parsed = new URL(url);
+/** How long a page that answered with something else is given to become itself. */
+const SETTLE_TIMEOUT_MS = 15_000;
+const SETTLE_POLL_MS = 500;
 
-    return Math.random() > 0.5 ? `https://${parsed.hostname}/` : "https://www.google.com/";
-  } catch {
-    return "https://www.google.com/";
-  }
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function fetchViaPlaywright(
+/**
+ * The page, once it is the page rather than whatever stood in front of it. A
+ * bot check answers the first navigation with a script and replaces itself
+ * with the real page seconds later, so a caller that can tell the two apart is
+ * given until the deadline to be handed the second one. Reading a page
+ * mid-navigation throws, which is a page still becoming itself and counts as
+ * unsettled.
+ */
+async function settledContent(page: Page, isSettled: (html: string) => boolean): Promise<string> {
+  const read = async (): Promise<string | null> => {
+    try {
+      return await page.content();
+    } catch {
+      return null;
+    }
+  };
+  const deadline = Date.now() + SETTLE_TIMEOUT_MS;
+  let html = await read();
+
+  while ((html === null || !isSettled(html)) && Date.now() < deadline) {
+    await sleep(SETTLE_POLL_MS);
+    html = await read();
+  }
+
+  return html ?? "";
+}
+
+/** A rendered page and the HTTP status its document last arrived with. */
+export interface RenderedPage {
+  /** Empty when Obscura produced no usable HTML */
+  html: string;
+  /**
+   * The status of the main document's last navigation: a bot check that
+   * answers 403 and then hands over the real page reports the real page's.
+   * Null when no document response was seen.
+   */
+  status: number | null;
+}
+
+/**
+ * Render a page in Obscura and return its HTML.
+ *
+ * Obscura owns the browser identity, JavaScript execution, page settling,
+ * stealth and tracker blocking. Norish adds exactly one thing: the requesting
+ * user's Site Auth Tokens, in a context that belongs to this fetch alone.
+ *
+ * There is no second engine behind this. An empty string means Obscura
+ * produced no usable HTML, and the import path reports that as a fetch failure.
+ *
+ * `isSettled` is the caller's own reading of whether the rendered HTML is the
+ * page it asked for. Only a caller knows: a shop's bot check and a shop's
+ * empty results page are the same two kilobytes to everyone else. Without it
+ * the page is read once, the moment it loads, exactly as before.
+ */
+export async function fetchRenderedPage(
   targetUrl: string,
-  tokens?: SiteAuthTokenDecryptedDto[]
+  tokens?: SiteAuthTokenDecryptedDto[],
+  isSettled?: (html: string) => boolean
 ): Promise<string> {
+  return (await renderPage(targetUrl, tokens, isSettled)).html;
+}
+
+/** `fetchRenderedPage`, keeping the status a site answered with, so a refusal can be named. */
+export async function renderPage(
+  targetUrl: string,
+  tokens?: SiteAuthTokenDecryptedDto[],
+  isSettled?: (html: string) => boolean
+): Promise<RenderedPage> {
   let context: BrowserContext | undefined;
+  let status: number | null = null;
 
   try {
     const browser = await getBrowser();
-    const referer = getReferer(targetUrl);
-
-    // Build extra HTTP headers, merging any user-provided header tokens
-    const extraHTTPHeaders: Record<string, string> = {
-      "Accept-Language": BROWSER_HEADERS["Accept-Language"],
-      "Cache-Control": BROWSER_HEADERS["Cache-Control"],
-      "Sec-Ch-Ua": BROWSER_HEADERS["Sec-Ch-Ua"],
-      "Sec-Ch-Ua-Mobile": BROWSER_HEADERS["Sec-Ch-Ua-Mobile"],
-      "Sec-Ch-Ua-Platform": BROWSER_HEADERS["Sec-Ch-Ua-Platform"],
-      "Sec-Fetch-Dest": BROWSER_HEADERS["Sec-Fetch-Dest"],
-      "Sec-Fetch-Mode": BROWSER_HEADERS["Sec-Fetch-Mode"],
-      "Sec-Fetch-Site": BROWSER_HEADERS["Sec-Fetch-Site"],
-      "Sec-Fetch-User": BROWSER_HEADERS["Sec-Fetch-User"],
-      "Upgrade-Insecure-Requests": BROWSER_HEADERS["Upgrade-Insecure-Requests"],
-      Referer: referer,
-      DNT: BROWSER_HEADERS.DNT,
-    };
 
     const headerTokens = tokens?.filter((t) => t.type === "header") ?? [];
-
-    for (const token of headerTokens) {
-      extraHTTPHeaders[token.name] = token.value;
-    }
-
-    context = await browser.newContext({
-      userAgent: BROWSER_HEADERS["User-Agent"],
-      viewport: { width: 1920, height: 1080 },
-      locale: "en-US",
-      extraHTTPHeaders,
-    });
-
-    // Inject cookie-type tokens into the browser context
     const cookieTokens = tokens?.filter((t) => t.type === "cookie") ?? [];
+
+    // A fresh context per fetch: one importer's tokens can never be seen by
+    // another's page, and closing it below disposes of the whole session.
+    context = await browser.newContext(
+      headerTokens.length > 0
+        ? {
+            extraHTTPHeaders: Object.fromEntries(
+              headerTokens.map((token) => [token.name, token.value])
+            ),
+          }
+        : undefined
+    );
 
     if (cookieTokens.length > 0) {
       let domain: string;
@@ -95,60 +130,30 @@ export async function fetchViaPlaywright(
 
     const page = await context.newPage();
 
-    await page.goto(targetUrl, {
-      waitUntil: "domcontentloaded",
-      timeout: 30000,
+    page.on("response", (response) => {
+      if (response.request().isNavigationRequest() && response.frame() === page.mainFrame()) {
+        status = response.status();
+      }
     });
 
-    // Wait for network to settle, but don't block forever on slow/persistent connections
-    await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {
-      log.debug({ url: targetUrl }, "Network idle timeout, proceeding with available content");
+    const response = await page.goto(targetUrl, {
+      waitUntil: "load",
+      timeout: NAVIGATION_TIMEOUT_MS,
     });
 
-    const title = await page.title();
-    const hasChallengeElement = (await page.locator("#challenge-running").count()) > 0;
-    const isChallenging = title.includes("Just a moment") || hasChallengeElement;
+    status ??= response?.status() ?? null;
 
-    if (isChallenging) {
-      log.debug({ url: targetUrl }, "Cloudflare challenge detected, waiting for resolution");
-      await page
-        .waitForFunction(
-          () =>
-            !(globalThis as { document?: { title?: string } }).document?.title?.includes(
-              "Just a moment"
-            ),
-          { timeout: 15000 }
-        )
-        .catch(() => {});
-      await page.waitForLoadState("networkidle").catch(() => {});
-    }
+    const html = isSettled ? await settledContent(page, isSettled) : await page.content();
 
-    try {
-      await Promise.race([
-        page.locator('script[type="application/ld+json"]').first().waitFor({ timeout: 5000 }),
-        page.locator('[itemtype*="schema.org"]').first().waitFor({ timeout: 5000 }),
-        page
-          .locator('main, article, [role="main"], .content, #content')
-          .first()
-          .waitFor({ timeout: 5000 }),
-      ]);
-    } catch {
-      // Timeout is acceptable - proceed with whatever content we have
-      log.debug(
-        { url: targetUrl },
-        "Recipe content selectors not found within timeout, proceeding anyway"
-      );
-    }
-
-    return await page.content();
+    return { html, status };
   } catch (error) {
-    log.warn({ err: error }, "Playwright fetch failed, Chrome may not be available");
+    log.warn({ err: error, url: targetUrl }, "Obscura could not render the page");
 
-    return ""; // Fallback will use HTTP
+    return { html: "", status };
   } finally {
     if (context) {
       await context.close().catch((err) => {
-        log.debug({ err }, "Failed to close browser context during cleanup");
+        log.debug({ err }, "Failed to close the Obscura browser context during cleanup");
       });
     }
   }

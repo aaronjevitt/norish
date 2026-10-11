@@ -12,6 +12,8 @@
     "apply": "Apply",
     "reset": "Reset",
     "clear": "Clear",
+    "selectAll": "Select all",
+    "deselectAll": "Deselect all",
     "confirm": "Confirm",
     "back": "Back",
     "next": "Next",
@@ -28,11 +30,12 @@
     "test": "Test",
     "format": "Format",
     "restoreDefaults": "Restore Defaults",
-    "saveChanges": "Save Changes",
-    "revealSecret": "Reveal secret",
-    "hideSecret": "Hide secret",
-    "enterNewValue": "Enter new value",
-    "cancelEditing": "Cancel editing"
+    "saveChanges": "Save Changes"
+  },
+  "secret": {
+    "reveal": "Reveal secret",
+    "hide": "Hide secret",
+    "keepsCurrent": "Leave empty to keep the saved value."
   },
   "status": {
     "loading": "Loading...",
@@ -46,6 +49,7 @@
   "filters": {
     "title": "Filters",
     "search": "Search",
+    "searchIn": "Search in",
     "sort": "Sort",
     "mode": "Mode",
     "modeAll": "All",
@@ -92,19 +96,21 @@
   },
   "connection": {
     "connecting": "Connecting to Norish...",
-    "syncing": "Syncing please wait...",
     "checkInternet": "Please check your internet connection",
-    "gettingUpdates": "Just a moment while we get the latest updates",
     "offlineBanner": "You're offline, showing cached data",
-    "serverUnreachableBanner": "Can't reach the Norish server, showing cached data"
+    "serverUnreachableBanner": "Can't reach the Norish server, showing cached data",
+    "live": "Connected",
+    "offline": "Offline",
+    "openDetails": "Connection details"
   },
   "language": {
     "title": "Language"
   },
   "notFound": {
     "code": "404",
-    "title": "Page Not Found",
-    "message": "Oops! Nora couldn't find what you're looking for.\nThe page may have been moved or doesn't exist."
+    "title": "Nora is confused.",
+    "message": "She is sniffing around to find where you wanted to go.",
+    "imageAlt": "Nora looking confused"
   },
   "import": {
     "url": {
@@ -113,6 +119,9 @@
       "placeholder": "https://example.com/your-recipe",
       "failed": "Failed to import recipe",
       "failedWithAI": "Failed to import recipe with AI"
+    },
+    "clipboard": {
+      "title": "Import a recipe from the link you copied?"
     },
     "paste": {
       "title": "Import from paste",
@@ -155,6 +164,7 @@
     "heading": "Start a line with <strong>#</strong> for a heading",
     "bold": "Wrap in <strong>**double asterisks**</strong> for bold",
     "recipeLink": "Type <strong>/recipe name</strong> to link to another recipe",
+    "ingredientMention": "Type <strong>@</strong> to attach an ingredient to the step — the word lands in your sentence, the link becomes a chip below it",
     "helpAriaLabel": "Formatting help"
   },
   "tagInput": {
@@ -213,5 +223,74 @@
     "notification_body": "{label} is done!",
     "notifications_disabled": "Notifications are disabled",
     "notifications_disabled_hint": "Enable notifications in your browser settings to get alerts when timers finish in the background."
+  },
+  "offlineStatus": {
+    "title": "Connection & offline",
+    "connection": {
+      "heading": "Connection",
+      "live": "Live",
+      "offline": "Offline",
+      "forced": "Offline (forced)",
+      "liveDescription": "Connected to Norish. Changes sync as you make them.",
+      "offlineDescription": "Can't reach Norish. Showing cached data; changes are queued and sync when you're back.",
+      "forcedDescription": "Offline is forced for development. The backend is reachable but every request is blocked.",
+      "devBadge": "dev"
+    },
+    "cache": {
+      "heading": "Offline cache",
+      "recipes": "Recipes",
+      "cookbooks": "Cookbooks",
+      "groceries": "Groceries",
+      "stores": "Stores",
+      "planned": "This week",
+      "dataAge": "Data from {when}",
+      "dataAgeUnknown": "Not warmed yet",
+      "wipe": "Clear cached data",
+      "wipeConfirmBody": "Remove the offline copy of your recipes, groceries, stores and plan? Your queued changes are kept.",
+      "wipeConfirmOfflineBody": "You're offline — clearing now leaves nothing to show until you reconnect. Your queued changes are kept.",
+      "wipeConfirm": "Clear",
+      "wipeCancel": "Keep"
+    },
+    "outbox": {
+      "heading": "Queued changes",
+      "empty": "Nothing queued — everything's synced.",
+      "pending": "{count, plural, =0 {No changes waiting} one {# change waiting} other {# changes waiting}}",
+      "syncing": "{count, plural, =0 {Syncing} one {Syncing # change} other {Syncing # changes}}",
+      "syncNow": "Sync now",
+      "retryAll": "Retry all",
+      "discardAll": "Discard all",
+      "discardConfirmBody": "{count, plural, one {Permanently discard # queued change? It won't be sent.} other {Permanently discard # queued changes? They won't be sent.}}",
+      "discardConfirm": "Discard",
+      "discardCancel": "Keep",
+      "status": {
+        "pending": "Syncing",
+        "parked": "Needs attention",
+        "conflicted": "Conflict"
+      }
+    },
+    "devToggle": {
+      "heading": "Developer",
+      "force": "Force offline",
+      "description": "Blocks the backend transport to exercise the offline runtime. Dev builds only.",
+      "on": "On",
+      "off": "Off"
+    }
+  },
+  "offlineFallback": {
+    "title": "Nora is offline too.",
+    "body": "This page isn't saved for offline — pages you've visited recently are still here.",
+    "backOnlineTitle": "Nora found the connection!",
+    "backOnlineBody": "Norish is reachable again — try loading this page.",
+    "retry": "Try again",
+    "home": "Open Norish"
+  },
+  "queuedOffline": {
+    "title": "You're offline",
+    "description": "Queued — Norish will finish this automatically when you're back online."
+  },
+  "storageUnavailable": {
+    "title": "Couldn't start",
+    "description": "Norish could not read its secure storage, so it cannot tell which server it belongs to. Nothing has been changed. Try again, or restart the app.",
+    "detailsLabel": "Technical details"
   }
 }

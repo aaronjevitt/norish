@@ -4,20 +4,72 @@ on:
   workflow_call:
     inputs:
       push:
+        description: "Push the built image and assemble a multi-arch manifest."
         required: false
         type: boolean
         default: false
-      image-tags:
-        required: true
+      arches:
+        description: >-
+          JSON array of architectures to build, e.g. '["amd64"]'. Each entry
+          gets its own natively-hosted runner.
+        required: false
         type: string
+        default: '["amd64", "arm64"]'
+      primary-image:
+        description: >-
+          Registry repository (no tag) that receives the per-arch digests and
+          the assembled manifest. Required whenever `push` is set; ignored
+          otherwise, because a non-push build produces no artifact to name.
+        required: false
+        type: string
+        default: ""
+      cache-image:
+        description: >-
+          Registry repository (no tag) holding the BuildKit layer cache, one tag
+          per architecture. Deliberately not `primary-image`: the cache is an
+          implementation detail of the build, and pointing it at the published
+          repo put `buildcache-*` tags in the tag list users browse to pick a
+          version to pin.
+        required: false
+        type: string
+        default: ghcr.io/norish-recipes/norish-buildcache
+      tags:
+        description: >-
+          Newline-separated tag names applied to every image. Ignored unless
+          `push` is set.
+        required: false
+        type: string
+        default: ""
+
+# No `permissions:` block on purpose: this workflow inherits the caller's, and a
+# reusable workflow cannot ask for more than its caller grants. Publishing needs
+# no extra scope — images go to Docker Hub under its own credentials, not under
+# GITHUB_TOKEN — but the layer cache does: callers must grant `packages: read`,
+# or `packages: write` when they pass `push`. An explicit `permissions:` block
+# replaces the defaults wholesale, so a caller that lists only `contents:` grants
+# no package access at all and the cache steps below fail.
 
 jobs:
-  docker-build:
-    name: Docker Multi-Arch Build
-    runs-on: ubuntu-latest
+  # One runner per architecture, each on a host of that architecture. The
+  # previous shape built both platforms on one amd64 runner under QEMU, which
+  # made the arm64 `pnpm run build` stage 8x slower than the identical amd64
+  # one (30.8 min vs 3.7 min) and was prone to hanging outright — emulated
+  # multi-threaded Node deadlocked one run for three hours.
+  build:
+    name: linux/${{ matrix.arch }}
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    env:
+      # Hoisted to job level because the `secrets` context is not readable from
+      # a step-level `if:`.
+      HAS_REGISTRY_CREDS: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ fromJSON(inputs.arches) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Free up disk space
         run: |
@@ -29,39 +81,181 @@ jobs:
           df -h
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      # No setup-qemu-action: every leg builds for the architecture it runs on.
 
-      - name: Login to GitHub Container Registry
-        if: ${{ inputs.push }}
-        uses: docker/login-action@v3
+      # Non-push builds log in too, even though they publish nothing: the base
+      # image (`node:22-alpine3.21`) comes from Docker Hub, and anonymous pulls
+      # are rate limited per IP — which GitHub runners share. Guarded on the
+      # secret so PRs from forks pull anonymously rather than failing on a login
+      # they can never do.
+      - name: Login to container registry
+        if: ${{ inputs.push || env.HAS_REGISTRY_CREDS == 'true' }}
+        uses: ./tooling/github/registry-login
+        with:
+          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub-password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      # Separate from the Docker Hub login above and deliberately unguarded: the
+      # layer cache lives in GHCR, and GITHUB_TOKEN always exists — read-only on
+      # fork PRs, which is exactly the access reading a cache needs.
+      - name: Login to GHCR
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
+          username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Login to Docker Hub
-        if: ${{ inputs.push }}
-        uses: docker/login-action@v3
-        with:
-          registry: docker.io
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Read package versions
+        id: versions
+        run: |
+          report="$(node tooling/monorepo/scripts/print-package-versions.mjs)"
+          echo "report=${report}" >> "$GITHUB_OUTPUT"
 
-      - name: Build Docker images (multi-arch)
-        uses: docker/build-push-action@v6
+      # Push builds export their layer cache to a registry rather than to the
+      # Actions cache: that pool is capped at 10 GB per repo, and a mode=max
+      # multi-arch export blew straight past it, so entries were evicted between
+      # runs and every "cached" build started cold. Exporting it also cost 18
+      # minutes a run. Non-push builds read that cache and write nothing —
+      # writing from arbitrary PR branches would poison the release cache, and
+      # fork PRs hold a read-only token regardless.
+      #
+      # `image-manifest=true,oci-mediatypes=true` is what GHCR wants: the default
+      # index-based cache manifest is not a media type it accepts.
+      - name: Resolve build output and cache mode
+        id: mode
+        env:
+          PUSH: ${{ inputs.push }}
+          PRIMARY: ${{ inputs.primary-image }}
+          CACHE: ${{ inputs.cache-image }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          if [ "$PUSH" = "true" ]; then
+            # Without this the build below pushes to an empty name and the
+            # release "succeeds" having shipped nothing.
+            if [ -z "$PRIMARY" ]; then
+              echo "push was requested but primary-image is empty." >&2
+              exit 1
+            fi
+            {
+              echo "outputs=type=image,name=${PRIMARY},push-by-digest=true,name-canonical=true,push=true"
+              echo "cache-to=type=registry,ref=${CACHE}:${ARCH},mode=max,image-manifest=true,oci-mediatypes=true"
+            } >> "$GITHUB_OUTPUT"
+          else
+            # cacheonly: build every stage, keep nothing. The point of a test
+            # build is that the Dockerfile still works, not the artifact.
+            {
+              echo "outputs=type=cacheonly"
+              echo "cache-to="
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build image
+        id: build
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./docker/Dockerfile
-          push: ${{ inputs.push }}
-          platforms: linux/amd64,linux/arm64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          tags: ${{ inputs.image-tags }}
+          platforms: linux/${{ matrix.arch }}
+          build-args: |
+            NORISH_VERSION_REPORT_JSON=${{ steps.versions.outputs.report }}
+          outputs: ${{ steps.mode.outputs.outputs }}
+          cache-from: type=registry,ref=${{ inputs.cache-image }}:${{ matrix.arch }}
+          cache-to: ${{ steps.mode.outputs.cache-to }}
+
+      # Digests are handed to the merge job as empty marker files named after
+      # the hash; buildx has no way to pass them between jobs directly.
+      - name: Export digest
+        if: ${{ inputs.push }}
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        if: ${{ inputs.push }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: digests-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Build summary
         if: ${{ !inputs.push }}
+        run: echo "Docker build for linux/${{ matrix.arch }} successful!"
+
+  # The per-arch pushes above land as bare digests with no tag attached. This
+  # job is what turns them into the multi-arch manifest users actually pull.
+  merge:
+    name: Manifest
+    if: ${{ inputs.push }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download digests
+        uses: actions/download-artifact@v8
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to container registry
+        uses: ./tooling/github/registry-login
+        with:
+          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub-password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Create manifests
+        working-directory: /tmp/digests
+        env:
+          PRIMARY: ${{ inputs.primary-image }}
+          TAGS: ${{ inputs.tags }}
         run: |
-          echo "Docker multi-arch build successful!"
+          set -euo pipefail
+          shopt -s nullglob
+
+          refs=()
+          for digest in *; do refs+=("${PRIMARY}@sha256:${digest}"); done
+          if [ ${#refs[@]} -eq 0 ]; then
+            echo "No digests were produced by the build jobs." >&2
+            exit 1
+          fi
+          echo "Assembling manifests from: ${refs[*]}"
+
+          mapfile -t tags < <(printf '%s\n' "$TAGS" | sed '/^[[:space:]]*$/d')
+
+          # Without this the loop below is a no-op and the release "succeeds"
+          # having pushed nothing but untagged digests.
+          if [ ${#tags[@]} -eq 0 ]; then
+            echo "push was requested but no tags were supplied." >&2
+            exit 1
+          fi
+
+          for tag in "${tags[@]}"; do
+            docker buildx imagetools create --tag "${PRIMARY}:${tag}" "${refs[@]}"
+          done
+
+      # Fails the release rather than shipping a manifest that is missing an
+      # architecture — the one thing push-by-digest can get quietly wrong.
+      - name: Inspect published manifests
+        env:
+          PRIMARY: ${{ inputs.primary-image }}
+          TAGS: ${{ inputs.tags }}
+        run: |
+          set -euo pipefail
+          mapfile -t tags < <(printf '%s\n' "$TAGS" | sed '/^[[:space:]]*$/d')
+          for tag in "${tags[@]}"; do
+            docker buildx imagetools inspect "${PRIMARY}:${tag}"
+          done

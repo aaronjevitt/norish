@@ -1,5 +1,5 @@
-import SettingsSkeleton from "@/components/skeleton/settings-skeleton";
+import SettingsPageSkeleton from "@/components/skeleton/settings-page-skeleton";
 
 export default function Loading() {
-  return <SettingsSkeleton />;
+  return <SettingsPageSkeleton />;
 }

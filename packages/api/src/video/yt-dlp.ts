@@ -4,18 +4,14 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import YTDlpWrapModule from "yt-dlp-wrap";
 
 import type { SiteAuthTokenDecryptedDto } from "@norish/shared/contracts/dto/site-auth-tokens";
 import { SERVER_CONFIG } from "@norish/config/env-config-server";
-import { getVideoConfig } from "@norish/config/server-config-loader";
+import { getVideoConfig } from "@norish/shared-server/config/server-config-loader";
 import { videoLogger as log } from "@norish/shared-server/logger";
 
-import type { VideoMetadata } from "./types";
-
-// Handle CJS/ESM interop - the module may be wrapped in a default property
-const YTDlpWrap =
-  (YTDlpWrapModule as unknown as { default?: typeof YTDlpWrapModule }).default ?? YTDlpWrapModule;
+import type { VideoMetadata, VideoStream } from "./types";
+import { MediaUnavailableError } from "./errors";
 
 const execFileAsync = promisify(execFile);
 
@@ -103,23 +99,112 @@ function getFfmpegPath(): string | null {
   return null;
 }
 
+/** What the binary is called on disk — not what the release calls it. */
 const ytDlpFilename = process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp";
+
+/**
+ * The release asset named plain `yt-dlp`: a Python zipapp behind a
+ * `#!/usr/bin/env python3` line rather than a program that runs on its own.
+ * Only ever the right choice where no self-contained build exists.
+ */
+const ZIPAPP_ASSET = "yt-dlp";
+
+/**
+ * The release asset to fetch for a given host.
+ *
+ * yt-dlp publishes self-contained builds that carry their own certificates
+ * and need no Python at all. The zipapp instead borrows whichever interpreter
+ * the machine happens to put first on PATH and inherits that interpreter's
+ * TLS trust with it — a Python with no CA bundle (a python.org install whose
+ * `Install Certificates.command` was never run is the common one) turns every
+ * fetch into CERTIFICATE_VERIFY_FAILED, on sites that work fine from any
+ * other program on the same machine. The image has always shipped a platform
+ * build (docker/Dockerfile); this is development catching up to it.
+ *
+ * Pure, so every branch is testable from one machine.
+ */
+export function ytDlpAssetFor(platform: string, arch: string, libc: "glibc" | "musl"): string {
+  if (platform === "win32") {
+    if (arch === "arm64") return "yt-dlp_arm64.exe";
+    if (arch === "ia32") return "yt-dlp_x86.exe";
+
+    return "yt-dlp.exe";
+  }
+
+  // One universal2 build covers both Apple silicon and Intel.
+  if (platform === "darwin") return "yt-dlp_macos";
+
+  if (platform === "linux") {
+    if (arch === "x64") return libc === "musl" ? "yt-dlp_musllinux" : "yt-dlp_linux";
+    if (arch === "arm64") {
+      return libc === "musl" ? "yt-dlp_musllinux_aarch64" : "yt-dlp_linux_aarch64";
+    }
+  }
+
+  // 32-bit ARM is published only as a zip, and the BSDs have no build at all.
+  return ZIPAPP_ASSET;
+}
+
+/**
+ * glibc or musl, read from Node's own report: `glibcVersionRuntime` is absent
+ * on a musl build. Alpine is the case that matters — a glibc binary does not
+ * start there.
+ */
+function hostLibc(): "glibc" | "musl" {
+  if (process.platform !== "linux") return "glibc";
+
+  const report = process.report?.getReport() as
+    { header?: { glibcVersionRuntime?: string } } | undefined;
+
+  return report?.header?.glibcVersionRuntime ? "glibc" : "musl";
+}
+
+function hostYtDlpAsset(): string {
+  return ytDlpAssetFor(process.platform, process.arch, hostLibc());
+}
 
 export const DOWNLOAD_VIDEO_FORMAT_SELECTOR =
   "best[vcodec^=avc1][ext=mp4]/bestvideo[vcodec^=avc1][ext=mp4]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/best[ext=mp4]/best";
+
+/**
+ * Arguments for asking yt-dlp what it knows about a URL.
+ *
+ * Deliberately no `-f`. Reading a URL is not downloading it, and a format
+ * selector can only ever make the read fail: `best` matches pre-merged formats
+ * only, so a YouTube or TikTok video published as separate video and audio
+ * streams - or one whose pre-merged entry is Premium-only - answers "Requested
+ * format is not available" and the import dies before it reaches the download.
+ * With no selector yt-dlp applies its own `bv*+ba/b` default, which matches
+ * anything it can fetch, and `videoStreamOf` reads `formats[]` when the
+ * top-level `vcodec` is absent. The download keeps its selector - see
+ * DOWNLOAD_VIDEO_FORMAT_SELECTOR - because that one really is fetching bytes.
+ */
+export const METADATA_PROBE_ARGS = ["--dump-json"] as const;
+
+export const TRANSCRIPTION_AUDIO_FORMAT = "mp3";
+export const TRANSCRIPTION_AUDIO_QUALITY = "64K";
+export const TRANSCRIPTION_AUDIO_FALLBACKS = [
+  { format: TRANSCRIPTION_AUDIO_FORMAT, quality: TRANSCRIPTION_AUDIO_QUALITY },
+  { format: "m4a", quality: TRANSCRIPTION_AUDIO_QUALITY },
+  { format: "wav", quality: "0" },
+] as const;
 
 // In production (Docker), binary is pre-downloaded during build to /app/bin
 // In development, download to the configured runtime bin directory on first use
 const ytDlpPath = path.resolve(SERVER_CONFIG.YT_DLP_BIN_DIR, ytDlpFilename);
 const outputDir = path.join(SERVER_CONFIG.UPLOADS_DIR, "video-temp");
 
-async function execYtDlp(args: string[], cwd?: string): Promise<void> {
+async function execYtDlp(args: string[], cwd?: string): Promise<string> {
   try {
-    await execFileAsync(ytDlpPath, args, {
+    // --dump-json prints a whole info dict per media entry, so a long playlist
+    // answers with several megabytes on stdout.
+    const { stdout } = await execFileAsync(ytDlpPath, args, {
       cwd,
       windowsHide: true,
-      maxBuffer: 10 * 1024 * 1024,
+      maxBuffer: 64 * 1024 * 1024,
     });
+
+    return stdout;
   } catch (error: unknown) {
     const childError = error as Error & { stdout?: string | Buffer; stderr?: string | Buffer };
     const stderr = childError.stderr?.toString().trim();
@@ -138,6 +223,32 @@ async function execYtDlp(args: string[], cwd?: string): Promise<void> {
   }
 }
 
+/**
+ * Restate a failed download as "the media could not be had", keeping the
+ * operator-facing wording yt-dlp's own diagnostics earned.
+ */
+function asMediaUnavailable(error: unknown): MediaUnavailableError {
+  const message = error instanceof Error ? error.message : "";
+
+  if (message.includes("Unsupported URL")) {
+    return new MediaUnavailableError("Video platform not supported or URL is invalid.", {
+      cause: error,
+    });
+  }
+  if (message.includes("Video unavailable") || message.includes("private")) {
+    return new MediaUnavailableError("Video is unavailable or private.", { cause: error });
+  }
+  if (message.includes("HTTP Error 429")) {
+    return new MediaUnavailableError("Rate limited by video platform. Please try again later.", {
+      cause: error,
+    });
+  }
+
+  return new MediaUnavailableError(`Failed to download video: ${message || "Unknown error"}`, {
+    cause: error,
+  });
+}
+
 async function getProxyArgs(): Promise<string[]> {
   const videoConfig = await getVideoConfig();
   const proxy = videoConfig?.ytDlpProxy || SERVER_CONFIG.YT_DLP_PROXY;
@@ -145,16 +256,95 @@ async function getProxyArgs(): Promise<string[]> {
   return proxy ? ["--proxy", proxy] : [];
 }
 
+/**
+ * Fetch a yt-dlp release binary from GitHub into `targetPath`.
+ *
+ * Only a development server gets here - production ships the binary in the
+ * image. The bytes land in a sibling temp file and are renamed into place, so
+ * an interrupted download cannot leave a half-written binary for the next boot
+ * to find and trust.
+ */
+async function downloadYtDlpBinary(targetPath: string, version: string): Promise<void> {
+  const releasePath =
+    version === "latest" ? "releases/latest/download" : `releases/download/${version}`;
+  const asset = hostYtDlpAsset();
+  const url = `https://github.com/yt-dlp/yt-dlp/${releasePath}/${asset}`;
+
+  if (asset === ZIPAPP_ASSET) {
+    log.warn(
+      { platform: process.platform, arch: process.arch },
+      "No self-contained yt-dlp build for this platform; falling back to the Python zipapp, which needs a python3 that has a CA bundle"
+    );
+  }
+
+  log.debug({ url, targetPath, asset }, "Downloading yt-dlp binary");
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`GitHub answered ${response.status} ${response.statusText} for ${url}`);
+  }
+
+  const tempPath = `${targetPath}.download`;
+
+  try {
+    await fs.writeFile(tempPath, new Uint8Array(await response.arrayBuffer()));
+    await fs.rename(tempPath, targetPath);
+  } catch (error) {
+    await fs.unlink(tempPath).catch(() => {});
+
+    throw error;
+  }
+}
+
+/**
+ * Whether the binary already on disk is a zipapp we would no longer download.
+ *
+ * Development checkouts made before Norish picked platform builds hold the
+ * zipapp, and `ensureYtDlpBinary` never looks at a file that exists — so
+ * without this those checkouts keep the Python dependency, and the machines
+ * broken by it stay broken, forever. A zipapp is a script: it opens `#!`.
+ */
+async function isSupersededZipapp(): Promise<boolean> {
+  if (hostYtDlpAsset() === ZIPAPP_ASSET) return false;
+
+  try {
+    const handle = await fs.open(ytDlpPath, "r");
+
+    try {
+      const { buffer, bytesRead } = await handle.read(Buffer.alloc(2), 0, 2, 0);
+
+      return bytesRead === 2 && buffer.toString("latin1") === "#!";
+    } finally {
+      await handle.close();
+    }
+  } catch (err) {
+    log.debug({ err, ytDlpPath }, "Could not read the binary's first bytes");
+
+    return false;
+  }
+}
+
 export async function ensureYtDlpBinary(): Promise<void> {
   log.debug({ ytDlpPath }, "Checking for binary");
   await fs.mkdir(path.dirname(ytDlpPath), { recursive: true });
 
-  try {
-    await fs.access(ytDlpPath);
-    log.debug({ ytDlpPath }, "Binary found");
+  const present = await fs
+    .access(ytDlpPath)
+    .then(() => true)
+    .catch(() => false);
 
-    return; // Binary exists, we're good
-  } catch (_error) {
+  if (present) {
+    // An image ships whatever it was built with; only development ever
+    // replaces a binary it already has.
+    if (process.env.NODE_ENV === "production" || !(await isSupersededZipapp())) {
+      log.debug({ ytDlpPath }, "Binary found");
+
+      return; // Binary exists, we're good
+    }
+
+    log.info({ ytDlpPath }, "Replacing the Python zipapp with this platform's yt-dlp build");
+  } else {
     // Binary doesn't exist
     log.error({ ytDlpPath }, "Binary NOT found");
     if (process.env.NODE_ENV === "production") {
@@ -162,18 +352,20 @@ export async function ensureYtDlpBinary(): Promise<void> {
         `yt-dlp binary not found at ${ytDlpPath}. It should be pre-downloaded during Docker build.`
       );
     }
+  }
 
-    try {
-      const ytDlpVersion = SERVER_CONFIG.YT_DLP_VERSION;
+  try {
+    const ytDlpVersion = SERVER_CONFIG.YT_DLP_VERSION;
 
-      await YTDlpWrap.downloadFromGithub(ytDlpPath, ytDlpVersion, process.platform);
+    await downloadYtDlpBinary(ytDlpPath, ytDlpVersion);
 
-      if (process.platform !== "win32") {
-        await fs.chmod(ytDlpPath, 0o755);
-      }
-    } catch (_downloadError) {
-      throw new Error("Failed to download yt-dlp binary. Video processing is unavailable.");
+    if (process.platform !== "win32") {
+      await fs.chmod(ytDlpPath, 0o755);
     }
+  } catch (downloadError) {
+    log.error({ err: downloadError, ytDlpPath }, "Could not download the yt-dlp binary");
+
+    throw new Error("Failed to download yt-dlp binary. Video processing is unavailable.");
   }
 }
 
@@ -261,32 +453,127 @@ export async function buildAuthArgs(
   return { args, cleanup };
 }
 
+/** The slice of yt-dlp's info dict this module reads. */
+export type YtDlpInfo = {
+  title?: string;
+  description?: string;
+  duration?: number | null;
+  thumbnail?: string;
+  uploader?: string;
+  channel?: string;
+  upload_date?: string;
+  language?: string;
+  vcodec?: string | null;
+  ext?: string;
+  formats?: { vcodec?: string | null }[];
+  entries?: YtDlpInfo[];
+};
+
+/** Extensions yt-dlp reports for the still images of a photo or carousel post. */
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "heic", "gif"]);
+
+/**
+ * Ask yt-dlp for what it knows about a URL.
+ *
+ * `--dump-json` prints one info dict per media entry, so a playlist answers
+ * with newline-delimited objects rather than a single document - both shapes
+ * reach `toInfo`, which flattens them.
+ */
+async function fetchVideoInfo(args: string[]): Promise<unknown> {
+  const stdout = await execYtDlp([...args, ...METADATA_PROBE_ARGS]);
+
+  try {
+    return JSON.parse(stdout) as unknown;
+  } catch {
+    return stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as unknown);
+  }
+}
+
+function toInfo(rawInfo: unknown): YtDlpInfo {
+  if (Array.isArray(rawInfo)) return { entries: rawInfo as YtDlpInfo[] };
+
+  return (rawInfo ?? {}) as YtDlpInfo;
+}
+
+/**
+ * What an info dict says about a video stream.
+ *
+ * `"unknown"` is the normal answer for a playlist wrapper, which knows nothing
+ * about the media it wraps.
+ */
+export function videoStreamOf(info: YtDlpInfo): VideoStream {
+  if (typeof info.vcodec === "string") return info.vcodec === "none" ? "absent" : "present";
+
+  if (Array.isArray(info.formats) && info.formats.length > 0) {
+    const known = info.formats.filter((format) => typeof format.vcodec === "string");
+
+    if (known.length > 0) {
+      return known.some((format) => format.vcodec !== "none") ? "present" : "absent";
+    }
+  }
+
+  if (typeof info.ext === "string") {
+    return IMAGE_EXTENSIONS.has(info.ext.toLowerCase()) ? "absent" : "present";
+  }
+
+  return "unknown";
+}
+
+/**
+ * Collapse yt-dlp's answer to the entry that carries the media.
+ *
+ * The same reel comes back as the post itself, as a bare array, or wrapped in a
+ * playlist, depending on the yt-dlp version and which extractor path ran - and
+ * only the entry carries duration, uploader and thumbnail. Reading the wrapper
+ * instead leaves a reel looking durationless and authorless, which downstream
+ * mistook for an image post (#513). A carousel can mix stills and clips, so the
+ * clip wins when there is one.
+ */
+export function selectMediaEntry(info: YtDlpInfo): YtDlpInfo {
+  const entries = info.entries;
+
+  if (!Array.isArray(entries) || entries.length === 0) return info;
+
+  return entries.find((entry) => videoStreamOf(entry) === "present") ?? entries[0] ?? {};
+}
+
 export async function getVideoMetadata(
   url: string,
   tokens?: SiteAuthTokenDecryptedDto[]
 ): Promise<VideoMetadata> {
   await ensureYtDlpBinary();
-  const ytDlpWrap = new YTDlpWrap(ytDlpPath);
 
   const auth = tokens?.length ? await buildAuthArgs(tokens, url) : null;
 
   try {
     const proxyArgs = await getProxyArgs();
-    const rawInfo = await ytDlpWrap.getVideoInfo([url, ...(auth?.args ?? []), ...proxyArgs]);
+    const rawInfo = await fetchVideoInfo([url, ...(auth?.args ?? []), ...proxyArgs]);
+    const container = toInfo(rawInfo);
+    const primary = selectMediaEntry(container);
 
-    // yt-dlp returns an array for Instagram carousel/image posts (one entry per image)
-    // For single videos, it returns an object directly
-    // Normalize to always work with the first/main entry
-    const info = Array.isArray(rawInfo) ? (rawInfo[0] ?? {}) : rawInfo;
+    // Read the media entry first and the wrapper second: a playlist carries the
+    // caption and title, but only the entry knows the duration and uploader.
+    const pick = <K extends keyof YtDlpInfo>(key: K): YtDlpInfo[K] =>
+      primary[key] ?? container[key];
+
+    // The wrapper only gets a say when the entry had none.
+    const entryStream = videoStreamOf(primary);
+    const videoStream: VideoStream =
+      entryStream === "unknown" ? videoStreamOf(container) : entryStream;
 
     return {
-      title: info.title || "Untitled Video",
-      description: info.description || "",
-      duration: info.duration || 0,
-      thumbnail: info.thumbnail || "",
-      uploader: info.uploader || info.channel || undefined,
-      uploadDate: info.upload_date || undefined,
-      language: info.language || undefined,
+      title: pick("title") || "Untitled Video",
+      description: pick("description") || "",
+      duration: pick("duration") || 0,
+      thumbnail: pick("thumbnail") || "",
+      uploader: pick("uploader") || pick("channel") || undefined,
+      uploadDate: pick("upload_date") || undefined,
+      language: pick("language") || undefined,
+      videoStream,
     };
   } catch (error: unknown) {
     log.error({ err: error }, "Failed to get video metadata");
@@ -319,70 +606,84 @@ export async function downloadVideoAudio(
 
   const timestamp = Date.now();
   const randomId = Math.random().toString(36).substring(7);
-  const outputFilename = `audio-${timestamp}-${randomId}.wav`;
-  const outputFile = path.join(outputDir, outputFilename);
+  const outputBase = `audio-${timestamp}-${randomId}`;
+  const outputFiles = TRANSCRIPTION_AUDIO_FALLBACKS.map(({ format }) =>
+    path.join(outputDir, `${outputBase}.${format}`)
+  );
 
   const auth = tokens?.length ? await buildAuthArgs(tokens, url) : null;
 
   try {
-    // Download video and extract audio as WAV format
+    // Download video and extract compressed speech audio for transcription.
     const ffmpegBinary = getFfmpegPath();
     const ffmpegDir = ffmpegBinary ? path.dirname(ffmpegBinary) : undefined;
 
     log.debug({ ffmpegDir, ffmpegBinary }, "Using ffmpeg for audio extraction");
     const proxyArgs = await getProxyArgs();
 
-    const args = [
-      url,
-      "-x", // Extract audio
-      "--audio-format",
-      "wav", // Convert to WAV
-      "--audio-quality",
-      "0", // Best quality
-      "-o",
-      outputFilename, // Output file, relative to outputDir
-      "--extractor-args",
-      "youtube:player_client=default", // Suppress JS runtime warning
-      ...(auth?.args ?? []),
-      ...proxyArgs,
-    ];
+    let lastError: unknown = null;
 
-    // Add ffmpeg location if available
-    if (ffmpegDir) {
-      args.push("--ffmpeg-location", ffmpegDir);
+    for (const [index, attempt] of TRANSCRIPTION_AUDIO_FALLBACKS.entries()) {
+      const outputFilename = `${outputBase}.${attempt.format}`;
+      const outputFile = path.join(outputDir, outputFilename);
+      const args = [
+        url,
+        "-x", // Extract audio
+        "--audio-format",
+        attempt.format,
+        "--audio-quality",
+        attempt.quality,
+        "-o",
+        outputFilename, // Output file, relative to outputDir
+        "--extractor-args",
+        "youtube:player_client=default", // Suppress JS runtime warning
+        ...(auth?.args ?? []),
+        ...proxyArgs,
+      ];
+
+      // Add ffmpeg location if available
+      if (ffmpegDir) {
+        args.push("--ffmpeg-location", ffmpegDir);
+      }
+
+      try {
+        await execYtDlp(args, outputDir);
+
+        const stats = await fs.stat(outputFile);
+
+        log.info(
+          { outputFile, size: stats.size, audioFormat: attempt.format, attempt: index + 1 },
+          "Audio extracted for transcription"
+        );
+
+        return outputFile;
+      } catch (error: unknown) {
+        lastError = error;
+        await fs.unlink(outputFile).catch(() => {});
+
+        if (index < TRANSCRIPTION_AUDIO_FALLBACKS.length - 1) {
+          const nextAttempt = TRANSCRIPTION_AUDIO_FALLBACKS[index + 1];
+
+          log.warn(
+            { err: error, audioFormat: attempt.format, nextFormat: nextAttempt?.format },
+            "Audio extraction format failed, trying fallback"
+          );
+        }
+      }
     }
 
-    await execYtDlp(args, outputDir);
-    try {
-      await fs.stat(outputFile);
-    } catch {
-      throw new Error("Could not create audio file.");
-    }
-
-    return outputFile;
-  } catch (error: any) {
+    throw lastError instanceof Error ? lastError : new Error("Could not create audio file.");
+  } catch (error: unknown) {
     log.error({ err: error }, "Failed to download video audio");
 
     // Cleanup on failure
     try {
-      await fs.unlink(outputFile).catch(() => {});
+      await Promise.all(outputFiles.map((outputFile) => fs.unlink(outputFile).catch(() => {})));
     } catch (cleanupErr) {
       log.error({ err: cleanupErr }, "Failed to cleanup temp file");
     }
 
-    if (error.message?.includes("Unsupported URL")) {
-      throw new Error("Video platform not supported or URL is invalid.");
-    }
-    if (error.message?.includes("Video unavailable") || error.message?.includes("private")) {
-      throw new Error("Video is unavailable or private.");
-    }
-    if (error.message?.includes("HTTP Error 429")) {
-      throw new Error("Rate limited by video platform. Please try again later.");
-    }
-
-    const errorMessage = error.message || "Unknown error";
-
-    throw new Error(`Failed to download video: ${errorMessage}`);
+    throw asMediaUnavailable(error);
   } finally {
     await auth?.cleanup();
   }
@@ -405,7 +706,9 @@ export async function validateVideoLength(
     const maxTime = `${maxMinutes}:${maxSeconds.toString().padStart(2, "0")}`;
     const actualTime = `${actualMinutes}:${actualSeconds.toString().padStart(2, "0")}`;
 
-    throw new Error(`Video exceeds maximum length of ${maxTime} (actual: ${actualTime})`);
+    throw new MediaUnavailableError(
+      `Video exceeds maximum length of ${maxTime} (actual: ${actualTime})`
+    );
   }
 }
 
@@ -621,22 +924,10 @@ export async function downloadVideo(
     log.info({ filePath, extension, size: stats.size }, "Video downloaded successfully");
 
     return { filePath, extension };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error({ err: error }, "Failed to download video");
 
-    if (error.message?.includes("Unsupported URL")) {
-      throw new Error("Video platform not supported or URL is invalid.");
-    }
-    if (error.message?.includes("Video unavailable") || error.message?.includes("private")) {
-      throw new Error("Video is unavailable or private.");
-    }
-    if (error.message?.includes("HTTP Error 429")) {
-      throw new Error("Rate limited by video platform. Please try again later.");
-    }
-
-    const errorMessage = error.message || "Unknown error";
-
-    throw new Error(`Failed to download video: ${errorMessage}`);
+    throw asMediaUnavailable(error);
   } finally {
     await auth?.cleanup();
   }

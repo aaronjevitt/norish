@@ -39,6 +39,20 @@ vi.mock("@norish/db/repositories/ratings", () => ({
   rateRecipe: mockRateRecipe,
 }));
 
+vi.mock("@norish/db/repositories/favorites", () => ({
+  addFavorite: vi.fn(),
+}));
+
+vi.mock("@norish/db/repositories/cuisines", () => ({
+  listCuisines: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock("@norish/shared-server/media/storage", () => ({
+  saveImageBytes: vi.fn(),
+  saveStepImageBytes: vi.fn(),
+  saveVideoBytes: vi.fn(),
+}));
+
 vi.mock("@norish/shared-server/archive/mela-parser", () => ({
   parseMelaArchive: mockParseMelaArchive,
   parseMelaRecipeToDTO: mockParseMelaRecipeToDTO,
@@ -138,12 +152,15 @@ describe("archive importer overwrite behavior", () => {
     );
     expect(mockCreateRecipeWithRefs).not.toHaveBeenCalled();
     expect(result.imported).toHaveLength(1);
-    expect(result.skipped).toHaveLength(0);
+    expect(result.notes).toHaveLength(0);
   });
 
   it("allocates the archive recipe ID in parser.ts and persists the same ID", async () => {
     mockFindExistingRecipe.mockResolvedValue(null);
-    mockCreateRecipeWithRefs.mockImplementation(async (recipeId) => recipeId);
+    mockCreateRecipeWithRefs.mockImplementation(async (recipeId) => ({
+      status: "inserted",
+      recipeId,
+    }));
     mockDashboardRecipe.mockImplementation(async (recipeId) => ({
       id: recipeId,
       name: "Updated Soup",
@@ -170,7 +187,7 @@ describe("archive importer overwrite behavior", () => {
 
   it("imports Paprika rating when greater than zero", async () => {
     mockFindExistingRecipe.mockResolvedValue(null);
-    mockCreateRecipeWithRefs.mockResolvedValue("new-recipe-id");
+    mockCreateRecipeWithRefs.mockResolvedValue({ status: "inserted", recipeId: "new-recipe-id" });
     mockDashboardRecipe.mockResolvedValue({ id: "new-recipe-id", name: "Paprika Soup" });
     mockExtractPaprikaRecipes.mockResolvedValue([
       {
@@ -194,7 +211,7 @@ describe("archive importer overwrite behavior", () => {
 
   it("does not import Paprika rating when it is zero", async () => {
     mockFindExistingRecipe.mockResolvedValue(null);
-    mockCreateRecipeWithRefs.mockResolvedValue("new-recipe-id");
+    mockCreateRecipeWithRefs.mockResolvedValue({ status: "inserted", recipeId: "new-recipe-id" });
     mockDashboardRecipe.mockResolvedValue({ id: "new-recipe-id", name: "Paprika Soup" });
     mockExtractPaprikaRecipes.mockResolvedValue([
       {

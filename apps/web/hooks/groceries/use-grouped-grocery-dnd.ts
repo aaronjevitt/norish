@@ -11,11 +11,9 @@ import type {
 } from "@dnd-kit/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createMultiContainerCollisionDetection } from "@/components/groceries/dnd/collision-detection";
-import {
-  buildGroupItemsState,
-  containerIdToStoreId,
-  findContainerForGroup,
-} from "@/components/groceries/dnd/utils";
+import { planDrop } from "@/components/groceries/dnd/drop-plan";
+import { buildGroupItemsState, findContainerForGroup } from "@/components/groceries/dnd/utils";
+import { arrayMove } from "@dnd-kit/sortable";
 
 import type { GroceryGroup } from "@norish/shared/lib/grocery-grouping";
 
@@ -43,6 +41,8 @@ export function useGroupedGroceryDnd({
   stores,
   groupedGroceries,
   onReorderGroups,
+  aisleFor,
+  onFileGroceryName,
 }: Omit<DndGroupedGroceryProviderProps, "children">): UseGroupedGroceryDndResult {
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
   const [overContainerId, setOverContainerId] = useState<ContainerId | null>(null);
@@ -73,12 +73,18 @@ export function useGroupedGroceryDnd({
     return map;
   }, [groupedGroceries]);
 
-  // Sync groupItems when groupedGroceries/stores change externally
-  const prevGroupedGroceriesRef = useRef<Map<string | null, GroceryGroup[]>>(groupedGroceries);
+  // Sync groupItems when groupedGroceries/stores change externally. A filing
+  // regroups the list, so a housemate's filing arrives as new groups here.
+  const source = { groupedGroceries, stores };
+  const prevSourceRef = useRef(source);
 
-  // Only rebuild if we're not actively dragging and groupedGroceries changed
-  if (!activeGroupKey && groupedGroceries !== prevGroupedGroceriesRef.current) {
-    prevGroupedGroceriesRef.current = groupedGroceries;
+  // Only rebuild if we're not actively dragging and the source changed
+  if (
+    !activeGroupKey &&
+    (groupedGroceries !== prevSourceRef.current.groupedGroceries ||
+      stores !== prevSourceRef.current.stores)
+  ) {
+    prevSourceRef.current = source;
     const newGroupItems = buildGroupItemsState(groupedGroceries, stores);
     const itemsChanged =
       JSON.stringify(Object.keys(newGroupItems).sort()) !==
@@ -168,24 +174,60 @@ export function useGroupedGroceryDnd({
 
       setOverContainerId(overContainer);
 
-      // Only handle cross-container moves
       if (activeContainer !== overContainer) {
         setGroupItems((prevItems) => {
           const activeItems = prevItems[activeContainer];
           const overItems = prevItems[overContainer];
+          const overIndex = overItems.indexOf(overId as string);
           const activeIndex = activeItems.indexOf(active.id as string);
+          const movingItem = activeItems[activeIndex];
 
-          // Always append to end of target container (no position-based insertion)
+          if (!movingItem) {
+            return prevItems;
+          }
+
+          let newIndex: number;
+
+          if (overId in prevItems) {
+            newIndex = overItems.length;
+          } else {
+            const isBelowOverItem =
+              over &&
+              active.rect.current.translated &&
+              active.rect.current.translated.top > over.rect.top + over.rect.height;
+            const modifier = isBelowOverItem ? 1 : 0;
+
+            newIndex = overIndex >= 0 ? overIndex + modifier : overItems.length;
+          }
+
           recentlyMovedToNewContainer.current = true;
 
           return {
             ...prevItems,
             [activeContainer]: prevItems[activeContainer].filter((key) => key !== active.id),
-            [overContainer]: [...overItems, activeItems[activeIndex]],
+            [overContainer]: [
+              ...overItems.slice(0, newIndex),
+              movingItem,
+              ...overItems.slice(newIndex),
+            ],
           };
         });
+      } else {
+        setGroupItems((prevItems) => {
+          const containerItems = prevItems[activeContainer] ?? [];
+          const activeIndex = containerItems.indexOf(active.id as string);
+          const overIndex = containerItems.indexOf(overId as string);
+
+          if (activeIndex >= 0 && overIndex >= 0 && activeIndex !== overIndex) {
+            return {
+              ...prevItems,
+              [activeContainer]: arrayMove(containerItems, activeIndex, overIndex),
+            };
+          }
+
+          return prevItems;
+        });
       }
-      // Same container: no visual reordering (would be confusing as backend doesn't support it)
     },
     [findContainer]
   );
@@ -217,31 +259,39 @@ export function useGroupedGroceryDnd({
         return;
       }
 
-      if (originalGroupItems) {
-        const originalContainer = findContainerForGroup(active.id as string, originalGroupItems);
-        const wasCrossContainerMove = originalContainer !== currentContainer;
+      // Commit what the drag arranged: the reorder first, then what the drop
+      // teaches the Store — every distinct name in the group, since a group
+      // behaves as the one thing it looks like.
+      const originalContainer = originalGroupItems
+        ? findContainerForGroup(active.id as string, originalGroupItems)
+        : null;
+      const movedGroup = groupMap.get(active.id as string);
 
-        if (wasCrossContainerMove) {
-          const newStoreId = containerIdToStoreId(currentContainer);
-          const movedGroup = groupMap.get(active.id as string);
+      if (originalContainer && movedGroup) {
+        const { updates, filings } = planDrop({
+          items: groupItems,
+          originContainer: originalContainer,
+          targetContainer: currentContainer,
+          stores,
+          aisleFor,
+          movedIds: movedGroup.sources.map((source) => source.grocery.id),
+          movedNames: movedGroup.sources.flatMap((source) =>
+            source.grocery.name ? [source.grocery.name] : []
+          ),
+          idsOf: (groupKey) =>
+            groupMap.get(groupKey)?.sources.map((source) => source.grocery.id) ?? [],
+        });
 
-          if (movedGroup) {
-            const updates = movedGroup.sources.map((source) => ({
-              id: source.grocery.id,
-              sortOrder: source.grocery.sortOrder,
-              storeId: newStoreId ?? null,
-            }));
-
-            onReorderGroups(updates);
-          }
-        }
+        if (updates.length > 0) onReorderGroups(updates);
+        for (const filing of filings)
+          onFileGroceryName(filing.storeId, filing.name, filing.aisleId);
       }
 
       setActiveGroupKey(null);
       setOverContainerId(null);
       clonedGroupItems.current = null;
     },
-    [findContainer, groupMap, onReorderGroups]
+    [findContainer, groupItems, groupMap, stores, aisleFor, onReorderGroups, onFileGroceryName]
   );
 
   const handleDragCancel = useCallback(() => {

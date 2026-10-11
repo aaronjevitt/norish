@@ -1,0 +1,116 @@
+import type { Page } from "@playwright/test";
+import { request } from "@playwright/test";
+import { Client } from "pg";
+
+import type { SessionCookies } from "./fixture";
+import { submitMutation } from "../harness/trpc";
+import { databaseUrl } from "./database";
+
+/**
+ * Ask for a manual enrichment run from the recipe's Actions menu, and do not
+ * return until the request has landed.
+ *
+ * Every kind reaches the server through the same `recipes.requestEnrichment`
+ * mutation, and every caller here navigates immediately afterwards — a reload
+ * inside a polling assertion, or the next scenario. Without the wait that
+ * navigation can abort the request before it is issued, and the run this
+ * scenario asked for simply never happens.
+ */
+export async function requestEnrichment(page: Page, action: string): Promise<void> {
+  await page.getByRole("button", { name: "Actions" }).click();
+  await submitMutation(page, "recipes.requestEnrichment", () =>
+    page.getByRole("menuitem", { name: action }).click()
+  );
+}
+
+export async function setAutomaticEnrichment(
+  switches: Partial<
+    Record<
+      | "autoTagging"
+      | "allergyDetection"
+      | "autoCategorization"
+      | "nutritionEstimation"
+      | "recipeProvenance"
+      | "ingredientLinking"
+      | "imageGeneration",
+      boolean
+    >
+  >
+): Promise<void> {
+  const database = new Client({ connectionString: databaseUrl() });
+
+  await database.connect();
+
+  try {
+    await database.query(
+      `update server_config
+         set value = jsonb_set(value, '{automaticEnrichment}', $1::jsonb, true)
+       where key = 'ai_config'`,
+      [
+        JSON.stringify({
+          autoTagging: false,
+          allergyDetection: false,
+          autoCategorization: false,
+          nutritionEstimation: false,
+          recipeProvenance: false,
+          ingredientLinking: false,
+          imageGeneration: false,
+          ...switches,
+        }),
+      ]
+    );
+  } finally {
+    await database.end();
+  }
+}
+
+export async function readStoredCategories(recipeName: string): Promise<string[]> {
+  const database = new Client({ connectionString: databaseUrl() });
+
+  await database.connect();
+
+  try {
+    const recipe = await database.query<{ categories: string[] }>(
+      "select array_to_json(categories) as categories from recipes where name = $1",
+      [recipeName]
+    );
+    const row = recipe.rows[0];
+
+    if (!row) throw new Error(`Recipe not found: ${recipeName}`);
+
+    return row.categories;
+  } finally {
+    await database.end();
+  }
+}
+
+export async function supplyUserAllergies(
+  baseURL: string,
+  cookies: SessionCookies,
+  allergies: string[]
+): Promise<void> {
+  const api = await request.newContext({
+    baseURL,
+    extraHTTPHeaders: {
+      origin: baseURL,
+      cookie: cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; "),
+    },
+  });
+
+  try {
+    const current = await api.get("/api/trpc/user.getAllergies");
+
+    if (!current.ok()) throw new Error(`getAllergies failed: ${current.status()}`);
+
+    const body = (await current.json()) as {
+      result: { data: { json: { version: number } } };
+    };
+    const response = await api.post("/api/trpc/user.setAllergies", {
+      data: { json: { allergies, version: body.result.data.json.version } },
+    });
+
+    if (!response.ok()) throw new Error(`setAllergies failed: ${response.status()}`);
+  } finally {
+    await api.dispose();
+  }
+}

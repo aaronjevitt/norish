@@ -1,17 +1,21 @@
 "use client";
 
+import type { Key } from "react";
 import { useEffect, useState } from "react";
 import { useCalendarContext } from "@/app/(app)/calendar/context";
-import { Panel, PANEL_HEIGHT_COMPACT } from "@/components/Panel/Panel";
-import { TrashIcon } from "@heroicons/react/16/solid";
-import { Button, DatePicker, Input, Select, SelectItem } from "@heroui/react";
+import { Panel, usePanelPortalContainer } from "@/components/Panel/Panel";
+import {
+  ActionButton,
+  ActionButtonGroup,
+  IconActionButton,
+} from "@/components/shared/action-button";
+import { DatePicker, Input, Label, ListBox, Select, TextField } from "@heroui/react";
 import { parseDate } from "@internationalized/date";
 import { useTranslations } from "next-intl";
 
 import { Slot } from "@norish/shared/contracts";
 
 const SLOTS: Slot[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
-
 type EditNotePanelProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -20,7 +24,6 @@ type EditNotePanelProps = {
   date: string;
   slot: Slot;
 };
-
 export function EditNotePanel({
   open,
   onOpenChange,
@@ -33,11 +36,9 @@ export function EditNotePanel({
   const [title, setTitle] = useState(initialTitle);
   const [selectedDate, setSelectedDate] = useState(parseDate(date));
   const [selectedSlot, setSelectedSlot] = useState<Slot>(slot);
-
   const t = useTranslations("calendar.editNote");
   const tSlots = useTranslations("common.slots");
   const tActions = useTranslations("common.actions");
-
   useEffect(() => {
     if (open) {
       setTitle(initialTitle);
@@ -45,49 +46,46 @@ export function EditNotePanel({
       setSelectedSlot(slot);
     }
   }, [open, initialTitle, date, slot]);
-
   const handleSave = () => {
     if (!title.trim()) return;
-
     const newDateStr = selectedDate.toString();
     const titleChanged = title.trim() !== initialTitle;
     const locationChanged = newDateStr !== date || selectedSlot !== slot;
-
     if (titleChanged) {
       updateItem(noteId, title.trim());
     }
-
     if (locationChanged) {
       moveItem(noteId, newDateStr, selectedSlot, 0);
     }
-
     onOpenChange(false);
   };
-
   const handleDelete = () => {
     deletePlanned(noteId);
     onOpenChange(false);
   };
-
   const handleDuplicate = () => {
     if (!title.trim()) return;
     planNote(selectedDate.toString(), selectedSlot, title.trim());
   };
-
+  const handleSlotChange = (value: Key | null) => {
+    if (value) {
+      setSelectedSlot(value.toString() as Slot);
+    }
+  };
   return (
-    <Panel height={PANEL_HEIGHT_COMPACT} open={open} title={t("title")} onOpenChange={onOpenChange}>
-      <div className="flex flex-col gap-4">
-        <Input
-          label={t("noteLabel")}
-          placeholder={t("notePlaceholder")}
-          value={title}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              handleSave();
-            }
-          }}
-          onValueChange={setTitle}
-        />
+    <Panel open={open} title={t("title")} onOpenChange={onOpenChange}>
+      <Panel.Body>
+        <TextField value={title} onChange={setTitle}>
+          <Label>{t("noteLabel")}</Label>
+          <Input
+            placeholder={t("notePlaceholder")}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleSave();
+              }
+            }}
+          />
+        </TextField>
 
         <div className="flex gap-3">
           <DatePicker
@@ -97,30 +95,61 @@ export function EditNotePanel({
             value={selectedDate}
             onChange={(d) => d && setSelectedDate(d)}
           />
-          <Select
-            className="flex-1"
-            label={t("slot")}
-            selectedKeys={[selectedSlot]}
-            onChange={(e) => setSelectedSlot(e.target.value as Slot)}
-          >
-            {SLOTS.map((s) => (
-              <SelectItem key={s}>{tSlots(s.toLowerCase())}</SelectItem>
-            ))}
-          </Select>
+          <SlotSelect selectedSlot={selectedSlot} onSelectSlot={handleSlotChange} />
         </div>
-
-        <div className="mt-2 flex justify-end gap-2">
-          <Button isIconOnly color="danger" size="sm" variant="light" onPress={handleDelete}>
-            <TrashIcon className="h-4 w-4" />
-          </Button>
-          <Button color="default" size="sm" variant="flat" onPress={handleDuplicate}>
+      </Panel.Body>
+      <Panel.Footer>
+        <ActionButtonGroup>
+          <IconActionButton action="delete" label={tActions("delete")} onPress={handleDelete} />
+          <ActionButton action="duplicate" onPress={handleDuplicate}>
             {tActions("duplicate")}
-          </Button>
-          <Button color="primary" size="sm" onPress={handleSave}>
+          </ActionButton>
+          <ActionButton action="save" onPress={handleSave}>
             {tActions("save")}
-          </Button>
-        </div>
-      </div>
+          </ActionButton>
+        </ActionButtonGroup>
+      </Panel.Footer>
     </Panel>
+  );
+}
+
+/**
+ * Its own component so the portal container is read from inside the Panel — a
+ * hook called in the Panel's parent sees no panel at all.
+ */
+function SlotSelect({
+  selectedSlot,
+  onSelectSlot,
+}: {
+  selectedSlot: Slot;
+  onSelectSlot: (value: Key | null) => void;
+}) {
+  const t = useTranslations("calendar.editNote");
+  const tSlots = useTranslations("common.slots");
+  const portalContainer = usePanelPortalContainer();
+
+  return (
+    <Select
+      className="flex-1"
+      selectedKey={selectedSlot}
+      variant="secondary"
+      onSelectionChange={onSelectSlot}
+    >
+      <Label>{t("slot")}</Label>
+      <Select.Trigger>
+        <Select.Value />
+        <Select.Indicator />
+      </Select.Trigger>
+      <Select.Popover UNSTABLE_portalContainer={portalContainer}>
+        <ListBox>
+          {SLOTS.map((s) => (
+            <ListBox.Item key={s} id={s} textValue={tSlots(s.toLowerCase())}>
+              {tSlots(s.toLowerCase())}
+              <ListBox.ItemIndicator />
+            </ListBox.Item>
+          ))}
+        </ListBox>
+      </Select.Popover>
+    </Select>
   );
 }

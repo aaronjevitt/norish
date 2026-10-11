@@ -1,6 +1,6 @@
 "use client";
 
-import { addToast } from "@heroui/react";
+import { toast } from "@heroui/react";
 
 import { createClientLogger } from "@norish/shared/lib/logger";
 
@@ -16,6 +16,14 @@ type SafeErrorToastOptions = {
   color?: "default" | "primary" | "secondary" | "success" | "warning" | "danger";
 };
 
+function toToastVariant(
+  variant: NonNullable<SafeErrorToastOptions["severity"] | SafeErrorToastOptions["color"]>
+) {
+  if (variant === "primary" || variant === "secondary") return "accent";
+
+  return variant;
+}
+
 export function showSafeErrorToast({
   title,
   description,
@@ -29,12 +37,8 @@ export function showSafeErrorToast({
     log.error({ error, metadata }, context ?? title);
   }
 
-  addToast({
-    title,
+  toast(title, {
     description,
-    severity,
-    ...(color ? { color } : {}),
-    shouldShowTimeoutProgress: true,
-    radius: "full",
+    variant: toToastVariant(color ?? severity),
   });
 }

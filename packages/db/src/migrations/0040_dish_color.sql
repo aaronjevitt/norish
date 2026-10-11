@@ -1,0 +1,1 @@
+ALTER TABLE "recipes" ADD COLUMN "dish_color" text;

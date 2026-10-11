@@ -1,32 +1,27 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  CheckIcon,
-  ChevronDownIcon,
-  EllipsisVerticalIcon,
-  TrashIcon,
-} from "@heroicons/react/16/solid";
-import { Button, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger } from "@heroui/react";
 import { motion } from "motion/react";
 import { useTranslations } from "next-intl";
 
-import type {
-  GroceryDto,
-  RecurringGroceryDto,
-  StoreColor,
-  StoreDto,
-} from "@norish/shared/contracts";
+import type { GroceryDto, RecurringGroceryDto, StoreDto } from "@norish/shared/contracts";
 
+import { AisleHeading } from "./aisle-heading";
 import {
+  aisleContainerId,
+  SortableAisleContainer,
   SortableGroceryItem,
   SortableStoreContainer,
   UNSORTED_CONTAINER,
   useDndGroceryContext,
 } from "./dnd";
-import { DynamicHeroIcon } from "./dynamic-hero-icon";
+import { DoneRow } from "./done-row";
 import { GroceryItem } from "./grocery-item";
-import { getStoreColorClasses } from "./store-colors";
+import { storeColorStyle } from "./store-colors";
+import { StoreHeading } from "./store-heading";
+import { lineOf } from "./store-total";
+import { useAisleBlocks } from "./use-aisle-blocks";
+import { useStoreTotal } from "./use-store-total";
 
 interface StoreSectionProps {
   store: StoreDto | null; // null = Unsorted
@@ -65,7 +60,7 @@ function StoreSectionComponent({
   const t = useTranslations("groceries.store");
 
   // Get DnD context for ordered items and drag state
-  const { activeId: _activeId, getItemsForContainer } = useDndGroceryContext();
+  const { activeId, overContainerId, getItemsForContainer } = useDndGroceryContext();
 
   // Get container ID for this store
   const containerId = store?.id ?? UNSORTED_CONTAINER;
@@ -115,22 +110,11 @@ function StoreSectionComponent({
     },
     [onToggle]
   );
-
-  const colorClasses = store
-    ? getStoreColorClasses(store.color as StoreColor)
-    : {
-        bg: "bg-default-400",
-        bgLight: "bg-default-100",
-        text: "text-default-500",
-        border: "border-default-300",
-        ring: "ring-default-400",
-      };
-
   const activeCount = groceries.filter((g) => !g.isDone).length;
   const doneCount = groceries.filter((g) => g.isDone).length;
-
-  // Get ordered item IDs from DnD context - this updates during drag
-  const orderedItemIds = getItemsForContainer(containerId);
+  // The flat list prices every row as its own purchase.
+  const priceLines = useMemo(() => groceries.map(lineOf), [groceries]);
+  const total = useStoreTotal(priceLines, store?.id ?? null);
 
   // Build a map for quick grocery lookup - uses ALL groceries so we can
   // render items that are dragged from other stores during drag operations
@@ -144,22 +128,24 @@ function StoreSectionComponent({
     return map;
   }, [allGroceries]);
 
-  // Active groceries in DnD-ordered sequence
-  const activeGroceries = useMemo(() => {
-    // Use DnD context order
-    const ordered: GroceryDto[] = [];
+  // Active groceries of one container in DnD-ordered sequence - updates during drag
+  const activeIn = useCallback(
+    (container: string): GroceryDto[] => {
+      const ordered: GroceryDto[] = [];
 
-    for (const id of orderedItemIds) {
-      const grocery = groceryMap.get(id);
+      for (const id of getItemsForContainer(container)) {
+        const grocery = groceryMap.get(id);
 
-      // Only include if it's not done and not transitioning
-      if (grocery && !grocery.isDone && !transitioningIds.has(grocery.id)) {
-        ordered.push(grocery);
+        // Only include if it's not done and not transitioning
+        if (grocery && !grocery.isDone && !transitioningIds.has(grocery.id)) {
+          ordered.push(grocery);
+        }
       }
-    }
 
-    return ordered;
-  }, [orderedItemIds, groceryMap, transitioningIds]);
+      return ordered;
+    },
+    [getItemsForContainer, groceryMap, transitioningIds]
+  );
 
   // Done groceries (including transitioning) - sorted by sortOrder
   const doneGroceries = useMemo(() => {
@@ -168,141 +154,107 @@ function StoreSectionComponent({
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }, [groceries, transitioningIds]);
 
-  // Header element - passed to SortableStoreContainer so it's part of droppable area
+  // The block's shape, read off the drag state (ADR-0031).
+  const {
+    unfiled,
+    blocks,
+    active: activeGroceries,
+  } = useAisleBlocks(containerId, store?.aisles, activeIn);
+  const firstActiveId = activeGroceries[0]?.id;
+  const lastActiveId = doneGroceries.length === 0 ? activeGroceries.at(-1)?.id : undefined;
+  // There is something to show under the heading — a row, the done tail, or an
+  // aisle's heading to drag into — or the card is its heading bar alone.
+  const hasRows =
+    isExpanded && (activeGroceries.length > 0 || doneGroceries.length > 0 || blocks.length > 0);
+  const renderActive = (grocery: GroceryDto) => {
+    const recurringGrocery = grocery.recurringGroceryId
+      ? (recurringGroceries.find((r) => r.id === grocery.recurringGroceryId) ?? null)
+      : null;
+
+    return (
+      <SortableGroceryItem key={grocery.id} grocery={grocery}>
+        <GroceryItem
+          grocery={grocery}
+          isFirst={grocery.id === firstActiveId}
+          isLast={grocery.id === lastActiveId}
+          recipeName={getRecipeNameForGrocery?.(grocery)}
+          recurringGrocery={recurringGrocery}
+          store={store}
+          onDelete={onDelete}
+          onEdit={onEdit}
+          onToggle={handleToggle}
+        />
+      </SortableGroceryItem>
+    );
+  };
+
+  // The heading, handed to the container so a drop on it lands in the Store
   const headerElement = (
-    <div
-      className={`flex w-full items-center gap-3 px-4 py-3 ${colorClasses.bgLight} rounded-t-xl`}
-      data-store-drop-target={store?.id ?? "unsorted"}
-    >
-      <button
-        className="flex min-w-0 flex-1 items-center gap-3 transition-colors hover:opacity-90"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        {/* Icon */}
-        <div className={`shrink-0 rounded-full p-1.5 ${colorClasses.bg}`}>
-          {store ? (
-            <DynamicHeroIcon className="h-4 w-4 text-white" iconName={store.icon} />
-          ) : (
-            <div className="h-4 w-4" />
-          )}
-        </div>
-
-        {/* Name and count */}
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="truncate font-semibold">{store?.name ?? t("unsorted")}</span>
-          <span className="text-default-400 shrink-0 text-sm">
-            {activeCount > 0 && <span>{activeCount}</span>}
-            {doneCount > 0 && (
-              <span className="text-default-300 ml-1">({t("done", { count: doneCount })})</span>
-            )}
-          </span>
-        </div>
-
-        {/* Expand/collapse chevron */}
-        <motion.div
-          animate={{ rotate: isExpanded ? 180 : 0 }}
-          className="text-default-400 shrink-0"
-          transition={{ duration: 0.2 }}
-        >
-          <ChevronDownIcon className="h-5 w-5" />
-        </motion.div>
-      </button>
-
-      {/* Bulk actions dropdown */}
-      {groceries.length > 0 && (
-        <Dropdown>
-          <DropdownTrigger>
-            <Button isIconOnly className="shrink-0" size="sm" variant="light">
-              <EllipsisVerticalIcon className="h-5 w-5" />
-            </Button>
-          </DropdownTrigger>
-          <DropdownMenu aria-label={t("storeActions")}>
-            <DropdownItem
-              key="mark-done"
-              startContent={<CheckIcon className="h-4 w-4" />}
-              onPress={() => onMarkAllDone?.()}
-            >
-              {t("markAllDone")}
-            </DropdownItem>
-            <DropdownItem
-              key="delete-done"
-              className="text-danger"
-              color="danger"
-              startContent={<TrashIcon className="h-4 w-4" />}
-              onPress={() => onDeleteDone?.()}
-            >
-              {t("deleteDone")}
-            </DropdownItem>
-          </DropdownMenu>
-        </Dropdown>
-      )}
-    </div>
+    <StoreHeading
+      actions={groceries.length > 0 ? { onMarkAllDone, onDeleteDone } : undefined}
+      activeCount={activeCount}
+      doneCount={doneCount}
+      dot={store !== null}
+      dropTarget={store?.id ?? "unsorted"}
+      expanded={isExpanded}
+      name={store?.name ?? t("unsorted")}
+      total={total}
+      onExpandedChange={setIsExpanded}
+    />
   );
 
   return (
-    <motion.div ref={sectionRef} className="relative" data-store-id={store?.id ?? "unsorted"}>
-      {/* Entire section wrapped in SortableStoreContainer - header + items are droppable */}
-      <SortableStoreContainer
-        header={headerElement}
-        headerBgClass={colorClasses.bgLight}
-        storeId={store?.id ?? null}
-      >
-        {/* Items area - only shown when expanded */}
-        {isExpanded ? (
-          <div className="divide-default-100 divide-y">
-            {/* Active (not done) items - sortable */}
-            {activeGroceries.map((grocery, index) => {
-              const recurringGrocery = grocery.recurringGroceryId
-                ? (recurringGroceries.find((r) => r.id === grocery.recurringGroceryId) ?? null)
-                : null;
-              const isFirst = index === 0;
-              const isLast = index === activeGroceries.length - 1 && doneGroceries.length === 0;
+    <motion.div
+      ref={sectionRef}
+      className="relative"
+      data-store-id={store?.id ?? "unsorted"}
+      style={storeColorStyle(store?.color ?? null)}
+    >
+      {/* The whole section is the droppable: a drop on the heading lands in the Store */}
+      <SortableStoreContainer header={headerElement} storeId={store?.id ?? null}>
+        {/* The rows, where there is a row, a done tail or an aisle to show; otherwise the heading bar stands alone */}
+        {hasRows ? (
+          <div className="divide-border divide-y">
+            {/* Unfiled rows first, under no heading, so they are noticed and filed */}
+            {unfiled.map(renderActive)}
 
-              return (
-                <SortableGroceryItem key={grocery.id} grocery={grocery}>
-                  <GroceryItem
-                    grocery={grocery}
-                    isFirst={isFirst}
-                    isLast={isLast}
-                    recipeName={getRecipeNameForGrocery?.(grocery)}
-                    recurringGrocery={recurringGrocery}
-                    store={store}
-                    onDelete={onDelete}
-                    onEdit={onEdit}
-                    onToggle={handleToggle}
-                  />
-                </SortableGroceryItem>
-              );
-            })}
+            {/* Every aisle of the Store, in its order, a droppable whether or not anything is filed under it */}
+            {blocks.map(({ aisle, rows }) => (
+              <SortableAisleContainer
+                key={aisle.id}
+                activeId={activeId}
+                aisleId={aisle.id}
+                header={<AisleHeading aisleId={aisle.id} count={rows.length} name={aisle.name} />}
+                itemIds={getItemsForContainer(aisleContainerId(aisle.id))}
+                overContainerId={overContainerId}
+              >
+                {rows.map(renderActive)}
+              </SortableAisleContainer>
+            ))}
 
-            {/* Done items - not sortable, just rendered */}
-            {doneGroceries.map((grocery, index) => {
-              const recurringGrocery = grocery.recurringGroceryId
-                ? (recurringGroceries.find((r) => r.id === grocery.recurringGroceryId) ?? null)
-                : null;
-              const isFirst = index === 0 && activeGroceries.length === 0;
-              const isLast = index === doneGroceries.length - 1;
+            {/* The done tail, folded into one row that opens on tap; not sortable */}
+            {doneGroceries.length > 0 && (
+              <DoneRow count={doneGroceries.length}>
+                {doneGroceries.map((grocery, index) => {
+                  const recurringGrocery = grocery.recurringGroceryId
+                    ? (recurringGroceries.find((r) => r.id === grocery.recurringGroceryId) ?? null)
+                    : null;
 
-              return (
-                <div key={grocery.id}>
-                  <GroceryItem
-                    grocery={grocery}
-                    isFirst={isFirst}
-                    isLast={isLast}
-                    recipeName={getRecipeNameForGrocery?.(grocery)}
-                    recurringGrocery={recurringGrocery}
-                    store={store}
-                    onDelete={onDelete}
-                    onEdit={onEdit}
-                    onToggle={handleToggle}
-                  />
-                </div>
-              );
-            })}
-
-            {/* Empty state - only show when no items AND no items being dragged here */}
-            {activeGroceries.length === 0 && doneGroceries.length === 0 && (
-              <div className="text-default-400 px-4 py-6 text-center text-sm">{t("noItems")}</div>
+                  return (
+                    <GroceryItem
+                      key={grocery.id}
+                      grocery={grocery}
+                      isLast={index === doneGroceries.length - 1}
+                      recipeName={getRecipeNameForGrocery?.(grocery)}
+                      recurringGrocery={recurringGrocery}
+                      store={store}
+                      onDelete={onDelete}
+                      onEdit={onEdit}
+                      onToggle={handleToggle}
+                    />
+                  );
+                })}
+              </DoneRow>
             )}
           </div>
         ) : null}
@@ -310,5 +262,4 @@ function StoreSectionComponent({
     </motion.div>
   );
 }
-
 export const StoreSection = memo(StoreSectionComponent);

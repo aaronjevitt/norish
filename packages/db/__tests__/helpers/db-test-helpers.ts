@@ -12,7 +12,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 
 import type { FullRecipeDTO, MeasurementSystem } from "@norish/shared/contracts";
-import { encrypt, hashToken } from "@norish/auth/crypto";
+import { encrypt, hashToken } from "@norish/config/crypto";
 import { getRecipeFull } from "@norish/db";
 import * as schema from "@norish/db/schema";
 
@@ -75,9 +75,14 @@ export async function cleanDatabase() {
   await db.delete(schema.recipeIngredients);
   await db.delete(schema.recipeTags);
   await db.delete(schema.tags);
+  // The cuisines themselves survive: they are a migration-seeded vocabulary,
+  // not per-test fixture data.
+  await db.delete(schema.recipeCuisines);
   await db.delete(schema.recipeRatings);
   await db.delete(schema.recipeFavorites);
   await db.delete(schema.recipeShares);
+  await db.delete(schema.cookbookRecipes);
+  await db.delete(schema.cookbooks);
   await db.delete(schema.recipes);
   await db.delete(schema.ingredients);
   await db.delete(schema.plannedItems);

@@ -1,12 +1,7 @@
 import { z } from "zod";
 
+import type { SaveCaldavConfigInputDto } from "@norish/shared/contracts";
 import {
-  CaldavConfigSavedEventSchema,
-  CaldavInitialSyncCompleteEventSchema,
-  CaldavItemStatusUpdatedEventSchema,
-  CaldavSyncCompletedEventSchema,
-  CaldavSyncFailedEventSchema,
-  CaldavSyncStartedEventSchema,
   DeleteCaldavConfigInputSchema as SharedDeleteCaldavConfigInputSchema,
   SaveCaldavConfigInputSchema as SharedSaveCaldavConfigInputSchema,
 } from "@norish/shared/contracts/zod";
@@ -14,16 +9,24 @@ import {
 export type CaldavItemType = "recipe" | "note";
 export type CaldavSyncStatus = "pending" | "synced" | "failed" | "removed";
 
-export type CaldavSubscriptionEvents = {
-  configSaved: z.infer<typeof CaldavConfigSavedEventSchema>;
-  syncStarted: z.infer<typeof CaldavSyncStartedEventSchema>;
-  syncCompleted: z.infer<typeof CaldavSyncCompletedEventSchema>;
-  syncFailed: z.infer<typeof CaldavSyncFailedEventSchema>;
-  itemStatusUpdated: z.infer<typeof CaldavItemStatusUpdatedEventSchema>;
-  initialSyncComplete: z.infer<typeof CaldavInitialSyncCompleteEventSchema>;
+type SaveCaldavConfigInputValue = Omit<SaveCaldavConfigInputDto, "password"> & {
+  password?: string;
 };
 
-export const SaveCaldavConfigInputSchema = SharedSaveCaldavConfigInputSchema.extend({
+type DeleteCaldavConfigInputValue = {
+  version?: number;
+  deleteEvents?: boolean;
+};
+
+type DeleteCaldavConfigOutputValue = {
+  version?: number;
+  deleteEvents: boolean;
+};
+
+export const SaveCaldavConfigInputSchema: z.ZodType<
+  SaveCaldavConfigInputValue,
+  SaveCaldavConfigInputValue
+> = SharedSaveCaldavConfigInputSchema.extend({
   password: z.string().optional(),
 });
 
@@ -33,7 +36,10 @@ export const TestCaldavConnectionInputSchema = z.object({
   password: z.string().min(1),
 });
 
-export const DeleteCaldavConfigInputSchema = SharedDeleteCaldavConfigInputSchema;
+export const DeleteCaldavConfigInputSchema: z.ZodType<
+  DeleteCaldavConfigOutputValue,
+  DeleteCaldavConfigInputValue
+> = SharedDeleteCaldavConfigInputSchema;
 
 export const GetSyncStatusInputSchema = z.object({
   page: z.number().int().min(1).default(1),

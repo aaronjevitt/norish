@@ -1,89 +1,41 @@
 "use client";
 
-import type { RecipeMap } from "@/hooks/groceries";
+import type { GroceryGroupSimilar, GroceryViewMode } from "@/lib/grocery-preferences";
 import { createContext, ReactNode, useCallback, useContext, useMemo, useState } from "react";
+import { useDevicePreferenceState } from "@/context/device-preference-context";
 import {
   useGroceriesMutations,
   useGroceriesQuery,
   useGroceriesSubscription,
 } from "@/hooks/groceries";
-import { useLocalStorage } from "@/hooks/use-local-storage";
+import {
+  groceryGroupSimilarPreference,
+  groceryViewModePreference,
+} from "@/lib/grocery-preferences";
 
-import type { GroceryDto, RecurringGroceryDto } from "@norish/shared/contracts";
-import type { RecurrencePattern } from "@norish/shared/contracts/recurrence";
-
-// =============================================================================
-// View Mode Types
-// =============================================================================
-
-export type GroceryViewMode = "store" | "recipe";
-
-const GROCERY_VIEW_MODE_KEY = "norish:grocery-view-mode";
-const GROCERY_GROUP_SIMILAR_KEY = "norish:grocery-group-similar";
-
-// Validation function defined outside component to prevent re-renders
-function validateViewMode(data: unknown): GroceryViewMode | null {
-  return data === "store" || data === "recipe" ? data : null;
-}
-
-// Validation function for group similar toggle
-function validateGroupSimilar(data: unknown): boolean | null {
-  return typeof data === "boolean" ? data : null;
-}
+import type { GroceryDto } from "@norish/shared/contracts";
+import { createGroceriesContext } from "@norish/shared-react/contexts";
 
 // =============================================================================
-// Data Context
+// Shared Data Context (from factory)
 // =============================================================================
 
-type DataCtx = {
-  groceries: GroceryDto[];
-  recurringGroceries: RecurringGroceryDto[];
-  doneGroceries: GroceryDto[];
-  pendingGroceries: GroceryDto[];
-  isLoading: boolean;
-  recipeMap: RecipeMap;
+const sharedGroceriesContext = createGroceriesContext({
+  useGroceriesQuery,
+  useGroceriesMutations,
+  useGroceriesSubscription,
+});
 
-  // Recipe info helper
-  getRecipeNameForGrocery: (grocery: GroceryDto) => string | null;
+export const GroceriesProvider = sharedGroceriesContext.GroceriesProvider;
+export const useGroceriesContext = sharedGroceriesContext.useGroceriesContext;
 
-  // Grocery Actions
-  createGrocery: (raw: string, storeId?: string | null) => void;
-  createRecurringGrocery: (
-    raw: string,
-    pattern: RecurrencePattern,
-    storeId?: string | null
-  ) => void;
-  toggleGroceries: (ids: string[], isDone: boolean) => void;
-  toggleRecurringGrocery: (recurringGroceryId: string, groceryId: string, isDone: boolean) => void;
-  updateGrocery: (id: string, updatedText: string) => void;
-  updateRecurringGrocery: (
-    recurringGroceryId: string,
-    groceryId: string,
-    raw: string,
-    pattern: RecurrencePattern | null
-  ) => void;
-  deleteGroceries: (ids: string[]) => void;
-  deleteRecurringGrocery: (recurringGroceryId: string) => void;
-  getRecurringGroceryForGrocery: (groceryId: string) => RecurringGroceryDto | null;
-  assignGroceryToStore: (
-    groceryId: string,
-    storeId: string | null,
-    savePreference?: boolean
-  ) => void;
-  reorderGroceriesInStore: (
-    updates: { id: string; sortOrder: number; storeId?: string | null }[]
-  ) => void;
-  markAllDoneInStore: (storeId: string | null) => void;
-  deleteDoneInStore: (storeId: string | null) => void;
-};
-
-const GroceriesContext = createContext<DataCtx | null>(null);
+export type { GroceryViewMode } from "@/lib/grocery-preferences";
 
 // =============================================================================
-// UI Context
+// Web-only UI Context
 // =============================================================================
 
-type UICtx = {
+type GroceriesUiContextValue = {
   recurrencePanelOpen: boolean;
   recurrencePanelGroceryId: string | null;
   openRecurrencePanel: (groceryId: string) => void;
@@ -100,39 +52,44 @@ type UICtx = {
   setGroupSimilarIngredients: (enabled: boolean) => void;
 };
 
-const GroceriesUIContext = createContext<UICtx | null>(null);
+const GroceriesUiCtx = createContext<GroceriesUiContextValue | null>(null);
 
-// =============================================================================
-// Provider
-// =============================================================================
+type GroceriesUiProviderProps = {
+  children: ReactNode;
+  /** The cookies as the server read them; absent on the offline bootstrap. */
+  initialViewMode?: GroceryViewMode;
+  initialGroupSimilar?: GroceryGroupSimilar;
+};
 
-export function GroceriesContextProvider({ children }: { children: ReactNode }) {
-  // Data hooks
-  const { groceries, recurringGroceries, recipeMap, isLoading, getRecipeNameForGrocery } =
-    useGroceriesQuery();
-  const groceryMutations = useGroceriesMutations();
-
-  // Subscribe to WebSocket events (updates query cache via internal cache helpers)
-  useGroceriesSubscription();
-
+function GroceriesUiProvider({
+  children,
+  initialViewMode,
+  initialGroupSimilar,
+}: GroceriesUiProviderProps) {
   // UI State
   const [recurrencePanelOpen, setRecurrencePanelOpen] = useState(false);
   const [recurrencePanelGroceryId, setRecurrencePanelGroceryId] = useState<string | null>(null);
   const [addGroceryPanelOpen, setAddGroceryPanelOpen] = useState(false);
   const [editingGrocery, setEditingGrocery] = useState<GroceryDto | null>(null);
 
-  // View mode with localStorage persistence
-  const [viewMode, setViewMode] = useLocalStorage<GroceryViewMode>(
-    GROCERY_VIEW_MODE_KEY,
-    "store",
-    validateViewMode
+  // Both device preferences ride cookies so the server renders the page the
+  // way the reader left it; the shared state covers the seeded, self-read
+  // and stale-HTML reconcile paths.
+  const [viewMode, setViewMode] = useDevicePreferenceState(
+    groceryViewModePreference,
+    initialViewMode
   );
 
-  // Group similar ingredients toggle (only for store view)
-  const [groupSimilarIngredients, setGroupSimilarIngredients] = useLocalStorage<boolean>(
-    GROCERY_GROUP_SIMILAR_KEY,
-    true,
-    validateGroupSimilar
+  const [groupSimilarValue, setGroupSimilarValue] = useDevicePreferenceState(
+    groceryGroupSimilarPreference,
+    initialGroupSimilar
+  );
+
+  const groupSimilarIngredients = groupSimilarValue === "true";
+
+  const setGroupSimilarIngredients = useCallback(
+    (enabled: boolean) => setGroupSimilarValue(enabled ? "true" : "false"),
+    [setGroupSimilarValue]
   );
 
   const openRecurrencePanel = useCallback((groceryId: string) => {
@@ -145,55 +102,8 @@ export function GroceriesContextProvider({ children }: { children: ReactNode }) 
     setRecurrencePanelGroceryId(null);
   }, []);
 
-  // Computed: split groceries into done and pending
-  const doneGroceries = useMemo(
-    () => groceries.filter((g) => g.isDone && !g.recurringGroceryId),
-    [groceries]
-  );
-
-  const pendingGroceries = useMemo(() => {
-    const unchecked = groceries.filter((g) => !g.isDone);
-    const checkedRecurring = groceries.filter((g) => g.isDone && g.recurringGroceryId);
-
-    // Sort checked recurring by nextPlannedFor date
-    const sortedChecked = [...checkedRecurring].sort((a, b) => {
-      const recurringA = recurringGroceries.find((r) => r.id === a.recurringGroceryId);
-      const recurringB = recurringGroceries.find((r) => r.id === b.recurringGroceryId);
-
-      if (!recurringA || !recurringB) return 0;
-
-      return recurringA.nextPlannedFor.localeCompare(recurringB.nextPlannedFor);
-    });
-
-    return [...unchecked, ...sortedChecked];
-  }, [groceries, recurringGroceries]);
-
-  // Data context value
-  const dataValue = useMemo<DataCtx>(
-    () => ({
-      groceries,
-      recurringGroceries,
-      doneGroceries,
-      pendingGroceries,
-      isLoading,
-      recipeMap,
-      getRecipeNameForGrocery,
-      ...groceryMutations,
-    }),
-    [
-      groceries,
-      recurringGroceries,
-      doneGroceries,
-      pendingGroceries,
-      isLoading,
-      recipeMap,
-      getRecipeNameForGrocery,
-      groceryMutations,
-    ]
-  );
-
   // UI context value
-  const uiValue = useMemo<UICtx>(
+  const uiValue = useMemo<GroceriesUiContextValue>(
     () => ({
       recurrencePanelOpen,
       recurrencePanelGroceryId,
@@ -215,6 +125,7 @@ export function GroceriesContextProvider({ children }: { children: ReactNode }) 
       closeRecurrencePanel,
       addGroceryPanelOpen,
       editingGrocery,
+      setEditingGrocery,
       viewMode,
       setViewMode,
       groupSimilarIngredients,
@@ -222,29 +133,34 @@ export function GroceriesContextProvider({ children }: { children: ReactNode }) 
     ]
   );
 
+  return <GroceriesUiCtx.Provider value={uiValue}>{children}</GroceriesUiCtx.Provider>;
+}
+
+export function useGroceriesUiContext() {
+  const ctx = useContext(GroceriesUiCtx);
+
+  if (!ctx) throw new Error("useGroceriesUiContext must be used within GroceriesContextProvider");
+
+  return ctx;
+}
+
+// =============================================================================
+// Combined Provider
+// =============================================================================
+
+export function GroceriesContextProvider({
+  children,
+  initialViewMode,
+  initialGroupSimilar,
+}: GroceriesUiProviderProps) {
   return (
-    <GroceriesContext.Provider value={dataValue}>
-      <GroceriesUIContext.Provider value={uiValue}>{children}</GroceriesUIContext.Provider>
-    </GroceriesContext.Provider>
+    <GroceriesProvider>
+      <GroceriesUiProvider
+        initialGroupSimilar={initialGroupSimilar}
+        initialViewMode={initialViewMode}
+      >
+        {children}
+      </GroceriesUiProvider>
+    </GroceriesProvider>
   );
-}
-
-// =============================================================================
-// Hooks
-// =============================================================================
-
-export function useGroceriesContext() {
-  const ctx = useContext(GroceriesContext);
-
-  if (!ctx) throw new Error("useGroceriesContext must be used within GroceriesContextProvider");
-
-  return ctx;
-}
-
-export function useGroceriesUIContext() {
-  const ctx = useContext(GroceriesUIContext);
-
-  if (!ctx) throw new Error("useGroceriesUIContext must be used within GroceriesContextProvider");
-
-  return ctx;
 }

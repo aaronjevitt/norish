@@ -1,8 +1,10 @@
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-zod";
 import { z } from "zod";
 
-import { measurementSystemEnum, recipes } from "@norish/db/schema";
+import { measurementSystemEnum, recipes } from "@norish/db-schema/schema";
 
+import { primaryRecipeImage } from "../../lib/recipe-media";
+import { CuisineSummarySchema } from "./cuisine";
 import { RecipeImagesArraySchema, RecipeImageSchema } from "./recipe-images";
 import {
   RecipeIngredientInputBaseSchema,
@@ -40,6 +42,16 @@ export const RecipeDashboardSchema = RecipeSelectBaseSchema.omit({
   fat: true,
   carbs: true,
   protein: true,
+  // The dashboard carries the origin country code, and only that: it flies
+  // the flag beside each recipe's name. The written name, the region, and
+  // the note have nothing to show at that size, so they stay behind the
+  // full recipe.
+  originCountryName: true,
+  originRegion: true,
+  provenanceNote: true,
+  // The Dish Colour tints recipe pages only (ADR-0023); the library never
+  // tints, so the dashboard has no use for it.
+  dishColor: true,
 }).extend({
   tags: z.array(TagSummarySchema).default([]),
   categories: z.array(recipeCategorySchema).default([]),
@@ -48,10 +60,54 @@ export const RecipeDashboardSchema = RecipeSelectBaseSchema.omit({
   ratingCount: z.number().optional(),
 });
 
+/**
+ * Every key the dashboard projection carries, straight from the schema. The
+ * realtime echo merge and the dashboard card's memo comparator both walk this
+ * list, so a field added to RecipeDashboardSchema reaches cached lists and
+ * re-renders automatically — the hand-copied allowlists this replaces drifted
+ * (originCountry never made it in).
+ */
+export const RECIPE_DASHBOARD_KEYS = Object.keys(RecipeDashboardSchema.shape) as ReadonlyArray<
+  keyof z.output<typeof RecipeDashboardSchema>
+>;
+
+/**
+ * Patch a cached dashboard recipe from a full-recipe realtime echo. Only keys
+ * the echo actually carries are copied: the full recipe does not compute the
+ * dashboard-only aggregates (averageRating, ratingCount), and overwriting
+ * them with undefined would wipe live values off the cards.
+ *
+ * The dashboard's `image` is the resolved primary (gallery first, legacy
+ * scalar as fallback), so it is derived rather than copied — a raw scalar
+ * copy would blank a gallery-only recipe's thumbnail on every echo.
+ */
+export function patchDashboardRecipeFromFull(
+  dashboardRecipe: z.output<typeof RecipeDashboardSchema>,
+  fullRecipe: z.output<typeof FullRecipeSchema>
+): z.output<typeof RecipeDashboardSchema> {
+  const patched: Record<string, unknown> = { ...dashboardRecipe };
+  const echo = fullRecipe as Record<string, unknown>;
+
+  for (const key of RECIPE_DASHBOARD_KEYS) {
+    if (key in echo) {
+      patched[key] = echo[key];
+    }
+  }
+
+  if ("image" in echo || "images" in echo) {
+    patched.image = primaryRecipeImage(fullRecipe);
+  }
+
+  return patched as z.output<typeof RecipeDashboardSchema>;
+}
+
 export const FullRecipeSchema = RecipeSelectBaseSchema.extend({
   recipeIngredients: z.array(RecipeIngredientsWithIdSchema),
   steps: z.array(StepOutputSchema).default([]),
   tags: z.array(TagSummarySchema).default([]),
+  // Recipe Provenance travels with the recipe, which is why an Offline reader
+  // sees exactly what a Live one does and no separate warming is needed.
+  cuisines: z.array(CuisineSummarySchema).default([]),
   categories: z.array(recipeCategorySchema).default([]),
   author: AuthorSchema,
   images: RecipeImagesArraySchema.default([]),
@@ -62,6 +118,9 @@ export const FullRecipeInsertSchema = RecipeInsertBaseSchema.extend({
   id: z.uuid().optional(),
   recipeIngredients: z.array(RecipeIngredientInputSchema).default([]),
   tags: z.array(TagNameSchema).default([]),
+  // Vocabulary row ids, as the recipe form sends them. Names would reintroduce
+  // the create-on-write behaviour the vocabulary exists to prevent.
+  cuisines: z.array(z.uuid()).default([]),
   categories: z.array(recipeCategorySchema).default([]),
   steps: z.array(StepStepSchema).default([]),
   images: z.array(RecipeImageSchema).max(10).default([]),
@@ -71,6 +130,9 @@ export const FullRecipeInsertSchema = RecipeInsertBaseSchema.extend({
 export const FullRecipeUpdateSchema = RecipeUpdateBaseSchema.extend({
   recipeIngredients: z.array(RecipeIngredientInputBaseSchema.partial()).optional(),
   tags: z.array(TagNameSchema).optional(),
+  // Cuisines are picked from the vocabulary rather than typed, so an editor
+  // sends ids. Passing an empty array clears them; omitting leaves them alone.
+  cuisines: z.array(z.uuid()).optional(),
   steps: z.array(StepStepSchema).optional(),
   images: z.array(RecipeImageSchema).max(10).optional(),
   videos: z.array(RecipeVideoSchema).optional(),
@@ -162,6 +224,14 @@ export const RecipeImageImportInputSchema = z.object({
   files: z.array(OcrImportFileSchema).min(1).max(10),
 });
 
+/**
+ * The outcome of asking to import a URL.
+ *
+ * A URL you already hold is not a failure — it is the answer "you have this
+ * one already", and `exists` carries the recipe's own id, so the caller can
+ * offer to open it rather than report a conflict. `queued` carries the id the
+ * job it just enqueued will fill in.
+ */
 export const RecipeImportResultSchema = z.object({
   recipeId: z.uuid(),
   status: z.enum(["queued", "exists"]),

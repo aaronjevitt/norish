@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import SecretInput from "@/components/shared/secret-input";
 import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
-import { Input, useDisclosure } from "@heroui/react";
+import { Input, Label, TextField, useOverlayState } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import type { ServerConfigKey } from "@norish/config/zod/server-config";
@@ -59,7 +59,7 @@ export function AuthProviderForm({
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [saving, setSaving] = useState(false);
-  const deleteModal = useDisclosure();
+  const deleteModal = useOverlayState();
 
   const hasChanges = useMemo(
     () =>
@@ -111,6 +111,17 @@ export function AuthProviderForm({
           saveValues as Parameters<typeof updateAuthProviderGoogle>[0]
         );
       }
+      // Saved secrets live on the server, not in the form: a secret left in
+      // state reads as an unsaved change on every later render.
+      setValues((prev) => {
+        const cleared = { ...prev };
+
+        for (const field of fields) {
+          if (field.secret) cleared[field.key] = "";
+        }
+
+        return cleared;
+      });
     } finally {
       setSaving(false);
     }
@@ -120,7 +131,7 @@ export function AuthProviderForm({
     const result = await deleteAuthProvider(providerKey);
 
     if (!result.success) {
-      deleteModal.onClose();
+      deleteModal.close();
       showSafeErrorToast({
         title: tErrors("operationFailed"),
         description: tErrors("technicalDetails"),
@@ -131,7 +142,7 @@ export function AuthProviderForm({
       return;
     }
 
-    deleteModal.onClose();
+    deleteModal.close();
     setValues(
       fields.reduce(
         (acc, f) => {
@@ -158,13 +169,14 @@ export function AuthProviderForm({
             onValueChange={(v) => setValues((prev) => ({ ...prev, [field.key]: v }))}
           />
         ) : (
-          <Input
+          <TextField
             key={field.key}
-            label={field.label}
-            placeholder={field.placeholder}
             value={values[field.key] ?? ""}
-            onValueChange={(v) => setValues((prev) => ({ ...prev, [field.key]: v }))}
-          />
+            onChange={(value) => setValues((prev) => ({ ...prev, [field.key]: value }))}
+          >
+            <Label>{field.label}</Label>
+            <Input variant="secondary" placeholder={field.placeholder} />
+          </TextField>
         )
       )}
 
@@ -175,7 +187,7 @@ export function AuthProviderForm({
         hasConfig={!!config}
         saving={saving}
         testing={testing}
-        onDeleteClick={deleteModal.onOpen}
+        onDeleteClick={deleteModal.open}
         onSave={handleSave}
         onTest={handleTest}
       />
@@ -183,7 +195,7 @@ export function AuthProviderForm({
       <DeleteProviderModal
         isOpen={deleteModal.isOpen}
         providerName={providerName}
-        onClose={deleteModal.onClose}
+        onClose={deleteModal.close}
         onConfirm={handleDelete}
       />
     </div>

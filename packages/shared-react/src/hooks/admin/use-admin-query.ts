@@ -30,19 +30,6 @@ export function createUseAdminQuery({ useTRPC }: CreateAdminHooksOptions) {
     };
   }
 
-  function useUserRoleQuery() {
-    const trpc = useTRPC();
-    const { data, error, isLoading } = useQuery(trpc.admin.getUserRole.queryOptions());
-
-    return {
-      isOwner: data?.isOwner ?? false,
-      isAdmin: data?.isAdmin ?? false,
-      isServerAdmin: (data?.isOwner || data?.isAdmin) ?? false,
-      error,
-      isLoading,
-    };
-  }
-
   function useAvailableModelsQuery(options: {
     provider: AIConfig["provider"];
     endpoint?: string;
@@ -65,6 +52,8 @@ export function createUseAdminQuery({ useTRPC }: CreateAdminHooksOptions) {
 
     return {
       models: data?.models ?? [],
+      // Why the provider gave nothing back, when it was asked and declined.
+      refusal: data?.refusal,
       error,
       isLoading,
     };
@@ -92,6 +81,31 @@ export function createUseAdminQuery({ useTRPC }: CreateAdminHooksOptions) {
 
     return {
       models: data?.models ?? [],
+      refusal: data?.refusal,
+      error,
+      isLoading,
+    };
+  }
+
+  /**
+   * The yt-dlp release the server is actually running.
+   *
+   * A report, not a setting: it is asked of the binary, and `null` means there
+   * is no binary to ask. Only fetched while the video screen is usable.
+   */
+  function useYtDlpVersionQuery(options: { enabled?: boolean } = {}) {
+    const trpc = useTRPC();
+    const { enabled = true } = options;
+
+    const { data, error, isLoading } = useQuery({
+      ...trpc.admin.getYtDlpVersion.queryOptions(),
+      enabled,
+      staleTime: 60000,
+      retry: false,
+    });
+
+    return {
+      version: data?.version ?? null,
       error,
       isLoading,
     };
@@ -99,8 +113,8 @@ export function createUseAdminQuery({ useTRPC }: CreateAdminHooksOptions) {
 
   return {
     useAdminConfigsQuery,
-    useUserRoleQuery,
     useAvailableModelsQuery,
     useAvailableTranscriptionModelsQuery,
+    useYtDlpVersionQuery,
   };
 }

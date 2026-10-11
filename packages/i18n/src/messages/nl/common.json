@@ -12,6 +12,8 @@
     "apply": "Toepassen",
     "reset": "Resetten",
     "clear": "Wissen",
+    "selectAll": "Alles selecteren",
+    "deselectAll": "Niets selecteren",
     "confirm": "Bevestigen",
     "back": "Terug",
     "next": "Volgende",
@@ -28,11 +30,12 @@
     "test": "Test",
     "format": "Formatteren",
     "restoreDefaults": "Resetten",
-    "saveChanges": "Wijzigingen opslaan",
-    "revealSecret": "Geheim tonen",
-    "hideSecret": "Geheim verbergen",
-    "enterNewValue": "Nieuwe waarde invoeren",
-    "cancelEditing": "Bewerking annuleren"
+    "saveChanges": "Wijzigingen opslaan"
+  },
+  "secret": {
+    "reveal": "Geheim tonen",
+    "hide": "Geheim verbergen",
+    "keepsCurrent": "Laat leeg om de opgeslagen waarde te behouden."
   },
   "status": {
     "loading": "Laden...",
@@ -46,6 +49,7 @@
   "filters": {
     "title": "Filters",
     "search": "Zoeken",
+    "searchIn": "Zoeken in",
     "sort": "Sorteren",
     "mode": "Modus",
     "modeAll": "Alles",
@@ -92,19 +96,21 @@
   },
   "connection": {
     "connecting": "Verbinden met Norish...",
-    "syncing": "Synchroniseren, even geduld...",
     "checkInternet": "Controleer uw internetverbinding",
-    "gettingUpdates": "Even geduld terwijl we de laatste updates ophalen",
     "offlineBanner": "Je bent offline, opgeslagen gegevens worden getoond",
-    "serverUnreachableBanner": "Kan de Norish-server niet bereiken, opgeslagen gegevens worden getoond"
+    "serverUnreachableBanner": "Kan de Norish-server niet bereiken, opgeslagen gegevens worden getoond",
+    "live": "Verbonden",
+    "offline": "Offline",
+    "openDetails": "Connection details"
   },
   "language": {
     "title": "Taal"
   },
   "notFound": {
     "code": "404",
-    "title": "Pagina niet gevonden",
-    "message": "Oeps! Nora kon niet vinden wat je zocht.\nDe pagina is mogelijk verplaatst of bestaat niet."
+    "title": "Nora is in de war.",
+    "message": "Ze snuffelt rond om te vinden waar je naartoe wilde.",
+    "imageAlt": "Nora kijkt verward"
   },
   "import": {
     "url": {
@@ -113,6 +119,9 @@
       "placeholder": "https://example.com/your-recipe",
       "failed": "Importeren van recept mislukt",
       "failedWithAI": "Importeren van recept met AI mislukt"
+    },
+    "clipboard": {
+      "title": "Recept importeren van de link die je hebt gekopieerd?"
     },
     "paste": {
       "title": "Importeren vanuit klembord",
@@ -155,6 +164,7 @@
     "heading": "Begin een regel met <strong>#</strong> voor een kop",
     "bold": "Gebruik <strong>**dubbele sterretjes**</strong> voor bold tekst",
     "recipeLink": "Typ <strong>/receptnaam</strong> om naar een ander recept te linken",
+    "ingredientMention": "Typ <strong>@</strong> om een ingrediënt aan de stap te koppelen — het woord komt in je zin, de koppeling wordt een chip eronder",
     "helpAriaLabel": "Formateringshulp"
   },
   "tagInput": {
@@ -213,5 +223,74 @@
     "notification_body": "{label} is klaar!",
     "notifications_disabled": "Meldingen zijn uitgeschakeld",
     "notifications_disabled_hint": "Schakel meldingen in via je browserinstellingen om waarschuwingen te ontvangen wanneer timers op de achtergrond aflopen."
+  },
+  "offlineStatus": {
+    "title": "Connection & offline",
+    "connection": {
+      "heading": "Connection",
+      "live": "Live",
+      "offline": "Offline",
+      "forced": "Offline (forced)",
+      "liveDescription": "Connected to Norish. Changes sync as you make them.",
+      "offlineDescription": "Can't reach Norish. Showing cached data; changes are queued and sync when you're back.",
+      "forcedDescription": "Offline is forced for development. The backend is reachable but every request is blocked.",
+      "devBadge": "dev"
+    },
+    "cache": {
+      "heading": "Offline cache",
+      "recipes": "Recipes",
+      "cookbooks": "Kookboeken",
+      "groceries": "Groceries",
+      "stores": "Stores",
+      "planned": "This week",
+      "dataAge": "Data from {when}",
+      "dataAgeUnknown": "Not warmed yet",
+      "wipe": "Clear cached data",
+      "wipeConfirmBody": "Remove the offline copy of your recipes, groceries, stores and plan? Your queued changes are kept.",
+      "wipeConfirmOfflineBody": "You're offline — clearing now leaves nothing to show until you reconnect. Your queued changes are kept.",
+      "wipeConfirm": "Clear",
+      "wipeCancel": "Keep"
+    },
+    "outbox": {
+      "heading": "Queued changes",
+      "empty": "Nothing queued — everything's synced.",
+      "pending": "{count, plural, =0 {No changes waiting} one {# change waiting} other {# changes waiting}}",
+      "syncing": "{count, plural, =0 {Syncing} one {Syncing # change} other {Syncing # changes}}",
+      "syncNow": "Sync now",
+      "retryAll": "Retry all",
+      "discardAll": "Discard all",
+      "discardConfirmBody": "{count, plural, one {Permanently discard # queued change? It won't be sent.} other {Permanently discard # queued changes? They won't be sent.}}",
+      "discardConfirm": "Discard",
+      "discardCancel": "Keep",
+      "status": {
+        "pending": "Syncing",
+        "parked": "Needs attention",
+        "conflicted": "Conflict"
+      }
+    },
+    "devToggle": {
+      "heading": "Developer",
+      "force": "Force offline",
+      "description": "Blocks the backend transport to exercise the offline runtime. Dev builds only.",
+      "on": "On",
+      "off": "Off"
+    }
+  },
+  "offlineFallback": {
+    "title": "Nora is ook offline.",
+    "body": "Deze pagina is niet offline opgeslagen — onlangs bezochte pagina's zijn er nog wel.",
+    "backOnlineTitle": "Nora heeft de verbinding gevonden!",
+    "backOnlineBody": "Norish is weer bereikbaar — probeer deze pagina opnieuw te laden.",
+    "retry": "Opnieuw proberen",
+    "home": "Norish openen"
+  },
+  "queuedOffline": {
+    "title": "Je bent offline",
+    "description": "In de wachtrij gezet — Norish maakt dit automatisch af zodra je weer online bent."
+  },
+  "storageUnavailable": {
+    "title": "Kan niet starten",
+    "description": "Norish kon de beveiligde opslag niet lezen en weet daardoor niet bij welke server deze app hoort. Er is niets gewijzigd. Probeer het opnieuw of herstart de app.",
+    "detailsLabel": "Technische details"
   }
 }

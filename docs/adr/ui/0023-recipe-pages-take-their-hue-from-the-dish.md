@@ -1,0 +1,19 @@
+# Recipe pages take their hue from the dish
+
+A recipe page is mostly a photograph of food and a stack of neutral cards, and the neutral cards win: every recipe looks like every other recipe. **A recipe now colours its own page from its primary image — but only its hue.** One Dish Colour is extracted server-side with `sharp` when the image is stored and kept on the recipe; at render time the page container scopes a handful of CSS variables so the page background and card surfaces take that hue at a clamped saturation, while lightness comes from the reader's theme exactly as before and borders, text and the accent do not move at all. A recipe therefore decides what colour its page is and never decides how readable it is: contrast is unchanged by construction in both themes, which is what makes this safe to do on every recipe rather than on a curated few.
+
+This is **not** a reversal of ADR-0020. That decision removed translucency — `backdrop-blur` and see-through fills — on the grounds that Norish draws real opaque objects from its token set. A tinted surface is still a real opaque object; only the token's hue changed. Nothing here composites, blurs, or lets the photograph show through anything.
+
+## Considered Options
+
+- **Extracting in the browser on render** (canvas-sampling the loaded hero). No migration and nothing new stored, but the page repaints its entire background a beat after load, it costs CPU on every open of every recipe, and it yields nothing until the image has arrived — which on a cold Offline launch is never. Rejected: the cheapest read is one already-computed column.
+- **Using the extracted colour directly**, choosing text colour by luminance, as the app this was modelled on does. Faithful to the reference, and it turns every recipe into its own contrast experiment while making light and dark themes mean progressively less. Rejected: we are not willing to ship a page whose readability depends on how dark the photographer's tablecloth was.
+- **Tinting the page but leaving cards neutral.** Safe, smaller, and it keeps the cards popping — but the enveloping warmth is most of the effect, and half-applying it reads as a bug rather than as restraint.
+
+## Consequences
+
+- One theme-owned exception to "lightness comes from the reader's theme exactly as before": the light theme's card surface is pure white, and at lightness 1 no chroma survives sRGB gamut mapping — a white card literally cannot take a hue. The tinted rendering therefore caps that one token's lightness at 0.98, a ceiling the theme defines once and the dish never influences. Every other lightness passes through untouched, and the safety argument stands: the recipe still only ever contributes hue and clamped saturation.
+- Existing recipes need a backfill; until it runs, and forever for recipes with no image, `dishColor` is absent and the page renders on the plain theme background. Theme colours are the defined fallback rather than a degraded state, and it is the same rendering a reader gets by declining the tint — so there is one untinted recipe page in the product, reached three ways, and it must be built once.
+- The colour is derived from the image, not supplied with the recipe, so it is not Supplied Recipe Data and does not travel in a Recipe Archive. A receiving instance extracts its own from the image it received.
+- The tint is a default, not a fact of the product: a reader can decline it per device and read on the plain theme background instead. That makes the untinted rendering a first-class case rather than a degraded one, which is the same reason the absent-colour case has to look finished.
+- Every store path that can introduce a primary image — upload, URL import, archive import, and a recipe edit that replaces the image — has to compute it, or recipes will silently acquire pages that are tinted for the wrong photo.

@@ -1,4 +1,5 @@
-import { DAVCalendar, DAVClient } from "tsdav";
+import type { DAVCalendar, DAVClient as DAVClientType } from "tsdav";
+import tsdav from "tsdav";
 import { v4 as uuidv4 } from "uuid";
 
 import type {
@@ -15,13 +16,14 @@ import { buildIcs } from "./ics-helpers";
 export type { CreateEventInput, CreatedEvent, CalDavClientOptions, ConnectionTestResult };
 
 const log = createLogger("caldav-client");
+const { DAVClient } = tsdav;
 
 export class CalDavClient {
   private serverUrl: string;
   private calendarUrl: string | undefined;
   private username: string;
   private password: string;
-  private client: DAVClient;
+  private client: DAVClientType;
   private _calendars: DAVCalendar[] | null = null;
 
   constructor(opts: CalDavClientOptions) {
@@ -165,9 +167,32 @@ export class CalDavClient {
     }));
   }
 
+  /**
+   * Create a new event. Guarded by `If-None-Match: *`, so a uid that already
+   * exists on the server is a hard failure rather than a silent overwrite.
+   */
   async createEvent(input: CreateEventInput): Promise<CreatedEvent> {
+    return this.writeEvent(input, { replaceExisting: false });
+  }
+
+  /**
+   * Write an event over the resource its uid already occupies, creating it if
+   * the server no longer has it. Norish owns the events it writes, so a
+   * planned item that moved or was retitled updates in place instead of
+   * leaving its previous event orphaned in the calendar.
+   */
+  async updateEvent(input: CreateEventInput & { uid: string }): Promise<CreatedEvent> {
+    return this.writeEvent(input, { replaceExisting: true });
+  }
+
+  private async writeEvent(
+    input: CreateEventInput,
+    { replaceExisting }: { replaceExisting: boolean }
+  ): Promise<CreatedEvent> {
+    const operation = replaceExisting ? "updateEvent" : "createEvent";
+
     if (input.end <= input.start) {
-      throw new Error("createEvent: end must be after start");
+      throw new Error(`${operation}: end must be after start`);
     }
 
     const uid = input.uid || uuidv4();
@@ -177,14 +202,17 @@ export class CalDavClient {
     const targetCalendar = await this.getTargetCalendar();
 
     log.debug(
-      { calendarUrl: targetCalendar.url, uid, summary: input.summary },
-      "Creating CalDAV event"
+      { calendarUrl: targetCalendar.url, uid, summary: input.summary, replaceExisting },
+      "Writing CalDAV event"
     );
 
     const response = await this.client.createCalendarObject({
       calendar: targetCalendar,
       iCalString: ics,
       filename,
+      // tsdav sends `If-None-Match: *` to keep a create from clobbering an
+      // existing resource. An update is aimed at that resource on purpose.
+      headersToExclude: replaceExisting ? ["If-None-Match"] : undefined,
     });
 
     if (!response.ok) {
@@ -198,16 +226,16 @@ export class CalDavClient {
           configuredCalendarUrl: this.calendarUrl,
           responseText: text,
         },
-        "CalDAV createEvent failed"
+        `CalDAV ${operation} failed`
       );
 
-      throw new Error(`CalDAV createEvent failed ${response.status}: ${text}`);
+      throw new Error(`CalDAV ${operation} failed ${response.status}: ${text}`);
     }
 
     const etag = response.headers.get("etag") || undefined;
     const href = `${targetCalendar.url}${filename}`;
 
-    log.debug({ uid, href, etag }, "CalDAV event created successfully");
+    log.debug({ uid, href, etag, replaceExisting }, "CalDAV event written successfully");
 
     return {
       uid,

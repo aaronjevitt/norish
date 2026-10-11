@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatedNumber } from "@/components/recipes/animated-number";
 import { MinusIcon, PlusIcon } from "@heroicons/react/16/solid";
 import { Button } from "@heroui/react";
 
@@ -7,7 +8,6 @@ export interface NutritionPortionControlProps {
   portions: number;
   onChange: (portions: number) => void;
 }
-
 export default function NutritionPortionControl({
   portions,
   onChange,
@@ -21,7 +21,6 @@ export default function NutritionPortionControl({
       onChange(portions - 1);
     }
   };
-
   const inc = () => {
     if (portions < 1) {
       onChange(Math.min(1, portions * 2));
@@ -29,33 +28,30 @@ export default function NutritionPortionControl({
       onChange(portions + 1);
     }
   };
-
   const formatPortions = (n: number): string => {
     if (Number.isInteger(n)) return String(n);
-
     return n.toFixed(2).replace(/\.?0+$/, "");
   };
-
   return (
     <div className="inline-flex items-center gap-2">
       <Button
         isIconOnly
         aria-label="Decrease portions"
-        className="bg-content2"
+        className="bg-surface-secondary"
         size="sm"
-        variant="flat"
         onPress={dec}
+        variant="tertiary"
       >
         <MinusIcon className="h-4 w-4" />
       </Button>
-      <span className="min-w-8 text-center text-sm">{formatPortions(portions)}</span>
+      <AnimatedNumber className="min-w-8 justify-center text-sm" value={formatPortions(portions)} />
       <Button
         isIconOnly
         aria-label="Increase portions"
-        className="bg-content2"
+        className="bg-surface-secondary"
         size="sm"
-        variant="flat"
         onPress={inc}
+        variant="tertiary"
       >
         <PlusIcon className="h-4 w-4" />
       </Button>

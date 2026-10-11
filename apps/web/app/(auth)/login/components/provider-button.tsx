@@ -13,7 +13,6 @@ interface ProviderButtonProps {
   icon: string;
   callbackUrl?: string;
 }
-
 export function ProviderButton({
   providerId,
   providerName,
@@ -40,15 +39,12 @@ export function ProviderButton({
       });
     }
   };
-
   return (
-    <Button
-      className="border-default-200 bg-default-100 hover:bg-default-100 active:bg-default-200 flex h-11 w-full items-center justify-center gap-3 rounded-xl border shadow-sm transition-colors"
-      startContent={<ProviderIcon icon={icon} providerName={providerName} width={20} />}
-      variant="flat"
-      onPress={handleSignIn}
-    >
-      {t("signInWith", { provider: providerName })}
+    <Button fullWidth className="h-11 gap-3" onPress={handleSignIn} variant="tertiary">
+      {<ProviderIcon icon={icon} providerName={providerName} width={20} />}
+      {t("signInWith", {
+        provider: providerName,
+      })}
     </Button>
   );
 }

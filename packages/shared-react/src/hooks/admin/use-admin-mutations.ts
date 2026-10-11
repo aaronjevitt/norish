@@ -5,6 +5,8 @@ import type {
   AuthProviderGitHubInput,
   AuthProviderGoogleInput,
   AuthProviderOIDCInput,
+  DecisionConfig,
+  ImageGenerationConfig,
   PromptsConfigInput,
   RecipePermissionPolicy,
   ServerConfigKey,
@@ -46,8 +48,15 @@ export type AdminMutationsResult = {
   ) => Promise<{ success: boolean; error?: string }>;
   updateAIConfig: (config: AIConfig) => Promise<{ success: boolean; error?: string }>;
   updateVideoConfig: (config: VideoConfig) => Promise<{ success: boolean; error?: string }>;
+  updateImageGenerationConfig: (
+    config: ImageGenerationConfig
+  ) => Promise<{ success: boolean; error?: string }>;
+  updateDecisionConfig: (config: DecisionConfig) => Promise<{ success: boolean; error?: string }>;
   testAIEndpoint: (
     config: Pick<AIConfig, "provider" | "endpoint" | "apiKey">
+  ) => Promise<{ success: boolean; error?: string }>;
+  testDecisionEndpoint: (
+    config: Pick<DecisionConfig, "provider" | "apiKey" | "model" | "endpoint">
   ) => Promise<{ success: boolean; error?: string }>;
   updateRecipePermissionPolicy: (
     policy: RecipePermissionPolicy
@@ -92,7 +101,16 @@ export function createUseAdminMutations({
     );
     const updateAIConfigMutation = useMutation(trpc.admin.updateAIConfig.mutationOptions());
     const updateVideoConfigMutation = useMutation(trpc.admin.updateVideoConfig.mutationOptions());
+    const updateImageGenerationConfigMutation = useMutation(
+      trpc.admin.updateImageGenerationConfig.mutationOptions()
+    );
+    const updateDecisionConfigMutation = useMutation(
+      trpc.admin.updateDecisionConfig.mutationOptions()
+    );
     const testAIEndpointMutation = useMutation(trpc.admin.testAIEndpoint.mutationOptions());
+    const testDecisionEndpointMutation = useMutation(
+      trpc.admin.testDecisionEndpoint.mutationOptions()
+    );
     const updatePermissionPolicyMutation = useMutation(
       trpc.admin.updateRecipePermissionPolicy.mutationOptions()
     );
@@ -173,8 +191,17 @@ export function createUseAdminMutations({
       updateVideoConfig: async (config) => {
         return withInvalidate(updateVideoConfigMutation.mutateAsync(config));
       },
+      updateImageGenerationConfig: async (config) => {
+        return withInvalidate(updateImageGenerationConfigMutation.mutateAsync(config));
+      },
+      updateDecisionConfig: async (config) => {
+        return withInvalidate(updateDecisionConfigMutation.mutateAsync(config));
+      },
       testAIEndpoint: async (config) => {
         return testAIEndpointMutation.mutateAsync(config);
+      },
+      testDecisionEndpoint: async (config) => {
+        return testDecisionEndpointMutation.mutateAsync(config);
       },
       updateRecipePermissionPolicy: async (policy) => {
         return withInvalidate(updatePermissionPolicyMutation.mutateAsync(policy));

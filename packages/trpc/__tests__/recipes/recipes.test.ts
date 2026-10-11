@@ -3,8 +3,9 @@ import { initTRPC } from "@trpc/server";
 import superjson from "superjson";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { recipesRouter } from "../../src/routers/recipes";
 import { canAccessResource } from "../mocks/permissions";
-import { recipeEmitter } from "../mocks/recipe-emitter";
+import { recipes } from "../mocks/realtime/recipes";
 // Import mocks for assertions
 import {
   createRecipeWithRefs,
@@ -12,9 +13,9 @@ import {
   deleteRecipeById,
   getRecipeFull,
   getRecipeOwnerId,
-  getRecipesWithoutCategories,
   listRecipes,
   updateRecipeCategories,
+  updateRecipeWithRefs,
 } from "../mocks/recipes-repository";
 // Import test utilities
 import {
@@ -26,10 +27,48 @@ import {
 } from "./test-utils";
 
 // Setup mocks before any imports that use them
+vi.mock("@norish/db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@norish/db")>();
+  const recipes = await import("../mocks/recipes-repository");
+
+  return {
+    ...actual,
+    addStepsAndIngredientsToRecipeByInput: vi.fn(),
+    createRecipeWithRefs: recipes.createRecipeWithRefs,
+    dashboardRecipe: recipes.dashboardRecipe,
+    deleteRecipeById: recipes.deleteRecipeById,
+    getAllergiesForUsers: vi.fn(),
+    getRecipeByUrl: recipes.getRecipeByUrl,
+    getRecipeFull: recipes.getRecipeFull,
+    getRecipeOwnerId: recipes.getRecipeOwnerId,
+    getRecipesByUrlsForPolicy: vi.fn(),
+    listRecipes: recipes.listRecipes,
+    recipeExistsByUrlForPolicy: vi.fn(),
+    updateRecipeCategories: recipes.updateRecipeCategories,
+    updateRecipeWithRefs: recipes.updateRecipeWithRefs,
+  };
+});
 vi.mock("@norish/db/repositories/recipes", () => import("../mocks/recipes-repository"));
 vi.mock("@norish/auth/permissions", () => import("../mocks/permissions"));
-vi.mock("@norish/trpc/routers/recipes/emitter", () => import("../mocks/recipe-emitter"));
-vi.mock("@norish/config/server-config-loader", () => import("../mocks/config"));
+vi.mock("@norish/shared-server/realtime/recipes", () => import("../mocks/realtime/recipes"));
+vi.mock("@norish/shared-server/config/server-config-loader", () => import("../mocks/config"));
+
+// The Dish Colour helpers are pinned by their own suite
+// (shared-server __tests__/media/dish-color.test.ts); here they return a
+// sentinel so the tests can prove the router threads them into the writes.
+// The literal is repeated inside the factory because vi.mock hoists above
+// any file-body binding.
+const EXTRACTED_DISH_COLOR = "#a1b2c3";
+
+vi.mock("@norish/shared-server/media/dish-color", () => ({
+  withDishColor: vi.fn(async (dto: Record<string, unknown>) => ({
+    ...dto,
+    dishColor: "#a1b2c3",
+  })),
+  withDishColorForUpdate: vi.fn(async (data: Record<string, unknown>) =>
+    data.image !== undefined || data.images !== undefined ? { ...data, dishColor: "#a1b2c3" } : data
+  ),
+}));
 
 // Create a test tRPC instance
 const t = initTRPC.context<ReturnType<typeof createMockAuthedContext>>().create({
@@ -45,6 +84,38 @@ describe("recipes procedures", () => {
     vi.clearAllMocks();
     ctx = createMockAuthedContext(mockUser, mockHousehold);
   });
+
+  function createValidFullRecipe(overrides: Parameters<typeof createMockFullRecipe>[0] = {}) {
+    return createMockFullRecipe({
+      notes: "",
+      version: 1,
+      tags: [{ name: "dinner", version: 1 }],
+      recipeIngredients: [
+        {
+          id: "44444444-4444-4444-8444-444444444444",
+          ingredientId: "55555555-5555-4555-8555-555555555555",
+          ingredientName: "Flour",
+          amount: 200,
+          unit: "g",
+          systemUsed: "metric",
+          order: 0,
+          version: 1,
+        },
+      ],
+      steps: [
+        {
+          step: "Mix all ingredients",
+          systemUsed: "metric",
+          order: 0,
+          images: [],
+          stepIngredients: [],
+          version: 1,
+        },
+      ],
+      author: { id: "test-user-id", name: "Test User", image: null, version: 1 },
+      ...overrides,
+    });
+  }
 
   describe("list", () => {
     it("returns paginated recipes with filters", async () => {
@@ -380,11 +451,79 @@ describe("recipes procedures", () => {
     });
   });
 
+  describe("getEditable", () => {
+    const editableRecipeId = "11111111-1111-4111-8111-111111111111";
+    const missingRecipeId = "22222222-2222-4222-8222-222222222222";
+    const orphanRecipeId = "33333333-3333-4333-8333-333333333333";
+
+    function createCaller() {
+      return recipesRouter.createCaller({
+        ...ctx,
+        connectionId: null,
+        operationId: null,
+      });
+    }
+
+    it("returns recipe when user has edit permission", async () => {
+      const mockRecipe = createValidFullRecipe({ id: editableRecipeId, userId: "other-user-id" });
+
+      getRecipeFull.mockResolvedValue(mockRecipe);
+      getRecipeOwnerId.mockResolvedValue("other-user-id");
+      canAccessResource.mockResolvedValue(true);
+
+      const result = await createCaller().getEditable({ id: editableRecipeId });
+
+      expect(getRecipeFull).toHaveBeenCalledWith(editableRecipeId);
+      expect(getRecipeOwnerId).toHaveBeenCalledWith(editableRecipeId);
+      expect(canAccessResource).toHaveBeenCalledWith(
+        "edit",
+        ctx.user.id,
+        "other-user-id",
+        ctx.householdUserIds,
+        ctx.isServerAdmin
+      );
+      expect(result).toEqual(mockRecipe);
+    });
+
+    it("throws FORBIDDEN when user lacks edit permission", async () => {
+      const mockRecipe = createValidFullRecipe({ id: editableRecipeId, userId: "other-user-id" });
+
+      getRecipeFull.mockResolvedValue(mockRecipe);
+      getRecipeOwnerId.mockResolvedValue("other-user-id");
+      canAccessResource.mockResolvedValue(false);
+
+      await expect(createCaller().getEditable({ id: editableRecipeId })).rejects.toMatchObject({
+        code: "FORBIDDEN",
+      });
+    });
+
+    it("throws NOT_FOUND when recipe does not exist", async () => {
+      getRecipeFull.mockResolvedValue(null);
+
+      await expect(createCaller().getEditable({ id: missingRecipeId })).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+      expect(getRecipeOwnerId).not.toHaveBeenCalled();
+    });
+
+    it("returns orphaned recipe without permission check", async () => {
+      const mockRecipe = createValidFullRecipe({ id: orphanRecipeId, userId: null });
+
+      getRecipeFull.mockResolvedValue(mockRecipe);
+      getRecipeOwnerId.mockResolvedValue(null);
+
+      const result = await createCaller().getEditable({ id: orphanRecipeId });
+
+      expect(canAccessResource).not.toHaveBeenCalled();
+      expect(result).toEqual(mockRecipe);
+    });
+  });
+
   describe("create", () => {
     it("returns recipe ID and emits created event on success", async () => {
       const mockDashboard = createMockRecipeDashboard({ name: "New Recipe" });
 
-      createRecipeWithRefs.mockResolvedValue("new-recipe-id");
+      createRecipeWithRefs.mockResolvedValue({ status: "inserted", recipeId: "new-recipe-id" });
       dashboardRecipe.mockResolvedValue(mockDashboard);
 
       const testRouter = t.router({
@@ -400,7 +539,11 @@ describe("recipes procedures", () => {
               const dto = await dashboardRecipe(createdId);
 
               if (dto) {
-                recipeEmitter.emitToHousehold(ctx.householdKey, "created", { recipe: dto });
+                void recipes.publish(
+                  "created",
+                  { recipe: dto },
+                  { householdKey: ctx.householdKey }
+                );
               }
             }
 
@@ -418,9 +561,13 @@ describe("recipes procedures", () => {
 
       expect(result).toBe("test-uuid");
       expect(createRecipeWithRefs).toHaveBeenCalled();
-      expect(recipeEmitter.emitToHousehold).toHaveBeenCalledWith(ctx.householdKey, "created", {
-        recipe: mockDashboard,
-      });
+      expect(recipes.publish).toHaveBeenCalledWith(
+        "created",
+        {
+          recipe: mockDashboard,
+        },
+        { householdKey: ctx.householdKey }
+      );
     });
   });
 
@@ -456,7 +603,11 @@ describe("recipes procedures", () => {
             const updated = await getRecipeFull(input.recipeId);
 
             if (updated) {
-              recipeEmitter.emitToHousehold(ctx.householdKey, "updated", { recipe: updated });
+              void recipes.publish(
+                "updated",
+                { recipe: updated },
+                { householdKey: ctx.householdKey }
+              );
             }
 
             return { success: true };
@@ -470,31 +621,14 @@ describe("recipes procedures", () => {
       });
 
       expect(updateRecipeCategories).toHaveBeenCalledWith("recipe-1", ["Dinner", "Snack"]);
-      expect(recipeEmitter.emitToHousehold).toHaveBeenCalledWith(ctx.householdKey, "updated", {
-        recipe: expect.objectContaining({ id: "recipe-1" }),
-      });
+      expect(recipes.publish).toHaveBeenCalledWith(
+        "updated",
+        {
+          recipe: expect.objectContaining({ id: "recipe-1" }),
+        },
+        { householdKey: ctx.householdKey }
+      );
       expect(result).toEqual({ success: true });
-    });
-
-    it("returns only recipes without categories", async () => {
-      const expected = [
-        { id: "recipe-1", name: "No Categories" },
-        { id: "recipe-2", name: "Still Empty" },
-      ];
-
-      getRecipesWithoutCategories.mockResolvedValue(expected);
-
-      const testRouter = t.router({
-        listWithoutCategories: t.procedure
-          .input((v: any) => v)
-          .query(async () => getRecipesWithoutCategories()),
-      });
-
-      const caller = t.createCallerFactory(testRouter)(ctx);
-      const result = await caller.listWithoutCategories(undefined);
-
-      expect(getRecipesWithoutCategories).toHaveBeenCalled();
-      expect(result).toEqual(expected);
     });
   });
 
@@ -525,7 +659,7 @@ describe("recipes procedures", () => {
             }
 
             await deleteRecipeById(input.id);
-            recipeEmitter.emitToHousehold(ctx.householdKey, "deleted", { id: input.id });
+            void recipes.publish("deleted", { id: input.id }, { householdKey: ctx.householdKey });
 
             return { success: true };
           }),
@@ -543,9 +677,13 @@ describe("recipes procedures", () => {
         ctx.isServerAdmin
       );
       expect(deleteRecipeById).toHaveBeenCalledWith("r1");
-      expect(recipeEmitter.emitToHousehold).toHaveBeenCalledWith(ctx.householdKey, "deleted", {
-        id: "r1",
-      });
+      expect(recipes.publish).toHaveBeenCalledWith(
+        "deleted",
+        {
+          id: "r1",
+        },
+        { householdKey: ctx.householdKey }
+      );
       expect(result).toEqual({ success: true });
     });
 
@@ -610,7 +748,7 @@ describe("recipes procedures", () => {
             }
 
             await deleteRecipeById(input.id);
-            recipeEmitter.emitToHousehold(ctx.householdKey, "deleted", { id: input.id });
+            void recipes.publish("deleted", { id: input.id }, { householdKey: ctx.householdKey });
 
             return { success: true };
           }),
@@ -622,6 +760,71 @@ describe("recipes procedures", () => {
       expect(canAccessResource).not.toHaveBeenCalled();
       expect(deleteRecipeById).toHaveBeenCalledWith("orphan-recipe");
       expect(result).toEqual({ success: true });
+    });
+  });
+
+  describe("Dish Colour store paths", () => {
+    const recipeImage = "/recipes/44444444-4444-4444-8444-444444444444/photo.jpg";
+
+    function createCaller() {
+      return recipesRouter.createCaller({
+        ...ctx,
+        connectionId: null,
+        operationId: null,
+      });
+    }
+
+    it("a create carrying an image stores the extracted Dish Colour (upload path)", async () => {
+      createRecipeWithRefs.mockResolvedValue({ status: "inserted", recipeId: "new-id" });
+      dashboardRecipe.mockResolvedValue(null);
+
+      await createCaller().create({ name: "Uploaded", image: recipeImage });
+
+      await vi.waitFor(() => expect(createRecipeWithRefs).toHaveBeenCalled());
+      expect(createRecipeWithRefs).toHaveBeenCalledWith(
+        expect.any(String),
+        ctx.user.id,
+        expect.objectContaining({ image: recipeImage, dishColor: EXTRACTED_DISH_COLOR })
+      );
+    });
+
+    it("an edit replacing the image recomputes the Dish Colour", async () => {
+      getRecipeOwnerId.mockResolvedValue(ctx.user.id);
+      canAccessResource.mockResolvedValue(true);
+      updateRecipeWithRefs.mockResolvedValue({ stale: false });
+      getRecipeFull.mockResolvedValue(null);
+
+      await createCaller().update({
+        id: "55555555-5555-4555-8555-555555555555",
+        data: { image: recipeImage },
+        version: 1,
+      });
+
+      await vi.waitFor(() => expect(updateRecipeWithRefs).toHaveBeenCalled());
+      expect(updateRecipeWithRefs).toHaveBeenCalledWith(
+        "55555555-5555-4555-8555-555555555555",
+        ctx.user.id,
+        expect.objectContaining({ image: recipeImage, dishColor: EXTRACTED_DISH_COLOR }),
+        1
+      );
+    });
+
+    it("an edit that does not touch the media says nothing about the colour", async () => {
+      getRecipeOwnerId.mockResolvedValue(ctx.user.id);
+      canAccessResource.mockResolvedValue(true);
+      updateRecipeWithRefs.mockResolvedValue({ stale: false });
+      getRecipeFull.mockResolvedValue(null);
+
+      await createCaller().update({
+        id: "55555555-5555-4555-8555-555555555555",
+        data: { name: "Renamed only" },
+        version: 1,
+      });
+
+      await vi.waitFor(() => expect(updateRecipeWithRefs).toHaveBeenCalled());
+      const payload = updateRecipeWithRefs.mock.calls[0]?.[2] as Record<string, unknown>;
+
+      expect("dishColor" in payload).toBe(false);
     });
   });
 });

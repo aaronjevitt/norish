@@ -1,7 +1,11 @@
 import { createSelectSchema } from "drizzle-zod";
 import z from "zod";
 
-import { groceries } from "@norish/db/schema";
+import { groceries } from "@norish/db-schema/schema";
+
+import { clientMintedId } from "./common";
+
+export const PurchaseAmountSchema = z.number().positive().max(9999999).nullable().optional();
 
 export const GrocerySelectBaseSchema = createSelectSchema(groceries)
   .omit({
@@ -13,14 +17,16 @@ export const GrocerySelectBaseSchema = createSelectSchema(groceries)
   })
   .extend({
     amount: z.coerce.number().nullable(),
-    recipeIngredientId: z.string().uuid().nullable(),
-    recurringGroceryId: z.string().uuid().nullable(),
-    storeId: z.string().uuid().nullable(),
+    purchaseAmount: z.coerce.number().nullable().optional(),
+    recipeIngredientId: z.uuid().nullable(),
+    recurringGroceryId: z.uuid().nullable(),
+    storeId: z.uuid().nullable(),
     sortOrder: z.number().int(),
   });
 
 // Insert schema with explicit fields to avoid drizzle-zod type inference issues
 export const GroceryInsertBaseSchema = z.object({
+  purchaseAmount: PurchaseAmountSchema,
   userId: z.string(),
   name: z.string().nullable(),
   unit: z.string().nullable(),
@@ -34,6 +40,7 @@ export const GroceryInsertBaseSchema = z.object({
 
 // Base update schema with explicit field definitions
 export const GroceryUpdateBaseSchema = z.object({
+  purchaseAmount: PurchaseAmountSchema,
   id: z.uuid(),
   version: z.number().int().positive().optional(),
   name: z.string().nullable().optional(),
@@ -42,9 +49,9 @@ export const GroceryUpdateBaseSchema = z.object({
   isDone: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
   userId: z.string().optional(),
-  recipeIngredientId: z.string().uuid().nullable().optional(),
-  recurringGroceryId: z.string().uuid().nullable().optional(),
-  storeId: z.string().uuid().nullable().optional(),
+  recipeIngredientId: z.uuid().nullable().optional(),
+  recurringGroceryId: z.uuid().nullable().optional(),
+  storeId: z.uuid().nullable().optional(),
 });
 
 const GroceryVersionInputSchema = z.object({
@@ -59,6 +66,8 @@ const GroceryStoreReorderInputSchema = GroceryVersionInputSchema.extend({
 
 // Create schema without userId (added server-side)
 export const GroceryCreateSchema = z.object({
+  purchaseAmount: PurchaseAmountSchema,
+  id: clientMintedId,
   name: z.string().nullable(),
   unit: z.string().nullable(),
   amount: z.coerce.number().nullable(),
@@ -70,9 +79,21 @@ export const GroceryCreateSchema = z.object({
 
 // tRPC input schemas
 export const GroceryUpdateInputSchema = z.object({
+  purchaseAmount: PurchaseAmountSchema,
   groceryId: z.string(),
   raw: z.string(),
   version: z.number().int().positive(),
+  storeId: z.uuid().nullable().optional(),
+});
+
+export const DetachRecurringGroceryInputSchema = z.object({
+  purchaseAmount: PurchaseAmountSchema,
+  recurringGroceryId: z.uuid(),
+  recurringVersion: z.number().int().positive(),
+  groceryId: z.uuid(),
+  groceryVersion: z.number().int().positive(),
+  raw: z.string(),
+  storeId: z.uuid().nullable().optional(),
 });
 
 export const GroceryToggleSchema = z.object({

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useStoresContext } from "@/app/(app)/groceries/stores-context";
 import { useUnitsQuery } from "@/hooks/config/use-units-query";
 import { ShoppingCartIcon } from "@heroicons/react/24/outline";
 import { motion } from "motion/react";
@@ -8,6 +9,7 @@ import { useTranslations } from "next-intl";
 
 import type { GroceryDto, RecurringGroceryDto, StoreDto } from "@norish/shared/contracts";
 import { groupGroceriesByIngredient } from "@norish/shared/lib/grocery-grouping";
+import { cssEmptyStateGlow } from "@norish/web/config/css-tokens";
 
 import { DndGroceryProvider, DndGroupedGroceryProvider } from "./dnd";
 import { GroupedStoreSection } from "./grouped-store-section";
@@ -49,6 +51,9 @@ export function GroceryList({
 }: GroceryListProps) {
   const t = useTranslations("groceries.empty");
   const { units: customUnits } = useUnitsQuery();
+  // Where each Store files each name — the one place a grocery's aisle comes
+  // from (ADR-0031) — and the one write a drop into an aisle makes.
+  const { aisleFor, fileGroceryName } = useStoresContext();
 
   // Group groceries by storeId
   const groupedGroceries = useMemo(() => {
@@ -95,12 +100,14 @@ export function GroceryList({
   const ingredientGroups = useMemo(() => {
     if (!groupSimilarIngredients) return null;
 
+    // Groups are per aisle per Store, so a filing that lands regroups the list.
     return groupGroceriesByIngredient(
       groceries,
       getRecipeNameForGrocery ?? (() => null),
-      customUnits
+      customUnits,
+      (grocery) => aisleFor(grocery.storeId, grocery.name)
     );
-  }, [groupSimilarIngredients, groceries, getRecipeNameForGrocery, customUnits]);
+  }, [groupSimilarIngredients, groceries, getRecipeNameForGrocery, customUnits, aisleFor]);
 
   // Check if there are any groceries at all
   const hasGroceries = groceries.length > 0;
@@ -109,18 +116,18 @@ export function GroceryList({
   if (!hasGroceries && !hasStores) {
     return (
       <div className="flex flex-col items-center justify-center px-4 py-20">
-        <div className="bg-content1/90 shadow-large relative w-full max-w-xl rounded-xl backdrop-blur-xl">
+        <div className="border-border bg-surface shadow-surface relative w-full max-w-xl rounded-xl border">
           <div className="flex flex-col items-center gap-6 p-10 text-center">
             <div className="relative">
-              <div className="bg-primary-500/20 dark:bg-primary-400/15 absolute inset-0 scale-125 rounded-full blur-3xl" />
-              <div className="bg-primary-500/15 text-primary-500 relative mx-auto flex h-16 w-16 items-center justify-center rounded-2xl">
+              <div className={cssEmptyStateGlow} />
+              <div className="bg-accent-soft0/15 text-accent relative mx-auto flex h-16 w-16 items-center justify-center rounded-2xl">
                 <ShoppingCartIcon className="h-7 w-7" />
               </div>
             </div>
 
             <div className="space-y-3">
               <h2 className="text-lg font-semibold">{t("title")}</h2>
-              <p className="text-default-500 text-base">{t("description")}</p>
+              <p className="text-muted text-base">{t("description")}</p>
             </div>
           </div>
         </div>
@@ -135,34 +142,38 @@ export function GroceryList({
 
     return (
       <DndGroupedGroceryProvider
+        aisleFor={aisleFor}
         groupedGroceries={ingredientGroups}
         stores={stores}
+        onFileGroceryName={fileGroceryName}
         onReorderGroups={onReorderInStore ?? (() => {})}
       >
-        <div className="flex flex-col gap-3 p-1">
-          {/* Unsorted section */}
-          <motion.div
-            key="unsorted"
-            layout
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            initial={{ opacity: 0, scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 500, damping: 35 }}
-          >
-            <GroupedStoreSection
-              allGroups={ingredientGroups}
-              groceries={unsortedGroceries}
-              groups={ingredientGroups.get(null) ?? []}
-              recurringGroceries={recurringGroceries}
-              store={null}
-              onDelete={onDelete}
-              onDeleteDone={() => onDeleteDoneInStore?.(null)}
-              onEdit={onEdit}
-              onMarkAllDone={() => onMarkAllDoneInStore?.(null)}
-              onToggle={onToggle}
-              onToggleGroup={onToggleGroup}
-            />
-          </motion.div>
+        <div className="flex flex-col gap-4 p-1">
+          {/* Unsorted: the groceries assigned to no Store, shown only while there are any */}
+          {unsortedGroceries.length > 0 && (
+            <motion.div
+              key="unsorted"
+              layout
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 500, damping: 35 }}
+            >
+              <GroupedStoreSection
+                allGroups={ingredientGroups}
+                groceries={unsortedGroceries}
+                groups={ingredientGroups.get(null) ?? []}
+                recurringGroceries={recurringGroceries}
+                store={null}
+                onDelete={onDelete}
+                onDeleteDone={() => onDeleteDoneInStore?.(null)}
+                onEdit={onEdit}
+                onMarkAllDone={() => onMarkAllDoneInStore?.(null)}
+                onToggle={onToggle}
+                onToggleGroup={onToggleGroup}
+              />
+            </motion.div>
+          )}
 
           {/* Store sections */}
           {sortedStores.map((store) => {
@@ -202,35 +213,39 @@ export function GroceryList({
   // Normal mode - with DnD
   return (
     <DndGroceryProvider
+      aisleFor={aisleFor}
       getRecipeNameForGrocery={getRecipeNameForGrocery}
       groceries={groceries}
       recurringGroceries={recurringGroceries}
       stores={stores}
+      onFileGroceryName={fileGroceryName}
       onReorderInStore={onReorderInStore ?? (() => {})}
     >
-      <div className="flex flex-col gap-3 p-1">
-        {/* Unsorted section - always rendered when dragging or has items, so it's a valid drop target */}
-        <motion.div
-          key="unsorted"
-          layout
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          initial={{ opacity: 0, scale: 0.95 }}
-          transition={{ type: "spring", stiffness: 500, damping: 35 }}
-        >
-          <StoreSection
-            allGroceries={groceries}
-            getRecipeNameForGrocery={getRecipeNameForGrocery}
-            groceries={unsortedGroceries}
-            recurringGroceries={recurringGroceries}
-            store={null}
-            onDelete={onDelete}
-            onDeleteDone={() => onDeleteDoneInStore?.(null)}
-            onEdit={onEdit}
-            onMarkAllDone={() => onMarkAllDoneInStore?.(null)}
-            onToggle={onToggle}
-          />
-        </motion.div>
+      <div className="flex flex-col gap-4 p-1">
+        {/* Unsorted: the groceries assigned to no Store, shown only while there are any */}
+        {unsortedGroceries.length > 0 && (
+          <motion.div
+            key="unsorted"
+            layout
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 500, damping: 35 }}
+          >
+            <StoreSection
+              allGroceries={groceries}
+              getRecipeNameForGrocery={getRecipeNameForGrocery}
+              groceries={unsortedGroceries}
+              recurringGroceries={recurringGroceries}
+              store={null}
+              onDelete={onDelete}
+              onDeleteDone={() => onDeleteDoneInStore?.(null)}
+              onEdit={onEdit}
+              onMarkAllDone={() => onMarkAllDoneInStore?.(null)}
+              onToggle={onToggle}
+            />
+          </motion.div>
+        )}
 
         {/* Store sections */}
         {storeWithGroceries.map(({ store, groceries: storeGroceries }) => (

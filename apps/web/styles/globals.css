@@ -1,10 +1,62 @@
 @import "tailwindcss";
-@plugin "@norish/tailwind-config/hero";
-@source "../../../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}";
-@custom-variant dark (&:is(.dark *));
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/fira-code";
+@import "@fontsource-variable/fraunces/wght.css";
+@import "@heroui/styles";
+@import "@norish/tailwind-config/heroui-theme";
+@import "@norish/tailwind-config/marks";
+@source "../../../node_modules/@heroui/styles/dist/**/*.{css,js,ts,jsx,tsx}";
 
-/* Import our custom theme colors */
-@import "@norish/tailwind-config/theme";
+@custom-variant light (&:is(:root, .light *, [data-theme="light"] *));
+@custom-variant dark (&:is(.dark *, [data-theme="dark"] *));
+
+@layer theme {
+  :root {
+    /* A Store's colour, read by the dot and the checkboxes under its section
+       (components/groceries/store-colors.ts). The page ground declares the
+       accent, so a checkbox outside any Store's section — Unsorted, a recipe
+       section, the dashboard, a drag ghost — paints as it always did. */
+    --store-color: var(--accent);
+    --font-inter: "Inter Variable", system-ui, sans-serif;
+    /* The landing's serif, carried in for the auth headings only. */
+    --font-fraunces: "Fraunces Variable", ui-serif, Georgia, serif;
+    --font-mono:
+      "Fira Code Variable", ui-monospace, "SFMono-Regular", "Menlo", "Monaco", "Consolas", monospace;
+  }
+}
+
+@theme inline {
+  --font-serif: var(--font-fraunces);
+}
+
+@layer base {
+  /* Fraunces ships a soft, slightly quirky default; dial it toward the
+     bookish end so headlines read calm rather than decorative. */
+  .font-serif {
+    font-variation-settings:
+      "SOFT" 0,
+      "WONK" 0;
+    letter-spacing: -0.015em;
+  }
+}
+
+@layer components {
+  /* The landing's only tint: a still, barely-there warmth behind the auth
+     card. Light only — over the dark ground the same wash reads as a murky
+     glow, so dark rests on the plain background. */
+  .hero-wash {
+    background: radial-gradient(
+      58% 52% at 50% 0%,
+      color-mix(in oklch, var(--accent) 9%, transparent),
+      transparent 70%
+    );
+  }
+
+  .dark .hero-wash,
+  [data-theme="dark"] .hero-wash {
+    background: none;
+  }
+}
 
 /* Custom fade-in animation */
 @keyframes fade-in {
@@ -35,5 +87,189 @@
 
   &::-webkit-scrollbar {
     display: none;
+  }
+}
+
+/*
+ * Chips divide by what their colour is doing. A chip that NAMES a thing — a
+ * Tag, a Cuisine, a cooking time — carries no meaning in its colour and is
+ * uniform: accent-filled when it is active, and the warmed default fill when
+ * it is not. A chip that REPORTS a condition keeps its semantic colour,
+ * because there the colour is the information.
+ *
+ * Free @heroui/styles makes tertiary chips transparent, which would leave an
+ * inactive naming chip as loose text on the page; the default fill is what
+ * makes it read as a control, and warming that token is what makes it read
+ * warm.
+ */
+.chip--tertiary {
+  --chip-bg: var(--default);
+}
+
+/* Its label sits back from body copy at chip size, so a row of them reads as
+   labels rather than as sentences. Plain chips only — one whose colour is the
+   information keeps the contrast that goes with it. */
+.chip--default.chip--tertiary {
+  --chip-fg: color-mix(in oklab, var(--default-foreground) 65%, var(--muted));
+}
+
+/*
+ * The same rule, one step up, for a chip standing on the page itself rather
+ * than on a card. The default fill separates a chip from a white card, but the
+ * page ground is already warm and the two would sit almost on top of each
+ * other — so there the chip takes the surface and the card's job is done by the
+ * page. Add it wherever a naming chip has no card under it — including a
+ * secondary chip, which is a naming chip that has been asked to look like a
+ * control.
+ */
+.chip--tertiary.chip--on-ground,
+.chip--secondary.chip--on-ground {
+  --chip-bg: var(--surface);
+}
+
+/* Blue "info" chip (active jobs) — HeroUI ships no blue color variant. */
+.chip--info {
+  --info: oklch(58.82% 0.1533 253.28);
+  --chip-bg: color-mix(in oklab, var(--info) 15%, transparent);
+  --chip-fg: color-mix(in oklab, var(--info) 80%, var(--foreground) 70%);
+}
+
+.dark .chip--info,
+[data-theme="dark"] .chip--info {
+  --chip-fg: color-mix(in oklab, var(--info) 80%, var(--foreground) 30%);
+}
+
+.chip--info.chip--primary {
+  --chip-bg: var(--info);
+  --chip-fg: oklch(99.11% 0 0);
+}
+
+/* React Aria renders each form control's real <input> in a visually-hidden
+   absolutely-positioned span. Without a positioned ancestor on the control
+   itself, that input anchors to the nearest positioned container (e.g. a
+   panel dialog), so clicking a row focuses an input hundreds of pixels away
+   and the browser scroll-jumps the list to it. Anchor it to the control. */
+.checkbox,
+.radio,
+.switch,
+.slider {
+  position: relative;
+}
+
+@layer components {
+  .dropdown__popover {
+    min-width: min(14rem, calc(100svw - 2rem));
+    max-width: min(22rem, calc(100svw - 2rem));
+    background: var(--overlay);
+    box-shadow: var(--overlay-shadow);
+    border: 1px solid var(--border);
+    z-index: 70;
+  }
+
+  /* A toast reports what just happened, so it has to be readable wherever it
+     lands. HeroUI ships it at z-50, under the navbar (60) and far under a
+     modal (1099/1100) — an error raised by a dialog that stays open on
+     failure was painted over by that dialog. Sit above every overlay the app
+     draws; the region is pointer-events-none, so nothing underneath becomes
+     unclickable. */
+  .toast-region {
+    z-index: 1250;
+  }
+
+  /* The same readability, one axis over. HeroUI pins a top-placed region 1rem
+     from the viewport top, which in the installed PWA (viewport-fit: cover) is
+     inside the status bar — on a Dynamic Island phone the toast lands behind
+     the island. Start below the inset instead; in a browser tab the inset is
+     zero and the region sits exactly where it did. */
+  .toast-region--top,
+  .toast-region--top-start,
+  .toast-region--top-end {
+    top: calc(1rem + env(safe-area-inset-top, 0px));
+  }
+
+  .dropdown__menu {
+    padding: 0.375rem;
+  }
+
+  .menu-item {
+    min-height: 2.5rem;
+    border-radius: 9999px;
+  }
+
+  .textfield,
+  .input,
+  .textarea,
+  .input-group,
+  .select,
+  .autocomplete {
+    width: 100%;
+  }
+
+  /* One radius for every field the reader types or picks in: a plain input, a
+     combo box's own input group, and a select's trigger. A shopping list with
+     three fields in a row must not show three shapes. */
+  .input,
+  .combo-box__input-group,
+  .number-field__group,
+  .select__trigger {
+    border-radius: 9999px;
+  }
+
+  .textarea {
+    width: 100%;
+    border-radius: var(--radius-2xl);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Recipe pages take their hue from the dish (ADR-0023).
+
+   A recipe page container carries `data-dish-tint` plus two OKLCH channel
+   variables (--dish-h, --dish-c) derived in lib/dish-tint.ts from the stored
+   Dish Colour. Inside that scope the page background and the card surfaces
+   are rebuilt from the dish's hue and clamped chroma at the THEME's own
+   lightness — captured below into --untinted-* before the scope overrides
+   anything — so contrast between text and every tinted surface is unchanged
+   from the untinted tokens by construction, in both themes. Borders, text,
+   the accent and every other token do not move.
+
+   These are real opaque surfaces whose token hue changed; nothing here
+   composites or blurs (ADR-0020). */
+@layer components {
+  :root,
+  .light,
+  [data-theme="light"],
+  .dark,
+  [data-theme="dark"] {
+    --untinted-background: var(--background);
+    --untinted-surface: var(--surface);
+    --untinted-surface-secondary: var(--surface-secondary);
+    --untinted-surface-tertiary: var(--surface-tertiary);
+    --untinted-default: var(--default);
+  }
+
+  /* One hue, three strengths: the page ground carries the dish's chroma in
+     full — the enveloping warmth is most of the effect — while the cards
+     take a light wash of the same hue so they stand off the ground instead
+     of melting into it, and the in-card surfaces and chips sit in between
+     so nothing on a warm page reads cold. Every surface adjusts, none at
+     the same strength; the contrast between card and ground is chroma's,
+     lightness stays the theme's. */
+  [data-dish-tint] {
+    --background: oklch(from var(--untinted-background) l var(--dish-c, 0) var(--dish-h, 0));
+    /* The light theme's card is pure white, and at lightness 1 no chroma
+       survives gamut mapping — the card could never take any hue at all.
+       The 0.99 ceiling is the theme's own, dish-independent allowance for a
+       tinted card; every other lightness passes through untouched. */
+    --surface: oklch(
+      from var(--untinted-surface) calc(min(l, 0.99)) calc(var(--dish-c, 0) * 0.3) var(--dish-h, 0)
+    );
+    --surface-secondary: oklch(
+      from var(--untinted-surface-secondary) l calc(var(--dish-c, 0) * 0.7) var(--dish-h, 0)
+    );
+    --surface-tertiary: oklch(
+      from var(--untinted-surface-tertiary) l calc(var(--dish-c, 0) * 0.7) var(--dish-h, 0)
+    );
+    --default: oklch(from var(--untinted-default) l calc(var(--dish-c, 0) * 0.5) var(--dish-h, 0));
   }
 }

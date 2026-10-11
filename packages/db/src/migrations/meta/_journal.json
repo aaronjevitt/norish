@@ -239,6 +239,153 @@
       "when": 1775030436191,
       "tag": "0033_graceful_living_tribunal",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1777204800000,
+      "tag": "0034_loosen_step_order_constraint",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1785422267982,
+      "tag": "0035_recipe_cuisines",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1785423220226,
+      "tag": "0036_recipe_provenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1785425822049,
+      "tag": "0037_cuisine_leaves_tags",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1785698527153,
+      "tag": "0038_provenance_country_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1785709646509,
+      "tag": "0039_step_ingredients",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1787304565820,
+      "tag": "0040_dish_color",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1787351370601,
+      "tag": "0041_generated_recipe_images",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1787661168219,
+      "tag": "0042_cookbooks",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1788354876718,
+      "tag": "0043_site_auth_token_account",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1788517874841,
+      "tag": "0044_store_search_address",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1788519125577,
+      "tag": "0045_store_products",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1788705212828,
+      "tag": "0046_pending_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1788706520173,
+      "tag": "0047_pack_size",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1788708141497,
+      "tag": "0048_sale",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1788770323663,
+      "tag": "0049_grocery_purchase_amount",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1788806993586,
+      "tag": "0050_aisles",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1788940423951,
+      "tag": "0051_drop_store_icon",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1788961054113,
+      "tag": "0052_step_ingredient_share_precision",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1789853837958,
+      "tag": "0053_store_product_link_suggestion",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1790003549831,
+      "tag": "0054_pantry_ingredients",
+      "breakpoints": true
     }
   ]
 }

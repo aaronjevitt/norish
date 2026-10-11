@@ -5,13 +5,7 @@ import type {
   RecipeShareDto,
   RecipeShareLifecycleEventDto,
 } from "@norish/shared/contracts/dto/recipe-shares";
-import {
-  getRecipePermissionPolicy,
-  getTimerKeywords,
-  getUnits,
-  isTimersEnabled,
-} from "@norish/config/server-config-loader";
-import { UnitsMapSchema } from "@norish/config/zod/server-config";
+import { TimerKeywordsSchema, UnitsMapSchema } from "@norish/config/zod/server-config";
 import {
   createRecipeShare,
   deleteRecipeShare,
@@ -25,8 +19,14 @@ import {
   revokeRecipeShare,
   updateRecipeShare,
 } from "@norish/db/repositories/recipe-shares";
+import {
+  getRecipePermissionPolicy,
+  getTimerKeywords,
+  getUnits,
+  isTimersEnabled,
+} from "@norish/shared-server/config/server-config-loader";
 import { trpcLogger as log } from "@norish/shared-server/logger";
-import { TimerKeywordsSchema } from "@norish/shared/contracts/zod";
+import { recipes } from "@norish/shared-server/realtime/recipes";
 import {
   AdminRecipeShareInventorySchema,
   CreateRecipeShareInputSchema,
@@ -45,24 +45,14 @@ import {
   UpdateRecipeShareInputSchema,
 } from "@norish/shared/contracts/zod/recipe-shares";
 
-import { emitByPolicy } from "../../helpers";
 import { adminProcedure, authedProcedure, sharedRecipeProcedure } from "../../middleware";
 import { router } from "../../trpc";
-import { recipeEmitter } from "./emitter";
 import { assertRecipeAccess } from "./helpers";
 
 type ShareMutationContext = {
   user: { id: string };
   householdKey: string;
 };
-
-const recipeShareEventsByType = {
-  created: "shareCreated",
-  updated: "shareUpdated",
-  revoked: "shareRevoked",
-  reactivated: "shareReactivated",
-  deleted: "shareDeleted",
-} as const;
 
 function toSummary(share: RecipeShareDto) {
   return RecipeShareSummarySchema.parse({
@@ -90,12 +80,10 @@ async function emitRecipeShareEvent(
 ) {
   const policy = await getRecipePermissionPolicy();
 
-  emitByPolicy(
-    recipeEmitter,
-    policy.view,
-    { userId: ctx.user.id, householdKey: ctx.householdKey },
-    recipeShareEventsByType[type],
-    toRecipeShareLifecycleEvent(share, type)
+  await recipes.publish(
+    "shareEvent",
+    { kind: type, share: toRecipeShareLifecycleEvent(share, type) },
+    { viewPolicy: policy.view, userId: ctx.user.id, householdKey: ctx.householdKey }
   );
 }
 

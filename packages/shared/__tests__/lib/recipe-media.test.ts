@@ -1,0 +1,47 @@
+// @vitest-environment node
+/**
+ * The one definition of the image a recipe leads with: the first gallery
+ * image by order, falling back to the legacy scalar. Every thumbnail reader
+ * resolves through this, which is what lets the `recipes.image` column head
+ * toward removal.
+ */
+import { describe, expect, it } from "vitest";
+
+import { primaryRecipeImage } from "@norish/shared/lib/recipe-media";
+
+describe("primaryRecipeImage", () => {
+  it("leads with the first gallery image by order, whatever the array order", () => {
+    expect(
+      primaryRecipeImage({
+        image: "/recipes/r/legacy.jpg",
+        images: [
+          { image: "/recipes/r/second.jpg", order: 2 },
+          { image: "/recipes/r/first.jpg", order: 0 },
+        ],
+      })
+    ).toBe("/recipes/r/first.jpg");
+  });
+
+  it("falls back to the legacy scalar only when the gallery is empty", () => {
+    expect(primaryRecipeImage({ image: "/recipes/r/legacy.jpg", images: [] })).toBe(
+      "/recipes/r/legacy.jpg"
+    );
+    expect(primaryRecipeImage({ image: "/recipes/r/legacy.jpg" })).toBe("/recipes/r/legacy.jpg");
+  });
+
+  it("returns null when the recipe holds no image anywhere", () => {
+    expect(primaryRecipeImage({ image: null, images: [] })).toBeNull();
+    expect(primaryRecipeImage({})).toBeNull();
+  });
+
+  it("treats an unparseable order as 0, like the carousel does", () => {
+    expect(
+      primaryRecipeImage({
+        images: [
+          { image: "/recipes/r/odd.jpg", order: "not-a-number" },
+          { image: "/recipes/r/late.jpg", order: 5 },
+        ],
+      })
+    ).toBe("/recipes/r/odd.jpg");
+  });
+});

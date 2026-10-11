@@ -1,5 +1,6 @@
 {
   "$schema": "https://turborepo.com/schema.json",
+  "globalDependencies": [".github/workflows/**", "pnpm-workspace.yaml"],
   "globalPassThroughEnv": [
     "NODE_ENV",
     "CI",
@@ -8,10 +9,9 @@
     "DATABASE_URL",
     "MASTER_KEY",
     "AUTH_URL",
-    "CHROME_WS_ENDPOINT",
+    "OBSCURA_ENDPOINT",
     "REDIS_URL",
-    "PARSER_API_TIMEOUT_MS",
-    "LEGACY_RECIPE_PARSER_ROLLBACK"
+    "PARSER_API_TIMEOUT_MS"
   ],
   "tasks": {
     "topo": {
@@ -24,11 +24,7 @@
     },
     "build:server": {
       "dependsOn": ["^build:server"],
-      "outputs": []
-    },
-    "update-sw": {
-      "dependsOn": ["^update-sw"],
-      "outputs": ["public/sw.js"]
+      "cache": false
     },
     "dev": {
       "dependsOn": ["^dev"],
@@ -49,7 +45,7 @@
     },
     "test": {
       "dependsOn": ["^test"],
-      "outputs": ["coverage/**"]
+      "outputs": []
     },
     "format": {
       "dependsOn": ["^format"],

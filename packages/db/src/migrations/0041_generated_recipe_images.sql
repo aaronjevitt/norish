@@ -1,0 +1,1 @@
+ALTER TABLE "recipe_images" ADD COLUMN "generated" boolean DEFAULT false NOT NULL;

@@ -1,9 +1,11 @@
 {
   "dashboard": {
-    "title": "Wszystkie przepisy",
+    "libraryTitle": "Twoja biblioteka",
+    "recipesTitle": "Twoje przepisy",
+    "cookbooksTitle": "Twoje książki kucharskie",
     "searchPlaceholder": "Szukaj lub dodaj przepis...",
     "searchRecipesPlaceholder": "Szukaj przepisów...",
-    "recipeCount": "{count, plural, one {# przepis} other {# przepisów}}",
+    "libraryCount": "{count, plural, one {# element} other {# elementy}}",
     "addRecipe": "Dodaj przepis",
     "importFromUrl": "URL",
     "importFromPaste": "Wklej",
@@ -14,24 +16,48 @@
       "ingredients": "Składniki",
       "steps": "Kroki",
       "tags": "Tagi"
+    },
+    "viewMode": {
+      "label": "Widok przepisów",
+      "grid": "Siatka",
+      "list": "Lista"
+    },
+    "libraryType": {
+      "label": "Pokaż",
+      "all": "Wszystko",
+      "recipes": "Przepisy",
+      "cookbooks": "Książki kucharskie"
     }
   },
+  "back": {
+    "all": "Wróć do biblioteki",
+    "recipes": "Wróć do przepisów",
+    "cookbooks": "Wróć do książek kucharskich",
+    "named": "Wróć do {name}",
+    "cookbook": "Wróć do książki kucharskiej",
+    "generic": "Wstecz"
+  },
   "empty": {
-    "title": "Twoja kolekcja przepisów czeka",
+    "title": "Twoja biblioteka czeka",
     "description": "Wklej URL przepisu w pole wyszukiwania powyżej i obserwuj magię.",
     "noResults": "Nie znaleziono przepisów",
-    "noResultsHint": "Spróbuj zmienić lub wyczyścić filtry."
+    "noResultsHint": "Spróbuj zmienić lub wyczyścić filtry.",
+    "noCookbooks": "Brak książek kucharskich",
+    "noCookbooksHint": "Książka kucharska to nazwany zbiór przepisów. Utwórz pierwszą, aby uporządkować bibliotekę."
   },
   "card": {
     "noImage": "Brak obrazu",
     "viewGroceries": "Zobacz zakupy",
     "addToCalendar": "Dodaj do kalendarza",
-    "deleteRecipe": "Usuń przepis"
+    "deleteRecipe": "Usuń przepis",
+    "recipeOptions": "Opcje przepisu"
   },
   "detail": {
-    "backToRecipes": "Powrót do przepisów",
     "viewOriginal": "Zobacz oryginalny przepis",
     "ingredients": "Składniki",
+    "ingredientOptions": "Opcje składników",
+    "showMore": "Pokaż więcej",
+    "showLess": "Pokaż mniej",
     "steps": "Kroki",
     "notes": "Notatki",
     "addToGroceries": "Dodaj do zakupów",
@@ -45,7 +71,12 @@
     "instructions": "Instrukcje",
     "cook": "Gotuj",
     "switchToDecimal": "Pokaż dziesiętne",
-    "switchToFraction": "Pokaż ułamki"
+    "switchToFraction": "Pokaż ułamki",
+    "servingsCount": "{count, plural, one {# porcja} few {# porcje} many {# porcji} other {# porcji}}",
+    "source": "Źródło",
+    "addedBy": "Dodane przez {name}",
+    "decreaseServings": "Mniej porcji",
+    "increaseServings": "Więcej porcji"
   },
   "actions": {
     "plan": "Zaplanuj",
@@ -64,7 +95,16 @@
     "estimatingNutrition": "Szacowanie wartości odżywczych...",
     "screenOn": "Ekran włączony",
     "keepScreenOn": "Utrzymaj ekran włączony",
-    "actionsLabel": "Akcje"
+    "actionsLabel": "Akcje",
+    "autoCategorizing": "Kategoryzowanie…",
+    "inferProvenance": "Ustal pochodzenie",
+    "inferringProvenance": "Ustalanie pochodzenia…",
+    "linkIngredients": "Powiąż składniki z krokami",
+    "linkingIngredients": "Wiązanie składników…",
+    "enrichmentFailed": "Ostatnia próba nie powiodła się",
+    "generateImage": "Wygeneruj obraz",
+    "generatingImage": "Generowanie obrazu…",
+    "cookbooks": "Książki kucharskie"
   },
   "sharePanel": {
     "title": "Udostępnij przepis",
@@ -113,7 +153,8 @@
   "convert": {
     "ariaLabel": "Przelicz system miar",
     "toMetric": "Przelicz na metryczny",
-    "toUS": "Przelicz na amerykański"
+    "toUS": "Przelicz na amerykański",
+    "converting": "Przeliczanie…"
   },
   "deleteModal": {
     "title": "Usuń przepis",
@@ -156,6 +197,16 @@
     "fat": "Tłuszcze (g)",
     "carbs": "Węglowodany (g)",
     "protein": "Białko (g)",
+    "provenance": "Pochodzenie",
+    "provenanceHelp": "Skąd pochodzi ten przepis.",
+    "originCountry": "Kraj",
+    "originCountryPlaceholder": "Bez kraju",
+    "originRegion": "Region",
+    "originRegionPlaceholder": "np. Sycylia",
+    "cuisines": "Kuchnie",
+    "cuisinesHelp": "Wybierz z listy swojej instalacji. Kilka ma sens przy daniu fusion.",
+    "provenanceNote": "Notatka",
+    "provenanceNotePlaceholder": "Kilka zdań o tym, skąd pochodzi to danie…",
     "servings": "Porcje",
     "cookingTimes": "Czasy gotowania",
     "optional": "(opcjonalnie)",
@@ -168,7 +219,8 @@
     "uploading": "Przesyłanie...",
     "clickToUpload": "Kliknij lub przeciągnij i upuść",
     "pasteToUpload": "aby wkleić",
-    "imageFormats": "PNG, JPG, WEBP do 5MB"
+    "imageFormats": "PNG, JPG, WEBP do 5MB",
+    "discardChangesConfirm": "Masz niezapisane zmiany. Odrzucić je i opuścić tę stronę?"
   },
   "gallery": {
     "addImage": "Dodaj obraz",
@@ -211,12 +263,35 @@
     "metric": "Metryczny",
     "us": "Amerykański"
   },
-  "timeInputs": { "prep": "Przygot.", "cook": "Gotowanie", "total": "Łącznie" },
+  "timeInputs": {
+    "prep": "Przygot.",
+    "cook": "Gotowanie",
+    "total": "Łącznie"
+  },
   "stepInput": {
     "stepPlaceholder": "Krok {number}: Opisz krok...",
     "stepPlaceholderShort": "Krok {number}"
   },
-  "ingredientInput": { "placeholder": "np. 2 szklanki mąki" },
+  "stepIngredients": {
+    "rowLabel": "Powiązane składniki",
+    "addLabel": "Powiąż składnik",
+    "pickerLabel": "Powiąż składnik z tym krokiem",
+    "shareLabel": "Zmień część {name}",
+    "share": {
+      "full": "Cała pozycja",
+      "half": "Połowa",
+      "third": "Jedna trzecia",
+      "quarter": "Jedna czwarta",
+      "custom": "Niestandardowa…",
+      "amount": "Ilość…"
+    },
+    "customShareLabel": "Niestandardowa część",
+    "customAmountLabel": "Ilość",
+    "removeLabel": "Usuń {name}"
+  },
+  "ingredientInput": {
+    "placeholder": "np. 2 szklanki mąki"
+  },
   "wakeLock": {
     "keepScreenOn": "Utrzymaj ekran włączony",
     "notSupported": "Utrzymywanie ekranu nie jest obsługiwane w tej przeglądarce",
@@ -225,12 +300,6 @@
     "ariaLabel": "Utrzymaj ekran włączony"
   },
   "toasts": {
-    "processingBoth": "Przetwarzanie tagów i alergenów",
-    "processingTags": "Generowanie tagów",
-    "processingAllergies": "Wykrywanie alergenów",
-    "bothComplete": "Tagi i alergeny zaktualizowane",
-    "tagsComplete": "Tagi wygenerowane",
-    "allergiesComplete": "Alergeny wykryte",
     "imported": "Przepis zaimportowany",
     "converted": "Miary przeliczone",
     "convertedDescription": "Przepis przeliczony na jednostki {system}",
@@ -256,6 +325,83 @@
     "stepCounter": "{current} / {total}",
     "swipeSteps": "Przesuń, aby nawigować kroki",
     "swipeIngredients": "Przesuń w lewo, aby zobaczyć składniki",
-    "swipeBackToSteps": "Przesuń w prawo, aby wrócić do kroków"
+    "swipeBackToSteps": "Przesuń w prawo, aby wrócić do kroków",
+    "readyAt": "Gotowe około {time}",
+    "timers": "Minutniki",
+    "nextStep": "Następny krok"
+  },
+  "enrichment": {
+    "failed": "Wzbogacanie nie powiodło się",
+    "states": {
+      "queued": "W kolejce",
+      "processing": "W toku",
+      "succeeded": "Ukończono",
+      "failed": "Ostatnia próba nie powiodła się"
+    },
+    "kinds": {
+      "auto-tagging": "Automatyczne tagowanie",
+      "allergy-detection": "Wykrywanie alergenów",
+      "auto-categorization": "Automatyczna kategoryzacja",
+      "nutrition-estimation": "Szacowanie wartości odżywczych",
+      "recipe-provenance": "Pochodzenie przepisu",
+      "ingredient-linking": "Wiązanie składników",
+      "image-generation": "Generowanie obrazów"
+    }
+  },
+  "provenance": {
+    "title": "Pochodzenie",
+    "region": "Region",
+    "cuisines": "Kuchnie",
+    "inferring": "Ustalam, skąd pochodzi ten przepis…",
+    "noInfo": "Brak informacji o pochodzeniu",
+    "inferWithAI": "Ustal z pomocą AI"
+  },
+  "import": {
+    "alreadyExists": "Masz już ten przepis",
+    "openExisting": "Otwórz"
+  },
+  "glanceBar": {
+    "totalTime": "Łączny czas",
+    "servings": "{count, plural, one {porcja} few {porcje} many {porcji} other {porcji}}"
+  },
+  "cookingTime": {
+    "title": "Czas przygotowania",
+    "prep": "Przygotowanie",
+    "cook": "Gotowanie",
+    "other": "Pozostały czas",
+    "total": "Łącznie"
+  },
+  "cookbooks": {
+    "addCookbook": "Dodaj książkę",
+    "createTitle": "Nowa książka kucharska",
+    "editTitle": "Edytuj książkę kucharską",
+    "titleLabel": "Tytuł",
+    "titlePlaceholder": "np. Kolacje w tygodniu",
+    "options": "Opcje książki",
+    "deleteTitle": "Usuń książkę kucharską",
+    "deleteConfirm": "Czy na pewno chcesz usunąć „{title}”?",
+    "deleteKeepsRecipes": "Przepisy w niej pozostaną w Twojej bibliotece.",
+    "recipeCount": "{count, plural, one {# przepis} other {# przepisy}}",
+    "empty": "Brak przepisów",
+    "singular": "Książka kucharska",
+    "notFound": "Nie znaleziono książki kucharskiej",
+    "notFoundHint": "Mogła zostać usunięta lub nie jest dla Ciebie widoczna.",
+    "emptyHint": "Dodawaj przepisy z menu szybkich akcji przepisu.",
+    "panelTitle": "Dodaj do książki kucharskiej",
+    "newWithRecipe": "Nowa książka z tym przepisem",
+    "noneEditable": "Nie ma jeszcze książek kucharskich, które możesz edytować.",
+    "cardTitle": "W książkach kucharskich",
+    "removeFromCookbook": "Usuń z książki",
+    "noMatchingMembers": "Żaden przepis w tej książce nie odpowiada filtrom.",
+    "membersLabel": "Przepisy w tej książce",
+    "showMore": "Pokaż więcej",
+    "willBeCreated": "Zostanie utworzona po zapisaniu",
+    "manage": "Zarządzaj",
+    "addRecipes": "Dodaj przepisy",
+    "addRecipesTitle": "Dodaj przepisy do {title}",
+    "searchRecipes": "Szukaj przepisów",
+    "noRecipesToAdd": "Nie znaleziono przepisów.",
+    "addCount": "{count, plural, one {Dodaj # przepis} few {Dodaj # przepisy} many {Dodaj # przepisów} other {Dodaj # przepisu}}",
+    "everythingAlreadyIn": "Wszystkie przepisy są już w tej książce kucharskiej."
   }
 }

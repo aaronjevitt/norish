@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect } from "react";
+import RecipePageTint from "@/components/recipes/recipe-page-tint";
 import { NotFoundView } from "@/components/shared/not-found-view";
 import RecipeSkeleton from "@/components/skeleton/recipe-skeleton";
 import { useTranslations } from "next-intl";
@@ -29,12 +30,16 @@ function RecipePageContent() {
   }
 
   // Recipe not found or no access - show 404
-  if (isNotFound || !recipe) {
+  if (!recipe && isNotFound) {
     return <NotFoundView message={t("notFoundMessage")} title={t("notFound")} />;
   }
 
+  if (!recipe) {
+    return <RecipeSkeleton />;
+  }
+
   return (
-    <>
+    <RecipePageTint dishColor={recipe.dishColor}>
       {/* Desktop layout - smooth fade in */}
       <div key={`${recipe?.id}-desktop`} className="fade-in hidden md:block">
         <RecipePageDesktop />
@@ -47,7 +52,7 @@ function RecipePageContent() {
       >
         <RecipePageMobile />
       </div>
-    </>
+    </RecipePageTint>
   );
 }
 

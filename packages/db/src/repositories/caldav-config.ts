@@ -6,7 +6,7 @@ import type {
   UserCaldavConfigDto,
   UserCaldavConfigInsertDto,
 } from "@norish/shared/contracts/dto/caldav-config";
-import { decrypt, encrypt } from "@norish/auth/crypto";
+import { decrypt, encrypt } from "@norish/config/crypto";
 import { db } from "@norish/db/drizzle";
 import { userCaldavConfig } from "@norish/db/schema";
 import {

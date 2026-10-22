@@ -5,9 +5,6 @@ services:
     restart: always # Required for server restart functionality from Admin UI
     ports:
       - "3000:3000"
-    user: "1000:1000"
-    # user: "1000:1000"  # Match your host user's UID:GID (run `id` to check), only needed with bind mounts
-    # The example uses named volume 'norish_data' which handles permissions automatically
     volumes:
       - norish_data:/app/uploads
     environment:
@@ -16,10 +13,12 @@ services:
       DATABASE_URL: postgres://postgres:norish@db:5432/norish
       MASTER_KEY: <32-byte-base64-key> # Generate with: openssl rand -base64 32
       OBSCURA_ENDPOINT: ws://obscura:9222 # Obscura CDP endpoint used to render pages for URL imports
+      OBSCURA_CDP_TOKEN: <random-token> # Generate with: openssl rand -hex 32. Same value on the obscura service
 
       # Optional
       UPLOADS_DIR: /app/uploads # Runtime volume path
       # PARSER_API_TIMEOUT_MS: 15000
+      # OBSCURA_NAVIGATION_TIMEOUT_MS: 45000 # How long a URL import waits for the page to load
       # NEXT_PUBLIC_LOG_LEVEL: info       # trace, debug, info, warn, error, fatal (default: info in prod, debug in dev)
       # TRUSTED_ORIGINS:http://192.168.1.100:3000,https://norish.example.com  # Additional trusted origins, comma separated. Useful when behind a proxy or using multiple domains.
 
@@ -85,9 +84,11 @@ services:
   # the Compose network; no host port on purpose, since anyone who can reach
   # the CDP server can drive the browser.
   obscura:
-    image: norishapp/obscura:0.2.2-norish.1
+    image: norishapp/obscura:0.2.4-norish.1
     container_name: norish-obscura
     restart: unless-stopped
+    environment:
+      OBSCURA_CDP_TOKEN: <random-token> # Same value as on the norish service
 
   # Redis for real-time events
   redis:

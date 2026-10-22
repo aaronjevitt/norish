@@ -12,8 +12,8 @@ vi.mock("@norish/shared/lib/helpers", async (importOriginal) => {
 
   return {
     ...original,
-    parseIngredientWithDefaults: vi.fn((lines: string[]) =>
-      lines.map((line) => ({
+    parseIngredientWithDefaults: vi.fn((lines: string | string[]) =>
+      [lines].flat().map((line) => ({
         quantity: null,
         unitOfMeasureID: null,
         description: line.includes("Header") ? "" : line,

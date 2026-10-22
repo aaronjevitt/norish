@@ -13,16 +13,16 @@ export default function ThemedShot({ base, alt }: ThemedShotProps) {
   return (
     <>
       <img
-        className="themedShot themedShot--light"
-        src={`/img/screenshots/${base}-light.jpg`}
         alt={alt}
+        className="block h-auto w-full rounded-none dark:hidden"
         loading="eager"
+        src={`/img/screenshots/${base}-light.jpg`}
       />
       <img
-        className="themedShot themedShot--dark"
-        src={`/img/screenshots/${base}-dark.jpg`}
         alt={alt}
+        className="hidden h-auto w-full rounded-none dark:block"
         loading="eager"
+        src={`/img/screenshots/${base}-dark.jpg`}
       />
     </>
   );

@@ -4,12 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { SettingRow } from "@/app/(app)/settings/components/setting-row";
 import SecretInput from "@/components/shared/secret-input";
 import { BeakerIcon, CheckIcon, XMarkIcon } from "@heroicons/react/16/solid";
-import { Button, Input, Label, ListBox, Select, TextField } from "@heroui/react";
+import { Button, Description, Input, Label, ListBox, Select, TextField } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import type { DecisionProvider, DecisionUse } from "@norish/config/zod/server-config";
 import {
   DECISION_USES,
+  DEFAULT_DECISION_ENDPOINT,
   DEFAULT_DECISION_MODEL,
   selectedDecisionUses,
   ServerConfigKeys,
@@ -45,6 +46,7 @@ export default function DecisionModelForm({ onDirtyChange }: DecisionModelFormPr
   // The model is prefilled rather than defaulted behind a placeholder: the one
   // sensible value is on screen, and clearing it still resolves to the same.
   const [model, setModel] = useState(decisionConfig?.model ?? DEFAULT_DECISION_MODEL);
+  const [endpoint, setEndpoint] = useState(decisionConfig?.endpoint ?? "");
   const [apiKey, setApiKey] = useState("");
   // A stored block without a list means every use, which is also what a
   // fresh block starts with: enabling the Decision Model enables everything
@@ -58,6 +60,7 @@ export default function DecisionModelForm({ onDirtyChange }: DecisionModelFormPr
     if (decisionConfig) {
       setProvider(decisionConfig.provider);
       setModel(decisionConfig.model ?? DEFAULT_DECISION_MODEL);
+      setEndpoint(decisionConfig.endpoint ?? "");
       setUses(decisionConfig.uses ?? [...DECISION_USES]);
     }
   }, [decisionConfig]);
@@ -74,10 +77,11 @@ export default function DecisionModelForm({ onDirtyChange }: DecisionModelFormPr
     return (
       provider !== (stored?.provider ?? "disabled") ||
       model !== (stored?.model ?? DEFAULT_DECISION_MODEL) ||
+      endpoint !== (stored?.endpoint ?? "") ||
       apiKey.trim() !== "" ||
       !sameUses(uses, stored?.uses ?? DECISION_USES)
     );
-  }, [decisionConfig, provider, model, apiKey, uses]);
+  }, [decisionConfig, provider, model, endpoint, apiKey, uses]);
 
   useEffect(() => {
     onDirtyChange?.(hasChanges);
@@ -108,7 +112,7 @@ export default function DecisionModelForm({ onDirtyChange }: DecisionModelFormPr
         provider,
         apiKey: apiKey || undefined,
         model: model || undefined,
-        endpoint: decisionConfig?.endpoint,
+        endpoint: endpoint.trim() || undefined,
       });
 
       setTestResult(result);
@@ -123,9 +127,7 @@ export default function DecisionModelForm({ onDirtyChange }: DecisionModelFormPr
       await updateDecisionConfig({
         provider,
         model: model || undefined,
-        // No control offers an endpoint (the default is the only one in use),
-        // but one stored by other means is carried along rather than dropped.
-        endpoint: decisionConfig?.endpoint,
+        endpoint: endpoint.trim() || undefined,
         // An empty key preserves the stored one on the server.
         apiKey: apiKey || undefined,
         // Every use selected is stored as no list, so the block keeps meaning
@@ -139,7 +141,7 @@ export default function DecisionModelForm({ onDirtyChange }: DecisionModelFormPr
   };
 
   return (
-    <div className="flex flex-col gap-4 p-2">
+    <div className="flex flex-col gap-4">
       <Select
         variant="secondary"
         placeholder={t("provider")}
@@ -182,13 +184,19 @@ export default function DecisionModelForm({ onDirtyChange }: DecisionModelFormPr
             <Label>{t("model")}</Label>
             <Input variant="secondary" placeholder={DEFAULT_DECISION_MODEL} />
           </TextField>
+
+          <TextField value={endpoint} onChange={setEndpoint}>
+            <Label>{t("endpoint")}</Label>
+            <Input placeholder={DEFAULT_DECISION_ENDPOINT} variant="secondary" />
+            <Description>{t("endpointDescription")}</Description>
+          </TextField>
         </>
       )}
 
       <SettingRow title={t("uses")}>
         <Select
           aria-label={t("uses")}
-          className="w-full sm:w-80"
+          className="w-full"
           isDisabled={!enabled}
           placeholder={t("usesPlaceholder")}
           selectionMode="multiple"
@@ -258,7 +266,6 @@ export default function DecisionModelForm({ onDirtyChange }: DecisionModelFormPr
           {t("testConnection")}
         </Button>
         <Button isDisabled={!hasChanges} onPress={handleSave} variant="primary" isPending={saving}>
-          {<CheckIcon className="h-5 w-5" />}
           {tActions("save")}
         </Button>
       </div>

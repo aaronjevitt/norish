@@ -9,18 +9,20 @@ type BrowserMockupProps = {
   url?: string;
 };
 
-// macOS-style browser window chrome wrapping a themed screenshot — a CSS port
-// of the landing page's BrowserFrame so the docs hero matches norish.dev.
+// macOS-style browser window chrome wrapping a themed screenshot, the
+// landing page's BrowserFrame.
 export default function BrowserMockup({ base, alt, url = "norish.dev" }: BrowserMockupProps) {
   return (
-    <div className="browserMockup">
-      <div className="browserMockup__bar">
-        <span className="browserMockup__dot" style={{ background: "#ff5f57" }} />
-        <span className="browserMockup__dot" style={{ background: "#febc2e" }} />
-        <span className="browserMockup__dot" style={{ background: "#28c840" }} />
-        <div className="browserMockup__url">{url}</div>
+    <div className="border-border bg-surface overflow-hidden rounded-2xl border shadow-[0_40px_80px_-32px_rgb(0_0_0/0.45)]">
+      <div className="border-border bg-surface-secondary/40 flex items-center gap-2 border-b px-4 py-2.5">
+        <span className="size-3 flex-none rounded-full bg-[#ff5f57]" />
+        <span className="size-3 flex-none rounded-full bg-[#febc2e]" />
+        <span className="size-3 flex-none rounded-full bg-[#28c840]" />
+        <div className="border-border bg-background text-muted mx-auto rounded-full border px-3.5 py-0.5 text-[11px]">
+          {url}
+        </div>
       </div>
-      <ThemedShot base={base} alt={alt} />
+      <ThemedShot alt={alt} base={base} />
     </div>
   );
 }

@@ -13,12 +13,15 @@
 import type {
   AIConfig,
   AutomaticEnrichmentConfig,
+  AutomaticIngredientsConfig,
   ContentIndicatorsConfig,
   CuisineStrategy,
   DecisionConfig,
   DecisionUse,
   I18nLocaleConfig,
   ImageGenerationConfig,
+  IngredientPermissionPolicy,
+  IngredientWordsMap,
   PromptsConfig,
   RecipePermissionPolicy,
   RecurrenceConfig,
@@ -29,15 +32,20 @@ import type {
 } from "@norish/config/zod/server-config";
 import defaultContentIndicators from "@norish/config/content-indicators.default.json";
 import { SERVER_CONFIG } from "@norish/config/env-config-server";
+import defaultIngredientWords from "@norish/config/ingredient-words.default.json";
 import defaultRecurrenceConfig from "@norish/config/recurrence-config.default.json";
 import defaultTimerKeywords from "@norish/config/timer-keywords.default.json";
 import defaultUnits from "@norish/config/units.default.json";
 import {
   AIConfigSchema,
   DecisionConfigSchema,
+  DEFAULT_AUTOMATIC_INGREDIENTS,
   DEFAULT_CUISINE_STRATEGY,
+  DEFAULT_INGREDIENT_PERMISSION_POLICY,
   DEFAULT_RECIPE_PERMISSION_POLICY,
   DEFAULT_TAG_STRATEGY,
+  IngredientWordsConfigSchema,
+  IngredientWordsMapSchema,
   isDecisionConfigValid,
   isDecisionUseSelected,
   isImageGenerationConfigValid,
@@ -102,6 +110,20 @@ export async function getUnits(): Promise<UnitsMap> {
   }
 
   return defaultUnits as UnitsMap;
+}
+
+/**
+ * The ingredient words names are read by (ADR-0037), the administrator's
+ * where edited, else the ones Norish ships.
+ */
+export async function getIngredientWords(): Promise<IngredientWordsMap> {
+  const stored = IngredientWordsConfigSchema.safeParse(
+    await getConfig<unknown>(ServerConfigKeys.INGREDIENT_WORDS)
+  );
+
+  return stored.success
+    ? stored.data.words
+    : IngredientWordsMapSchema.parse(defaultIngredientWords);
 }
 
 /**
@@ -214,6 +236,17 @@ export async function isImageGenerationConfigured(): Promise<boolean> {
 }
 
 /**
+ * Whether the instance can draw: AI on and an Image Generation provider
+ * configured. What Generate and Draw icons on the Ingredients page follow,
+ * so a button is hidden rather than offered to fail.
+ */
+export async function canDrawImages(): Promise<boolean> {
+  const [enabled, configured] = await Promise.all([isAIEnabled(), isImageGenerationConfigured()]);
+
+  return enabled && configured;
+}
+
+/**
  * Get the Decision Model block (ADR-0035). Ships unconfigured: a deployment
  * that never saved it has no row and gets null. A stored row that no longer
  * matches the contract is reported and treated as absent, so a Decision is
@@ -291,6 +324,15 @@ export async function getRecipePermissionPolicy(): Promise<RecipePermissionPolic
   return value ?? DEFAULT_RECIPE_PERMISSION_POLICY;
 }
 
+/** Who may edit an Ingredient someone else minted (ADR-0037). */
+export async function getIngredientPermissionPolicy(): Promise<IngredientPermissionPolicy> {
+  const value = await getConfig<IngredientPermissionPolicy>(
+    ServerConfigKeys.INGREDIENT_PERMISSION_POLICY
+  );
+
+  return value ?? DEFAULT_INGREDIENT_PERMISSION_POLICY;
+}
+
 /**
  * Get prompts configuration
  */
@@ -364,6 +406,20 @@ export async function getAutomaticEnrichmentConfig(): Promise<AutomaticEnrichmen
   }
 
   return aiConfig.automaticEnrichment;
+}
+
+/**
+ * What runs on a food just minted by someone's action: its Plain Name, its
+ * icon. Both off while AI is off; the icon also needs an image provider.
+ */
+export async function getAutomaticIngredientsConfig(): Promise<AutomaticIngredientsConfig> {
+  const aiConfig = await getAIConfig();
+
+  if (!aiConfig?.enabled) return DEFAULT_AUTOMATIC_INGREDIENTS;
+
+  const { plainName, icon } = aiConfig.automaticIngredients;
+
+  return { plainName, icon: icon && (await isImageGenerationConfigured()) };
 }
 
 // ============================================================================

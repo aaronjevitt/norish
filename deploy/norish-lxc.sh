@@ -504,7 +504,9 @@ fix_perms() {
 
 wait_healthy() {
   local i
-  for i in $(seq 1 60); do        # migrations + parser start can take a minute
+  # Up to 5 min: a release's first start runs migrations and one-off backfills
+  # (0.25 seeds the ingredient catalogue) before it answers the health check.
+  for i in $(seq 1 100); do
     curl -fsS "http://127.0.0.1:${APP_PORT}/api/v1/health" >/dev/null 2>&1 && return 0
     systemctl is-failed -q "$SERVICE" && return 1
     sleep 3

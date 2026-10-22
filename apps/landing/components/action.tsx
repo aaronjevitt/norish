@@ -13,7 +13,7 @@ type ActionProps = {
 } & Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href" | "className">;
 
 const base =
-  "group inline-flex items-center justify-center gap-2 rounded-full text-sm font-medium transition-colors duration-200";
+  "group inline-flex items-center justify-center gap-2 rounded-full whitespace-nowrap text-sm font-medium transition-colors duration-200";
 
 const variants: Record<Variant, string> = {
   primary: "bg-accent text-accent-foreground hover:bg-accent/90",

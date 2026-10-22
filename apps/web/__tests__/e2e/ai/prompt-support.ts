@@ -28,8 +28,14 @@ export async function editPrompts(page: Page, edits: Record<string, string>): Pr
   }
 
   const save = panel.getByRole("button", { name: "Save", exact: true });
+  // A pending Save is disabled too, so the button alone cannot say the row
+  // has been written; the mutation's response can.
+  const saved = page.waitForResponse((response) =>
+    response.url().includes("admin.content.updatePrompts")
+  );
 
   await save.click();
+  await saved;
   await expect(save).toBeDisabled({ timeout: 15_000 });
 }
 

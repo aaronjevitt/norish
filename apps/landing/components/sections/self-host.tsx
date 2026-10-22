@@ -44,7 +44,7 @@ export function SelfHost() {
               items={["AGPL-3.0", "Self-hosted", "One Docker command"]}
             />
 
-            <div className="mt-8 flex items-center gap-2">
+            <div className="mt-8 flex flex-wrap items-center gap-2">
               <Action external href={links.github}>
                 <GitHubIcon className="size-4" />
                 View on GitHub

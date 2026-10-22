@@ -11,11 +11,13 @@ const SHOTS = {
   "cooking-web": { widths: [640, 1120], width: 1120, height: 839 },
   "calendar-web": { widths: [640, 1120], width: 1120, height: 839 },
   "groceries-web": { widths: [640, 1120], width: 1120, height: 839 },
+  "pantry-web": { widths: [640, 1120], width: 1120, height: 839 },
   "dashboard-mobile": { widths: [192, 384], width: 384, height: 761 },
   "recipe-mobile": { widths: [192, 384], width: 384, height: 761 },
   "cooking-mobile": { widths: [192, 384], width: 384, height: 761 },
   "calendar-mobile": { widths: [192, 384], width: 384, height: 761 },
   "groceries-mobile": { widths: [192, 384], width: 384, height: 761 },
+  "pantry-mobile": { widths: [192, 384], width: 384, height: 761 },
   // Not a capture but a photograph, and the only one on the page: the dish in
   // the hero's recipe fragment. Its master is 440 wide, so the second width is
   // an upscale the optimizer sharpens rather than detail that exists.

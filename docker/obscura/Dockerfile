@@ -16,7 +16,7 @@
 # workflow reads.
 
 ARG OBSCURA_REPO=https://github.com/h4ckf0r0day/obscura
-ARG OBSCURA_VERSION=0.2.2
+ARG OBSCURA_VERSION=0.2.4
 
 # Only here to fetch: the runtime image below has no shell to do it in.
 FROM debian:12-slim AS fetch
@@ -80,7 +80,8 @@ EXPOSE 9222
 # The whole command is the entrypoint, so stealth is a property of the image
 # rather than of however an operator starts it. `--host 0.0.0.0` is what makes
 # the port reachable from the Norish container; the binary's own default is
-# loopback-only.
+# loopback-only. Obscura refuses that bind unless OBSCURA_CDP_TOKEN is set, so
+# every Compose file gives this service and the app the same token.
 #
 # Deliberately absent: `--allow-private-network`. Obscura blocks loopback,
 # RFC1918 and link-local targets by default — including at DNS resolution time —

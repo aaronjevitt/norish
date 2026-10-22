@@ -42,6 +42,11 @@ import {
  * Better Auth queries users with WHERE email = 'plain@email.com',
  * but we store encrypted emails. This wrapper converts email lookups
  * to use the deterministic emailHmac field instead.
+ *
+ * The user it finds by email, or joined onto an account (an OAuth sign-in),
+ * comes back decrypted: Better Auth compares the provider's verified email
+ * with it to mark the user verified, and only links further providers to a
+ * verified user.
  */
 function createEncryptedEmailAdapter<T extends BetterAuthOptions>(
   baseAdapterFactory: (options: T) => DBAdapter<T>
@@ -64,14 +69,27 @@ function createEncryptedEmailAdapter<T extends BetterAuthOptions>(
               w.field === "email" ? { ...w, field: "emailHmac", value: emailHmacValue } : w
             );
 
-            return baseAdapter.findOne({
-              ...params,
-              where: modifiedWhere,
-            });
+            return decryptUser(
+              await baseAdapter.findOne({
+                ...params,
+                where: modifiedWhere,
+              })
+            );
           }
         }
 
-        return baseAdapter.findOne(params);
+        const result = await baseAdapter.findOne(params);
+
+        if (
+          params.model === "account" &&
+          result &&
+          typeof result === "object" &&
+          "user" in result
+        ) {
+          return { ...result, user: decryptUser(result.user) };
+        }
+
+        return result;
       },
     };
   };

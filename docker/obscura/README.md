@@ -13,8 +13,8 @@ examples use.
 
 Because it is the wrong build, and nothing says so at runtime.
 
-Obscura's anti-detection behaviour is a `stealth` cargo feature *and* a
-`--stealth` runtime flag. Upstream ships four *release archives* per platform —
+Obscura's anti-detection behaviour is a `stealth` cargo feature _and_ a
+`--stealth` runtime flag. Upstream ships four _release archives_ per platform —
 the `-stealth` suffix being the render+stealth build — but only **one Docker
 image**, and its own release notes say what that image is: "the default archive
 and Docker image include rendering."
@@ -39,6 +39,10 @@ loopback, RFC1918 and link-local targets by default — including at DNS
 resolution time — and that default is what keeps an authenticated URL import
 from reaching the deployment's own network.
 
+Obscura only listens beyond loopback when `OBSCURA_CDP_TOKEN` holds at least 32
+bytes, and then every CDP request needs it as a bearer token. Each Compose file
+sets the same value on the `obscura` service and on the app, which sends it.
+
 There is no compile here. The build fetches the published `-stealth` archive for
 the target architecture and copies the two binaries into `distroless/cc` (glibc
 2.36, against a binary built for 2.35).
@@ -52,20 +56,27 @@ defaults so a bare `docker build docker/obscura` works.
 The tag is immutable by convention: the publish workflow refuses to overwrite a
 tag that already exists, so an operator's `docker compose pull` can never change
 the browser under a running Norish release. Upgrading Obscura is an edit to
-`pin.env`, a publish, and an edit to the Compose surfaces.
+`pin.env` and to the Compose surfaces. The push publishes it.
+
+`latest` is the rolling release for operators who want one: the pinned tag
+that `main` ships.
 
 ## Publishing a new build
 
-Run the **Publish Obscura image** workflow
-(`.github/workflows/obscura-image.yml`) from the Actions tab. It builds
-`linux/amd64` and `linux/arm64` on native runners, refuses to overwrite a tag
-that already exists, and assembles the multi-architecture manifest.
+The **Publish Obscura image** workflow (`.github/workflows/obscura-image.yml`)
+runs on every push to `main` or `rc/**` that changes this directory. It
+publishes the pinned tag when the registry doesn't have it yet, building
+`linux/amd64` and `linux/arm64` on native runners and assembling the
+multi-architecture manifest. A push to `main` then points `latest` at that tag.
+A manual run from the Actions tab does the same, and refuses to overwrite a tag
+that already exists unless told to.
 
 To move to a newer Obscura:
 
 1. Update `OBSCURA_VERSION` and `OBSCURA_IMAGE_TAG` in `pin.env`, and the
    matching `ARG` defaults in `Dockerfile`.
-2. Run the workflow.
+2. Push. The rc branch publishes the tag, and the merge to `main` moves
+   `latest`.
 3. Update the image tag in every Compose surface the repository ships — the
    three Compose files, the root README Quick Start, the docs Quick Start
    component and the landing page:
@@ -76,7 +87,7 @@ To move to a newer Obscura:
    ```
 
    Release notes and frozen docs stay excluded on purpose: a shipped release's
-   upgrade instructions name the tag *that* release shipped, and moving them to
+   upgrade instructions name the tag _that_ release shipped, and moving them to
    a later tag would make them a lie. `docker/obscura/README.md` shows up too;
    its snippet reads the tag from `pin.env` and needs no edit.
 

@@ -39,11 +39,13 @@ const SHOTS = {
   "cooking-web": WEB,
   "calendar-web": WEB,
   "groceries-web": WEB,
+  "pantry-web": WEB,
   "dashboard-mobile": MOBILE,
   "recipe-mobile": MOBILE,
   "cooking-mobile": MOBILE,
   "calendar-mobile": MOBILE,
   "groceries-mobile": MOBILE,
+  "pantry-mobile": MOBILE,
 };
 
 /*

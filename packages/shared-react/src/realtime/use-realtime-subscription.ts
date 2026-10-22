@@ -39,6 +39,7 @@ export interface RealtimeSubscriptionProcedure {
     input: undefined,
     opts: {
       enabled?: boolean;
+      onStarted?: () => void;
       onData: (data: unknown) => void;
       onError: (err: unknown) => void;
     }
@@ -51,6 +52,8 @@ export interface RealtimeSubscriptionHandlers<P> {
   /** Invalidated when the subscription lags, unless `onLag` takes over. */
   lagQueryKeys?: QueryKey[];
   onLag?: () => void;
+  /** Once the server has the subscription: events from here on reach it. */
+  onStarted?: () => void;
   enabled?: boolean;
 }
 
@@ -82,6 +85,7 @@ export function useRealtimeSubscription<P>(
   // undefined disables the subscription. Only a stated choice is passed on.
   const options = procedure.subscriptionOptions(undefined, {
     ...(handlers.enabled === undefined ? {} : { enabled: handlers.enabled }),
+    ...(handlers.onStarted ? { onStarted: handlers.onStarted } : {}),
     onData: (data) => {
       if (!isTrackedItem(data)) {
         throw new TypeError("Expected a tracked realtime item");

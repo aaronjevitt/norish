@@ -1,0 +1,68 @@
+---
+id: quick-start
+title: Quick start
+slug: /quick-start
+sidebar_position: 2
+description: Get a working Norish instance running with Docker Compose in a couple of minutes.
+---
+
+import { DocLinkCard, LinkCardGrid } from "@site/src/components/LinkCard";
+import QuickStartCompose from "@site/src/components/QuickStartCompose";
+
+# Quick start
+
+The fastest way to run Norish is using Docker Compose. Save the file below as
+`docker-compose.yml` and run:
+
+```bash
+docker compose up -d
+```
+
+Then open [http://localhost:3000](http://localhost:3000). The **first user to
+sign in becomes the server owner/admin** see [First run](#first-run) below.
+
+<QuickStartCompose />
+
+:::info Generating a `MASTER_KEY`
+The compose above already includes a random `MASTER_KEY`, generated in
+your browser each time you load this page. If you rather create your own run:
+
+```bash
+openssl rand -base64 32
+```
+
+Keep it **secret**. The encryption keys are derived from the `MASTER_KEY`, changing it
+invalidates previously encrypted data.
+:::
+
+:::tip Production template
+A fuller, commented template lives in the repository at
+[`docker-compose.example.yml`](https://github.com/norish-recipes/Norish/blob/main/docker/docker-compose.example.yml).
+:::
+
+## What's in the stack
+
+| Service   | Why it's needed                                          |
+| --------- | -------------------------------------------------------- |
+| `norish`  | The Norish app server.                                   |
+| `db`      | PostgreSQL, the Database.                                |
+| `redis`   | Real-time events and background jobs.                    |
+| `obscura` | The headless browser.                                    |
+
+## First run
+
+The first user to sign in becomes the **server owner** and **server admin**.
+After that user registration is disabled automatically and
+ongoing settings are managed in **Settings => Admin**.
+
+Norish includes **email & password** sign-in. Next to email & password you can also use OIDC, GitHub, and/or Google, see
+[Authentication](./configuration/authentication.md).
+
+## Next steps
+
+<LinkCardGrid>
+  <DocLinkCard doc="configuration/authentication" />
+  <DocLinkCard doc="configuration/ai-provider" />
+  <DocLinkCard doc="configuration/server-runtime" />
+  <DocLinkCard doc="configuration/admin-settings" />
+</LinkCardGrid>

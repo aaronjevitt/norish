@@ -7,6 +7,8 @@ import { saveImageBytes } from "@norish/shared-server/media/storage";
 import { FullRecipeInsertDTO, RecipeCategory } from "@norish/shared/contracts";
 import { inferSystemUsedFromParsed } from "@norish/shared/lib/determine-recipe-system";
 
+import { sumMinutes, withLineFoodTexts } from "./parser-helpers";
+
 // Zod schemas for Tandoor recipe structure
 const TandoorFoodSchema = z.object({
   name: z
@@ -107,6 +109,99 @@ export type TandoorRecipe = z.infer<typeof TandoorRecipeSchema>;
 export type TandoorStep = z.infer<typeof TandoorStepSchema>;
 export type TandoorIngredient = z.infer<typeof TandoorIngredientSchema>;
 
+/** No amount when Tandoor says so, or when the amount is 0. */
+function amountOf(ingredient: TandoorIngredient): number | null {
+  return ingredient.no_amount || !ingredient.amount ? null : ingredient.amount;
+}
+
+/**
+ * A food's or unit's name as Tandoor shows it: plural when there is an amount
+ * other than 1 and it has a plural (Tandoor's template helper rule).
+ */
+function shownName(
+  named: { name: string; plural_name?: string | null } | null | undefined,
+  ingredient: TandoorIngredient
+): string {
+  const name = named?.name?.trim() ?? "";
+  const plural = named?.plural_name?.trim();
+  const amount = amountOf(ingredient);
+
+  return name && plural && amount !== null && amount !== 1 ? plural : name;
+}
+
+type TandoorLine = {
+  name: string;
+  amount: number | null;
+  unit: string | null;
+  /** The food the line resolves from, when Tandoor named one */
+  foodText?: string;
+};
+
+/**
+ * One ingredient row as a line. A header row is a Heading named by its note,
+ * whatever stale food it still carries; any other row is its food, as Tandoor
+ * shows it, followed by its note, or its note alone when it names no food.
+ */
+function readTandoorLine(ingredient: TandoorIngredient): TandoorLine | null {
+  const note = ingredient.note?.trim();
+
+  if (ingredient.is_header) {
+    return note ? { name: `# ${note}`, amount: null, unit: null } : null;
+  }
+
+  const food = shownName(ingredient.food, ingredient);
+  const name = [food, note].filter(Boolean).join(", ");
+
+  if (!name) return null;
+
+  const amount = amountOf(ingredient);
+
+  return {
+    name,
+    amount,
+    unit: amount === null ? null : ingredient.unit?.name?.trim() || null,
+    foodText: ingredient.food?.name?.trim() || undefined,
+  };
+}
+
+type TemplateField = "amount" | "unit" | "food" | "note";
+
+/** "amount unit food", as Tandoor writes `{{ ingredients[i] }}` into a step. */
+function templateText(
+  ingredient: TandoorIngredient | undefined,
+  field: TemplateField | undefined
+): string {
+  if (!ingredient) return "";
+
+  const amount = amountOf(ingredient);
+  const parts = {
+    amount: amount === null ? "" : String(amount),
+    unit: shownName(ingredient.unit, ingredient),
+    food: ingredient.is_header ? "" : shownName(ingredient.food, ingredient),
+    note: ingredient.note?.trim() ?? "",
+  };
+
+  if (field) return parts[field];
+
+  return [parts.amount, parts.unit, parts.food].filter(Boolean).join(" ");
+}
+
+/**
+ * Show templated step text as a Tandoor reader sees it: `{{ ingredients[i] }}`
+ * (indexed within the step, header rows included) and its `.amount`, `.unit`,
+ * `.food` and `.note` become text, `{{ scale(n) }}` becomes the number, and
+ * any leftover braces are stripped, as Tandoor strips them.
+ */
+function renderTandoorTemplate(instruction: string, ingredients: TandoorIngredient[]): string {
+  return instruction
+    .replace(
+      /\{\{\s*ingredients\[(\d+)\](?:\.(amount|unit|food|note))?\s*\}\}/g,
+      (_, index: string, field?: TemplateField) => templateText(ingredients[Number(index)], field)
+    )
+    .replace(/\{\{\s*scale\(\s*([\d.]+)\s*\)\s*\}\}/g, "$1")
+    .replace(/[{}]/g, "");
+}
+
 /**
  * Parse a Tandoor recipe JSON and map to FullRecipeInsertDTO
  */
@@ -135,32 +230,40 @@ export async function parseTandoorRecipeToDTO(
     }
   }
 
-  // Flatten all ingredients from all steps into a single list
-  const allIngredients: Array<TandoorIngredient & { globalOrder: number }> = [];
+  // Flatten all ingredients from all steps into a single list. Tandoor nests
+  // ingredients inside the step that uses them; Norish keeps one flat list of
+  // ingredient lines and records the step -> line relation as Step Ingredients,
+  // which reference a line by its `order`. So remember, per Tandoor step, the
+  // order of every line it contributed. Keyed by step object (not index) so the
+  // relation survives the filtering of steps further down. Steps are walked
+  // in the order they are shown, so the lines read in that order too.
+  const sortedSteps = [...(validated.steps || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
+  const allIngredients: Array<TandoorLine & { globalOrder: number }> = [];
+  const lineOrdersByStep = new Map<TandoorStep, number[]>();
   let globalOrder = 0;
 
-  for (const step of validated.steps || []) {
+  for (const step of sortedSteps) {
+    const lineOrders: number[] = [];
+
     for (const ingredient of step.ingredients || []) {
-      // Skip header ingredients (they're just visual separators)
-      if (ingredient.is_header) continue;
+      const line = readTandoorLine(ingredient);
 
-      const ingredientName = ingredient.food?.name?.trim();
+      if (!line) continue;
 
-      if (!ingredientName) continue;
-
-      allIngredients.push({
-        ...ingredient,
-        globalOrder: globalOrder++,
-      });
+      // A header row is a line among the others, but never a step's ingredient.
+      if (!ingredient.is_header) lineOrders.push(globalOrder);
+      allIngredients.push({ ...line, globalOrder: globalOrder++ });
     }
+
+    lineOrdersByStep.set(step, lineOrders);
   }
 
   const ingredientsForDetection = allIngredients.map((ing) => ({
     quantity: ing.amount?.toString() || "",
     quantity2: null,
-    unitOfMeasure: ing.unit?.name || "",
-    unitOfMeasureID: ing.unit?.name || "",
-    description: ing.food?.name || "",
+    unitOfMeasure: ing.unit || "",
+    unitOfMeasureID: ing.unit || "",
+    description: ing.name,
     isGroupHeader: false,
   })) as any;
 
@@ -169,15 +272,15 @@ export async function parseTandoorRecipeToDTO(
   // Map ingredients to our schema
   const recipeIngredients = allIngredients.map((ing) => ({
     ingredientId: null,
-    ingredientName: ing.food?.name?.trim() || "",
+    ingredientName: ing.name,
     amount: ing.amount,
-    unit: ing.unit?.name || null,
+    unit: ing.unit,
     systemUsed: systemUsed,
     order: ing.globalOrder,
   }));
 
   const formatStepText = (step: TandoorStep): string => {
-    const instruction = step.instruction.trim();
+    const instruction = renderTandoorTemplate(step.instruction, step.ingredients).trim();
     const stepNote = step.name?.trim();
 
     if (!stepNote) return instruction;
@@ -185,13 +288,19 @@ export async function parseTandoorRecipeToDTO(
     return `**${stepNote}** ${instruction}`;
   };
 
-  const steps = (validated.steps || [])
+  const steps = sortedSteps
     .filter((step) => step.instruction && step.instruction.trim())
-    .sort((a, b) => (a.order || 0) - (b.order || 0))
     .map((step, index) => ({
       step: formatStepText(step),
       order: index,
       systemUsed: systemUsed,
+      // Tandoor lists the whole amount of an ingredient under the step that
+      // uses it, so every link carries the full line (share 1).
+      stepIngredients: (lineOrdersByStep.get(step) ?? []).map((ingredientOrder, linkOrder) => ({
+        ingredientOrder,
+        share: 1,
+        order: linkOrder,
+      })),
     }));
 
   // Extract tags from keywords
@@ -221,12 +330,11 @@ export async function parseTandoorRecipeToDTO(
     return Number.isFinite(val) && val > 0 ? val : undefined;
   };
 
+  // Working time is prep and waiting is neither prep nor cook, so cook stays
+  // empty and the wait shows as Other Time within the total.
   const prepMinutes = parseTime(validated.working_time);
-  const cookMinutes = parseTime(validated.waiting_time);
-  const totalMinutes =
-    prepMinutes !== undefined || cookMinutes !== undefined
-      ? (prepMinutes || 0) + (cookMinutes || 0)
-      : undefined;
+  const waitingMinutes = parseTime(validated.waiting_time);
+  const totalMinutes = sumMinutes(prepMinutes, waitingMinutes);
 
   // Build DTO
   const dto: FullRecipeInsertDTO = {
@@ -238,7 +346,6 @@ export async function parseTandoorRecipeToDTO(
     servings: validated.servings || undefined,
     systemUsed: systemUsed,
     prepMinutes: prepMinutes,
-    cookMinutes: cookMinutes,
     totalMinutes: totalMinutes,
     recipeIngredients: recipeIngredients,
     steps: steps,
@@ -253,7 +360,10 @@ export async function parseTandoorRecipeToDTO(
     throw new Error(`Schema validation failed: ${parsed.error.message}`);
   }
 
-  return parsed.data;
+  return withLineFoodTexts(
+    parsed.data,
+    allIngredients.map((line) => line.foodText)
+  );
 }
 
 /**

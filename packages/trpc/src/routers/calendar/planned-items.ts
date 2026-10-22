@@ -51,6 +51,7 @@ export const listTodayPlannedRecipesProcedure = authedProcedure
       protect: true,
       tags: ["Planned Recipes"],
       summary: "Get planned recipes for today",
+      description: '"Today" is the day in the server\'s timezone.',
       errorResponses: {
         401: "Missing or invalid API credentials",
       },
@@ -71,6 +72,7 @@ export const listWeekPlannedRecipesProcedure = authedProcedure
       protect: true,
       tags: ["Planned Recipes"],
       summary: "Get planned recipes for the current week",
+      description: "The week runs Monday through Sunday in the server's timezone.",
       errorResponses: {
         401: "Missing or invalid API credentials",
       },
@@ -95,6 +97,7 @@ export const listMonthPlannedRecipesProcedure = authedProcedure
       protect: true,
       tags: ["Planned Recipes"],
       summary: "Get planned recipes for the current month",
+      description: "The month is the calendar month in the server's timezone.",
       errorResponses: {
         401: "Missing or invalid API credentials",
       },

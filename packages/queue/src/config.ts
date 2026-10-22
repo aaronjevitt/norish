@@ -58,6 +58,9 @@ export const STALLED_INTERVAL = {
   [QUEUE_NAMES.INGREDIENT_LINKING]: 60_000, // 1 min - background enhancement
   [QUEUE_NAMES.IMAGE_GENERATION]: 60_000, // 1 min - background enhancement
   [QUEUE_NAMES.STORE_LOOKUP]: 60_000, // 1 min - always-on, one visit at a time
+  [QUEUE_NAMES.INGREDIENT_REVIEW]: 60_000, // 1 min - a person asked, but is not waiting
+  [QUEUE_NAMES.INGREDIENT_ICONS]: 60_000, // 1 min - a person asked, but is not waiting
+  [QUEUE_NAMES.NEW_INGREDIENTS]: 60_000, // 1 min - background upkeep
 } as const;
 
 /**
@@ -83,6 +86,15 @@ export const WORKER_CONCURRENCY = {
   // good-citizen fence in front of somebody else's supermarket. Raising it,
   // or adding a second queue that races this one at the same shop, undoes it.
   [QUEUE_NAMES.STORE_LOOKUP]: 1,
+  // One round at a time: a round already asks its foods one after another, and
+  // two rounds over the same flagged foods would ask each twice.
+  [QUEUE_NAMES.INGREDIENT_REVIEW]: 1,
+  // One round at a time, drawing one food after another: image calls are
+  // billed per request and rate-limited hard, as for Generated Images.
+  [QUEUE_NAMES.INGREDIENT_ICONS]: 1,
+  // One save's new foods after another: an icon is an image call, billed per
+  // request and rate-limited hard, as for Draw icons.
+  [QUEUE_NAMES.NEW_INGREDIENTS]: 1,
 } as const;
 
 /**
@@ -134,6 +146,13 @@ export const HANGING_THRESHOLD_MS: Record<QueueName, number> = {
   [QUEUE_NAMES.INGREDIENT_LINKING]: 15 * 60_000,
   [QUEUE_NAMES.IMAGE_GENERATION]: 15 * 60_000,
   [QUEUE_NAMES.STORE_LOOKUP]: 10 * 60_000,
+  // A round may ask every flagged food in the catalogue, each within its 30 s
+  // budget: a thousand of them, a few at a time, run for well over an hour.
+  [QUEUE_NAMES.INGREDIENT_REVIEW]: 4 * 60 * 60_000,
+  // A round may draw thousands of icons, one at a time.
+  [QUEUE_NAMES.INGREDIENT_ICONS]: 24 * 60 * 60_000,
+  // A save's few new foods, each a name and an icon that may wait out a rate limit.
+  [QUEUE_NAMES.NEW_INGREDIENTS]: 15 * 60_000,
 };
 
 export type QueueRemovalOptions = Pick<DefaultJobOptions, "removeOnComplete" | "removeOnFail">;
@@ -324,5 +343,38 @@ export const imageGenerationJobOptions: DefaultJobOptions = {
     age: 3600,
     count: 500,
   },
+  removeOnFail: FALLBACK_REMOVAL,
+};
+
+/**
+ * A round of Ask AI over flagged Ingredients. A food's own failure is recorded
+ * on its step and never fails the round; a second attempt covers a crash of
+ * the round itself, and is safe: a food the first attempt settled is no longer
+ * flagged and is skipped, so the retry only finishes what the crash left.
+ */
+export const ingredientReviewJobOptions: DefaultJobOptions = {
+  attempts: 2,
+  backoff: { type: "exponential", delay: 5_000 },
+  removeOnComplete: { age: 3600, count: 500 },
+  removeOnFail: FALLBACK_REMOVAL,
+};
+
+/**
+ * A Draw icons round. A food's own failure is recorded on its step and never
+ * fails the round; a second attempt covers a crash of the round itself, and
+ * is safe: a food the first attempt drew has an icon of its own and is
+ * skipped, so the retry only finishes what the crash left.
+ */
+/** Upkeep of new foods is best-effort: a food it misses is still the Clean names and Draw icons rounds'. */
+export const newIngredientsJobOptions: DefaultJobOptions = {
+  attempts: 1,
+  removeOnComplete: { age: 3600, count: 500 },
+  removeOnFail: FALLBACK_REMOVAL,
+};
+
+export const ingredientIconsJobOptions: DefaultJobOptions = {
+  attempts: 2,
+  backoff: { type: "exponential", delay: 5_000 },
+  removeOnComplete: { age: 3600, count: 500 },
   removeOnFail: FALLBACK_REMOVAL,
 };

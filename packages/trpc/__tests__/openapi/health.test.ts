@@ -230,7 +230,7 @@ describe("openapi health endpoint", () => {
   });
 
   it("documents health as public while protected endpoints require security", async () => {
-    const document = getOpenApiDocument("http://localhost");
+    const document = getOpenApiDocument();
 
     expect(document.paths["/health"]?.get).toEqual(
       expect.objectContaining({

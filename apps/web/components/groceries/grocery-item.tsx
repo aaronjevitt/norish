@@ -2,10 +2,12 @@
 
 import { memo } from "react";
 import { RecurrencePill } from "@/app/(app)/groceries/components/recurrence-pill";
+import { IngredientIcon } from "@/components/ingredients/ingredient-icon";
 import { useUnitFormatter } from "@/hooks/use-unit-formatter";
 import { useTranslations } from "next-intl";
 
 import type { GroceryDto, RecurringGroceryDto, StoreDto } from "@norish/shared/contracts";
+import { shownAmount } from "@norish/shared/lib/grocery-grouping";
 
 import { GroceryCheckbox } from "./grocery-checkbox";
 import { GroceryPrice } from "./grocery-price";
@@ -39,11 +41,11 @@ function GroceryItemComponent({
   const t = useTranslations("groceries.item");
   const { formatAmountUnit } = useUnitFormatter();
 
-  const amountDisplay = formatAmountUnit(grocery.amount, grocery.unit);
+  const amountDisplay = formatAmountUnit(shownAmount(grocery), grocery.unit);
 
   return (
     <div
-      className={`bg-surface flex min-h-12 items-center gap-3 px-4 py-3 pl-10 ${roundedClass}`}
+      className={`bg-surface flex min-h-12 items-center gap-3 px-4 py-3 sm:pl-10 ${roundedClass}`}
       data-grocery-name={grocery.name ?? ""}
       data-testid="grocery-row"
       // In the By Recipe view the row is the only thing that knows its Store,
@@ -60,9 +62,17 @@ function GroceryItemComponent({
         onChange={(checked) => onToggle(grocery.id, checked)}
       />
 
-      {/* Clickable content area */}
+      {/* Decoration a phone's row has no room for. */}
+      <IngredientIcon
+        className={`max-sm:hidden ${grocery.isDone ? "opacity-50" : ""}`}
+        ingredientId={grocery.ingredientId ?? recurringGrocery?.ingredientId}
+      />
+
+      {/* Clickable content area. The name and the price centre on each other,
+          so one line of name beside the price's two sits in the row's middle;
+          the name wraps rather than give way to the price. */}
       <button
-        className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1 text-left sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+        className="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-3 text-left sm:gap-4"
         type="button"
         onClick={() => onEdit(grocery)}
       >
@@ -78,7 +88,7 @@ function GroceryItemComponent({
               </span>
             )}
             <span
-              className={`truncate text-base ${
+              className={`min-w-0 text-base break-words ${
                 grocery.isDone ? "text-muted line-through" : "text-foreground"
               }`}
             >
@@ -88,7 +98,7 @@ function GroceryItemComponent({
 
           {/* Recipe name indicator */}
           {recipeName && !recurringGrocery && (
-            <span className="text-muted mt-0.5 truncate text-xs">{recipeName}</span>
+            <span className="text-muted mt-0.5 max-w-full truncate text-xs">{recipeName}</span>
           )}
 
           {/* Recurring pill underneath */}

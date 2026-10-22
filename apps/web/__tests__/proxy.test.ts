@@ -38,12 +38,27 @@ describe("proxy share access", () => {
   it("excludes public PWA assets from the Next proxy matcher", () => {
     expect(config.matcher[0]).toContain("manifest\\.webmanifest");
     expect(config.matcher[0]).toContain("sw\\.js");
-    expect(config.matcher[0]).toContain("favicon\\.ico");
+    expect(config.matcher[0]).toContain("brand/");
     expect(config.matcher[0]).toContain("icons");
     // The worker script itself: browsers fetch it without credentials, and a
     // script answered by a redirect is refused, so it can never sit behind
     // the auth redirect.
     expect(config.matcher[0]).toContain("serwist/");
+  });
+
+  it("leaves the brand icons and the N mark out of the proxy, so installs fetch them signed out", () => {
+    const proxied = new RegExp(`^${config.matcher[0]}$`);
+
+    expect(proxied.test("/brand/apple-touch-icon.png")).toBe(false);
+    expect(proxied.test("/brand/splash/light-1206x2622.png")).toBe(false);
+    expect(proxied.test("/logo-small.svg")).toBe(false);
+  });
+
+  it("leaves Ingredient Icons out of the proxy, so a shared recipe shows them signed out", () => {
+    const proxied = new RegExp(`^${config.matcher[0]}$`);
+
+    expect(proxied.test("/ingredient-icons/0123456789abcdef0123456789abcdef.webp")).toBe(false);
+    expect(proxied.test("/recipes/123e4567-e89b-12d3-a456-426614174000/cover.jpg")).toBe(true);
   });
 
   it("redirects anonymous private recipe media requests", async () => {

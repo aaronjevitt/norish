@@ -8,12 +8,11 @@ type PhoneMockupProps = {
   alt: string;
 };
 
-// Phone bezel wrapping a themed mobile screenshot — a CSS port of the landing
-// page's PhoneFrame.
+// Phone bezel wrapping a themed mobile screenshot, the landing page's PhoneFrame.
 export default function PhoneMockup({ base, alt }: PhoneMockupProps) {
   return (
-    <div className="phoneMockup">
-      <ThemedShot base={base} alt={alt} />
+    <div className="border-surface bg-surface overflow-hidden rounded-[1.75rem] border-6 shadow-[0_30px_60px_-24px_rgb(0_0_0/0.5)]">
+      <ThemedShot alt={alt} base={base} />
     </div>
   );
 }

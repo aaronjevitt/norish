@@ -1,8 +1,10 @@
+import type { CookbookFiling, ImportProgressListener } from "@norish/shared-server/archive/parser";
 import type {
   ArchiveImportError,
   ArchiveImportNote,
   RecipeDashboardDTO,
 } from "@norish/shared/contracts";
+import { announceUsableRecipe } from "@norish/queue/enrichment/announce";
 import {
   ArchiveFormat,
   calculateBatchSize,
@@ -12,15 +14,17 @@ import {
 import { getRecipePermissionPolicy } from "@norish/shared-server/config/server-config-loader";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 import { archive } from "@norish/shared-server/realtime/archive";
+import { cookbooks } from "@norish/shared-server/realtime/cookbooks";
 import { recipes } from "@norish/shared-server/realtime/recipes";
 
+import type { AuthedProcedureContext } from "../../middleware";
 import { formDataInputSchema, getUploadedFile } from "../../form-data";
 import { authedProcedure } from "../../middleware";
 import { router } from "../../trpc";
 
 /**
  * Import recipes from an archive (Norish .norishrecipes, Mela .melarecipes,
- * Paprika .paprikarecipes, or Mealie/Tandoor .zip export).
+ * Paprika .paprikarecipes, or Mealie/Tandoor/Recipe Keeper .zip export).
  */
 const importArchive = authedProcedure
   .input(formDataInputSchema)
@@ -78,7 +82,7 @@ const importArchive = authedProcedure
         return {
           success: false,
           error:
-            "Unknown archive format. Expected .norishrecipes, .melarecipes, .paprikarecipes, Mealie .zip, or Tandoor .zip export",
+            "Unknown archive format. Expected .norishrecipes, .melarecipes, .paprikarecipes, or a Mealie, Tandoor or Recipe Keeper .zip export",
         };
       }
 
@@ -94,16 +98,14 @@ const importArchive = authedProcedure
       );
 
       // Run import in background (fire-and-forget)
-      runArchiveImportAsync(ctx.user.id, ctx.userIds, ctx.householdKey, buffer, total).catch(
-        (err) => {
-          log.error({ err, userId: ctx.user.id }, "Archive import failed");
-          void archive.publish(
-            "archiveCompleted",
-            { imported: 0, notes: [], errors: [{ file: "archive", error: String(err) }] },
-            { userId: ctx.user.id }
-          );
-        }
-      );
+      runArchiveImportAsync(ctx, buffer, total).catch((err) => {
+        log.error({ err, userId: ctx.user.id }, "Archive import failed");
+        void archive.publish(
+          "archiveCompleted",
+          { imported: 0, notes: [], errors: [{ file: "archive", error: String(err) }] },
+          { userId: ctx.user.id }
+        );
+      });
 
       return { success: true, total };
     } catch (error) {
@@ -117,15 +119,15 @@ const importArchive = authedProcedure
 
 /**
  * Run the archive import asynchronously, emitting progress events.
- * Automatically detects Mela, Mealie or Tandoor format and uses appropriate parser.
+ * The parser detects the format and picks the reader for it.
  */
 async function runArchiveImportAsync(
-  userId: string,
-  userIds: string[],
-  householdKey: string,
+  ctx: Pick<AuthedProcedureContext, "user" | "userIds" | "householdKey" | "householdUserIds">,
   buffer: Buffer,
   total: number
 ): Promise<void> {
+  const { userIds, householdKey, householdUserIds } = ctx;
+  const userId = ctx.user.id;
   const allImported: RecipeDashboardDTO[] = [];
   const allErrors: ArchiveImportError[] = [];
   const allNotes: ArchiveImportNote[] = [];
@@ -140,20 +142,55 @@ async function runArchiveImportAsync(
   // Batch accumulators
   let batchRecipes: RecipeDashboardDTO[] = [];
   let batchErrors: ArchiveImportError[] = [];
+  let batchFilings: Array<{ recipeId: string; filing: CookbookFiling }> = [];
+
+  // Landed recipes reach the household a batch at a time, and so do the
+  // cookbooks the import filed them into: a cookbook it made appears, and
+  // each filing refreshes what it touched, as for a recipe filed by hand.
+  const publishBatch = () => {
+    if (batchRecipes.length > 0) {
+      void recipes.publish("recipeBatchCreated", { recipes: batchRecipes }, target);
+    }
+
+    for (const { filing } of batchFilings) {
+      if (filing.created) void cookbooks.publish("created", { cookbook: filing.created }, target);
+    }
+
+    for (const { recipeId, filing } of batchFilings) {
+      void cookbooks.publish(
+        "membershipChanged",
+        { cookbookId: filing.cookbookId, recipeId, isMember: true },
+        target
+      );
+    }
+
+    batchRecipes = [];
+    batchFilings = [];
+  };
 
   let current = 0;
 
-  const onProgress = (
-    currentCount: number,
-    recipe?: RecipeDashboardDTO,
-    error?: ArchiveImportError,
-    note?: ArchiveImportNote
-  ) => {
+  const onProgress: ImportProgressListener = (currentCount, recipe, error, note, landed) => {
     current = currentCount;
+
+    // An archive recipe enters the same automatic flow as one from any other
+    // import path, as soon as it lands; what it overwrote was announced when
+    // it was first made. A failed announcement never fails the import.
+    const inserted = landed?.inserted;
+
+    if (inserted) {
+      announceUsableRecipe(inserted, { userId, householdKey, householdUserIds }).catch((err) =>
+        log.warn({ err, recipeId: inserted.recipeId }, "Failed to announce archive recipe")
+      );
+    }
 
     if (recipe) {
       batchRecipes.push(recipe);
       allImported.push(recipe);
+
+      for (const filing of landed?.cookbooks ?? []) {
+        batchFilings.push({ recipeId: recipe.id, filing });
+      }
     }
 
     if (error) {
@@ -170,10 +207,10 @@ async function runArchiveImportAsync(
     const shouldEmit = current % batchSize === 0 || current === total;
 
     if (shouldEmit) {
+      const batchLanded = batchRecipes.length;
+
       // Emit recipe batch to household (so all members see new recipes)
-      if (batchRecipes.length > 0) {
-        void recipes.publish("recipeBatchCreated", { recipes: batchRecipes }, target);
-      }
+      publishBatch();
 
       // Always emit progress to importing user
       void archive.publish(
@@ -193,14 +230,13 @@ async function runArchiveImportAsync(
           total,
           imported: allImported.length,
           notes: allNotes.length,
-          batchSize: batchRecipes.length,
+          batchSize: batchLanded,
           errors: batchErrors.length,
         },
         "Archive import progress"
       );
 
       // Reset batch accumulators
-      batchRecipes = [];
       batchErrors = [];
     }
   };
@@ -208,6 +244,10 @@ async function runArchiveImportAsync(
   try {
     // Import archive (auto-detects format)
     const result = await runArchiveImport(userId, userIds, buffer, onProgress);
+
+    // An archive whose entries outnumber or fall short of its count never
+    // reaches the last boundary, so whatever landed since is sent now.
+    publishBatch();
 
     log.info(
       {

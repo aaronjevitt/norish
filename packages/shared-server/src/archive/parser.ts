@@ -3,19 +3,28 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import JSZip from "jszip";
 
+import type { CreateRecipeResult } from "@norish/db/repositories/recipes";
 import { SERVER_CONFIG } from "@norish/config/env-config-server";
+import { dashboardRecipe, findExistingRecipe } from "@norish/db";
 import {
-  createRecipeWithRefs,
-  dashboardRecipe,
-  findExistingRecipe,
-  updateRecipeWithRefs,
-} from "@norish/db";
+  addRecipeToCookbook,
+  createCookbook,
+  findOwnCookbookIdByTitle,
+} from "@norish/db/repositories/cookbooks";
 import { listCuisines } from "@norish/db/repositories/cuisines";
 import { addFavorite } from "@norish/db/repositories/favorites";
 import { rateRecipe } from "@norish/db/repositories/ratings";
+import {
+  createResolvedRecipe,
+  updateResolvedRecipe,
+} from "@norish/shared-server/ingredients/recipe-lines";
 import { serverLogger as log } from "@norish/shared-server/logger";
 import { withDishColor, withDishColorForUpdate } from "@norish/shared-server/media/dish-color";
-import { FullRecipeInsertDTO, RecipeDashboardDTO } from "@norish/shared/contracts";
+import {
+  CookbookSummaryDTO,
+  FullRecipeInsertDTO,
+  RecipeDashboardDTO,
+} from "@norish/shared/contracts";
 
 import {
   detectMealieLegacyArchive,
@@ -36,10 +45,17 @@ import {
   countNorishRecipes,
   extractNorishRecipes,
   isNorishArchive,
+  matchCuisineNames,
   parseNorishRecipeToDTO,
   readNorishManifest,
 } from "./norish-parser";
 import { extractPaprikaRecipes, parsePaprikaRecipeToDTO } from "./paprika-parser";
+import {
+  countRecipeKeeperRecipes,
+  extractRecipeKeeperRecipes,
+  parseRecipeKeeperRecipeToDTO,
+  readRecipeKeeperHtml,
+} from "./recipe-keeper-parser";
 import { extractTandoorRecipes, parseTandoorRecipeToDTO } from "./tandoor-parser";
 
 export enum ArchiveFormat {
@@ -49,6 +65,7 @@ export enum ArchiveFormat {
   MEALIE_LEGACY = "mealie-legacy",
   TANDOOR = "tandoor",
   PAPRIKA = "paprika",
+  RECIPE_KEEPER = "recipe-keeper",
   UNKNOWN = "unknown",
 }
 
@@ -66,6 +83,7 @@ export type ImportResult = {
  * - Mealie Legacy: folder-per-recipe with inline JSON
  * - Mela: contains .melarecipe files
  * - Paprika: contains .paprikarecipe files
+ * - Recipe Keeper: recipes.html carrying Recipe Keeper's itemprops
  * - Tandoor: contains nested .zip files with recipe.json inside
  */
 export type ArchiveInfo = {
@@ -234,6 +252,14 @@ export async function getArchiveInfo(rawZip: JSZip): Promise<ArchiveInfo> {
     };
   }
 
+  // Check for Recipe Keeper format (recipes.html holding its recipe blocks)
+  const recipeKeeperHtml = await readRecipeKeeperHtml(zip);
+  const recipeKeeperCount = recipeKeeperHtml ? countRecipeKeeperRecipes(recipeKeeperHtml) : 0;
+
+  if (recipeKeeperCount > 0) {
+    return { format: ArchiveFormat.RECIPE_KEEPER, count: recipeKeeperCount };
+  }
+
   // Check for Tandoor format (nested .zip files containing recipe.json)
   const nestedZips = zip.file(/\.zip$/i);
 
@@ -295,6 +321,8 @@ export type RecipeImportItem = {
   importedRating?: number;
   /** Optional favourite mark to apply for the importing user */
   importedFavorite?: boolean;
+  /** Titles of the cookbooks the source files this recipe under */
+  cookbooks?: string[];
   /** What this recipe lost on the way in, surfaced in the import result */
   note?: { file: string; note: string };
 };
@@ -340,6 +368,82 @@ async function applyImportedMarks(
 }
 
 /**
+ * Files landed recipes into the importer's own cookbooks by title (ADR-0022):
+ * the one already bearing it, or a new one. Each title is looked up once per
+ * run, filing only ever adds a membership, and a failure is logged and never
+ * fails the import, like the imported rating.
+ */
+function createCookbookFiler(userId: string | undefined) {
+  const cookbookIds = new Map<string, string>();
+
+  return async (recipeId: string, titles: string[] | undefined): Promise<CookbookFiling[]> => {
+    const filings: CookbookFiling[] = [];
+
+    if (!userId || !titles) return filings;
+
+    for (const title of titles) {
+      const trimmed = title.trim();
+      const key = trimmed.toLowerCase();
+
+      if (!trimmed) continue;
+
+      try {
+        let cookbookId = cookbookIds.get(key);
+        let created: CookbookSummaryDTO | undefined;
+
+        if (!cookbookId) {
+          cookbookId = (await findOwnCookbookIdByTitle(userId, trimmed)) ?? undefined;
+
+          if (!cookbookId) {
+            created = await createCookbook({ userId, title: trimmed });
+            cookbookId = created.id;
+          }
+
+          cookbookIds.set(key, cookbookId);
+        }
+
+        await addRecipeToCookbook(cookbookId, recipeId);
+        filings.push({ cookbookId, created });
+      } catch (error) {
+        log.warn({ err: error, recipeId, title: trimmed }, "Failed to file imported recipe");
+      }
+    }
+
+    return filings;
+  };
+}
+
+/** A cookbook a landed recipe was filed into. */
+export type CookbookFiling = {
+  cookbookId: string;
+  /** The cookbook as this filing made it, when it had to make one */
+  created?: CookbookSummaryDTO;
+};
+
+/** What a recipe's landing did that the caller announces. */
+export type LandedRecipe = {
+  /**
+   * The creation result of a recipe the run newly inserted, for the
+   * enrichment hand-off; a recipe the run overwrote carries none, since like
+   * every other import path an existing recipe is not announced again.
+   */
+  inserted?: CreateRecipeResult;
+  cookbooks: CookbookFiling[];
+};
+
+/**
+ * Told about each entry as the loop finishes it, and about what a recipe's
+ * landing did the moment it lands.
+ */
+export type ImportProgressListener = (
+  current: number,
+  recipe?: RecipeDashboardDTO,
+  error?: { file: string; error: string },
+  note?: { file: string; note: string },
+  landed?: LandedRecipe
+) => void;
+
+/**
  * Generic import loop that handles duplicate detection, persistence, and progress reporting.
  * Takes an async generator that yields parsed recipe DTOs or parsing errors.
  */
@@ -347,16 +451,16 @@ export async function importRecipeItems(
   items: AsyncGenerator<RecipeImportItemOrError, void, unknown>,
   userId: string | undefined,
   userIds: string[],
-  onProgress?: (
-    current: number,
-    recipe?: RecipeDashboardDTO,
-    error?: { file: string; error: string },
-    note?: { file: string; note: string }
-  ) => void
+  onProgress?: ImportProgressListener
 ): Promise<ImportResult> {
   const imported: RecipeDashboardDTO[] = [];
   const errors: Array<{ file: string; error: string }> = [];
   const notes: Array<{ file: string; note: string }> = [];
+  // Every recipe this run has written. A second entry sharing its name is a
+  // different recipe, never a correction, so it is found again by URL only:
+  // an archive never overwrites its own recipes by name (ADR-0022).
+  const writtenThisRun = new Set<string>();
+  const fileIntoCookbooks = createCookbookFiler(userId);
   let current = 0;
 
   for await (const item of items) {
@@ -372,7 +476,7 @@ export async function importRecipeItems(
     }
 
     // Handle regular import items
-    const { dto, fileName, importedRating, importedFavorite, note } = item;
+    const { dto, fileName, importedRating, importedFavorite, cookbooks, note } = item;
 
     // Recorded only once the recipe actually lands: an entry that then fails
     // is reported as an error, and has nothing to say about what it lost.
@@ -382,7 +486,7 @@ export async function importRecipeItems(
 
     try {
       // Check for duplicates
-      const existingId = await findExistingRecipe(userIds, dto.url, dto.name);
+      const existingId = await findExistingRecipe(userIds, dto.url, dto.name, [...writtenThisRun]);
 
       if (existingId) {
         const overwriteUserId = userId ?? userIds[0];
@@ -395,20 +499,23 @@ export async function importRecipeItems(
 
         // The receiving instance extracts its own Dish Colour from the
         // media it just rehomed; nothing colour-shaped travels in an archive.
-        await updateRecipeWithRefs(
+        await updateResolvedRecipe(
           existingId,
           overwriteUserId,
-          await withDishColorForUpdate(overwriteDto)
+          await withDishColorForUpdate(overwriteDto),
+          { userId: overwriteUserId }
         );
 
+        writtenThisRun.add(existingId);
         await applyImportedMarks(userId, existingId, importedRating, importedFavorite);
+        const filings = await fileIntoCookbooks(existingId, cookbooks);
 
         const updatedRecipe = await dashboardRecipe(existingId);
 
         if (updatedRecipe) {
           imported.push(updatedRecipe);
           recordNote();
-          onProgress?.(current, updatedRecipe, undefined, note);
+          onProgress?.(current, updatedRecipe, undefined, note, { cookbooks: filings });
         }
 
         continue;
@@ -420,10 +527,16 @@ export async function importRecipeItems(
         throw new Error("Archive recipe missing preallocated recipe ID");
       }
 
-      const created = await createRecipeWithRefs(recipeId, userId, await withDishColor(dto));
+      const created = await createResolvedRecipe(recipeId, userId, await withDishColor(dto), {
+        userId: userId ?? null,
+      });
+
+      let filings: CookbookFiling[] = [];
 
       if (created) {
+        writtenThisRun.add(created.recipeId);
         await applyImportedMarks(userId, created.recipeId, importedRating, importedFavorite);
+        filings = await fileIntoCookbooks(created.recipeId, cookbooks);
       }
 
       // Fetch recipe AFTER saving rating so averageRating is included in the DTO
@@ -432,7 +545,10 @@ export async function importRecipeItems(
       if (recipe) {
         imported.push(recipe);
         recordNote();
-        onProgress?.(current, recipe, undefined, note);
+        onProgress?.(current, recipe, undefined, note, {
+          inserted: created?.status === "inserted" ? created : undefined,
+          cookbooks: filings,
+        });
       }
     } catch (e: unknown) {
       const error = { file: fileName, error: String((e as Error)?.message || e) };
@@ -445,6 +561,22 @@ export async function importRecipeItems(
   return { imported, errors, notes };
 }
 
+/** The receiving instance's cuisine vocabulary, by lowercased name. */
+async function loadCuisineVocabulary(): Promise<Map<string, string>> {
+  const vocabulary = await listCuisines();
+
+  return new Map(vocabulary.map((cuisine) => [cuisine.name.trim().toLowerCase(), cuisine.id]));
+}
+
+function droppedCuisinesNote(
+  fileName: string,
+  droppedCuisines: string[]
+): RecipeImportItem["note"] {
+  return droppedCuisines.length > 0
+    ? { file: fileName, note: `Unknown cuisines dropped: ${droppedCuisines.join(", ")}` }
+    : undefined;
+}
+
 /**
  * Generator for Norish Recipe Archive recipes.
  */
@@ -455,10 +587,7 @@ async function* generateNorishRecipes(
 
   assertSupportedNorishFormatVersion(manifest);
 
-  const vocabulary = await listCuisines();
-  const cuisineIdsByName = new Map(
-    vocabulary.map((cuisine) => [cuisine.name.trim().toLowerCase(), cuisine.id])
-  );
+  const cuisineIdsByName = await loadCuisineVocabulary();
 
   const entries = await extractNorishRecipes(zip);
 
@@ -469,7 +598,7 @@ async function* generateNorishRecipes(
     }
 
     try {
-      const { dto, droppedCuisines, importedRating, importedFavorite } =
+      const { dto, droppedCuisines, importedRating, importedFavorite, cookbooks } =
         await parseNorishRecipeToDTO(
           entry.json,
           createArchiveRecipeId(),
@@ -484,13 +613,8 @@ async function* generateNorishRecipes(
         fileName,
         importedRating,
         importedFavorite,
-        note:
-          droppedCuisines.length > 0
-            ? {
-                file: fileName,
-                note: `Unknown cuisines dropped: ${droppedCuisines.join(", ")}`,
-              }
-            : undefined,
+        cookbooks,
+        note: droppedCuisinesNote(fileName, droppedCuisines),
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -509,9 +633,14 @@ async function* generateMelaRecipes(
   const melaRecipes = await parseMelaArchive(zip);
 
   for (let i = 0; i < melaRecipes.length; i++) {
-    const dto = await parseMelaRecipeToDTO(melaRecipes[i]!, createArchiveRecipeId());
+    const melaRecipe = melaRecipes[i]!;
+    const dto = await parseMelaRecipeToDTO(melaRecipe, createArchiveRecipeId());
 
-    yield { dto, fileName: `recipe_${i + 1}.melarecipe` };
+    yield {
+      dto,
+      fileName: `recipe_${i + 1}.melarecipe`,
+      importedFavorite: melaRecipe.favorite === true || undefined,
+    };
   }
 }
 
@@ -528,6 +657,7 @@ async function* generateMealieRecipes(
 
   // Build lookup maps once for efficient resolution
   const lookups = buildMealieLookups(database);
+  const cuisineIdsByName = await loadCuisineVocabulary();
 
   for (const mealieRecipe of recipes) {
     const recipeName = mealieRecipe.name || mealieRecipe.id;
@@ -562,9 +692,18 @@ async function* generateMealieRecipes(
         importedRating = Math.max(1, Math.min(5, Math.round(avg)));
       }
 
-      if (dto) {
-        yield { dto, fileName, importedRating };
-      }
+      const { cuisineIds, droppedCuisines } = matchCuisineNames(
+        mealieRecipe.recipeCuisine ? [mealieRecipe.recipeCuisine] : [],
+        cuisineIdsByName
+      );
+
+      yield {
+        dto: { ...dto, cuisines: cuisineIds },
+        fileName,
+        importedRating,
+        importedFavorite: lookups.favoriteRecipes.has(mealieRecipe.id) || undefined,
+        note: droppedCuisinesNote(fileName, droppedCuisines),
+      };
     } catch (error) {
       // Yield error item instead of throwing to allow import to continue
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -652,18 +791,47 @@ async function* generatePaprikaRecipes(
 }
 
 /**
- * Import archive (auto-detects Norish, Mela, Mealie, Paprika, or Tandoor format)
+ * Generator for Recipe Keeper recipes
+ */
+async function* generateRecipeKeeperRecipes(
+  zip: JSZip
+): AsyncGenerator<RecipeImportItemOrError, void, unknown> {
+  const html = await readRecipeKeeperHtml(zip);
+
+  for (const recipe of html ? extractRecipeKeeperRecipes(html) : []) {
+    const fileName = `recipe_${recipe.name}`;
+
+    try {
+      const { dto, importedRating, importedFavorite, cookbooks, droppedPhotos } =
+        await parseRecipeKeeperRecipeToDTO(recipe, createArchiveRecipeId(), zip);
+
+      yield {
+        dto,
+        fileName,
+        importedRating,
+        importedFavorite,
+        cookbooks,
+        note:
+          droppedPhotos > 0
+            ? { file: fileName, note: `Photos beyond the first 10 dropped: ${droppedPhotos}` }
+            : undefined,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      yield { dto: undefined, fileName, parseError: errorMessage };
+    }
+  }
+}
+
+/**
+ * Import archive (auto-detects Norish, Mela, Mealie, Paprika, Tandoor, or Recipe Keeper format)
  */
 export async function importArchive(
   userId: string | undefined,
   userIds: string[],
   zipBytes: Buffer,
-  onProgress?: (
-    current: number,
-    recipe?: RecipeDashboardDTO,
-    error?: { file: string; error: string },
-    note?: { file: string; note: string }
-  ) => void
+  onProgress?: ImportProgressListener
 ): Promise<ImportResult> {
   const arrayBuffer = zipBytes.buffer.slice(
     zipBytes.byteOffset,
@@ -678,7 +846,7 @@ export async function importArchive(
 
   if (format === ArchiveFormat.UNKNOWN) {
     throw new Error(
-      "Unknown archive format. Expected .norishrecipes, .melarecipes, .paprikarecipes, Mealie .zip, or Tandoor .zip export"
+      "Unknown archive format. Expected .norishrecipes, .melarecipes, .paprikarecipes, or a Mealie, Tandoor or Recipe Keeper .zip export"
     );
   }
 
@@ -703,6 +871,9 @@ export async function importArchive(
       break;
     case ArchiveFormat.TANDOOR:
       generator = generateTandoorRecipes(zip);
+      break;
+    case ArchiveFormat.RECIPE_KEEPER:
+      generator = generateRecipeKeeperRecipes(zip);
       break;
   }
 

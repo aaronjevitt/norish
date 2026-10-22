@@ -23,6 +23,7 @@ const ERROR_CODES = [
   "unable_to_get_user_info",
   "provider_not_found",
   "social_account_already_linked",
+  "account_not_linked",
   "account_not_found",
   "registration_is_currently_disabled",
   "user_not_found",

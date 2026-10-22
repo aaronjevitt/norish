@@ -26,6 +26,10 @@ import {
   listTranscriptionModels,
   ModelListingError,
 } from "@norish/shared-server/ai/providers/listing";
+import {
+  forgetKeyRejection,
+  listKeyRejections,
+} from "@norish/shared-server/ai/runtime/key-rejections";
 import { testDecisionModel } from "@norish/shared-server/ai/runtime/runtime";
 import {
   getAutomaticEnrichmentConfig,
@@ -119,6 +123,8 @@ const updateAIConfig = adminProcedure.input(AIConfigSchema).mutation(async ({ in
   await setConfig(ServerConfigKeys.AI_CONFIG, input, ctx.user.id, true, {
     dropSecrets: providerChangedFrom(currentConfig?.provider, input.provider) ? ["apiKey"] : [],
   });
+  // A refused key is presumed fixed by a save; the next refusal says otherwise.
+  forgetKeyRejection(ServerConfigKeys.AI_CONFIG);
 
   // Broadcast permission policy update to all users if AI enabled state changed
   // This allows UI to show/hide recipe convert button
@@ -148,6 +154,7 @@ const updateVideoConfig = adminProcedure
         ? ["transcriptionApiKey"]
         : [],
     });
+    forgetKeyRejection(ServerConfigKeys.VIDEO_CONFIG);
 
     return { success: true };
   });
@@ -167,6 +174,7 @@ const updateImageGenerationConfig = adminProcedure
     await setConfig(ServerConfigKeys.IMAGE_GENERATION_CONFIG, input, ctx.user.id, true, {
       dropSecrets: providerChangedFrom(stored?.provider, input.provider) ? ["apiKey"] : [],
     });
+    forgetKeyRejection(ServerConfigKeys.IMAGE_GENERATION_CONFIG);
 
     return { success: true };
   });
@@ -187,6 +195,7 @@ const updateDecisionConfig = adminProcedure
     await setConfig(ServerConfigKeys.DECISION_CONFIG, input, ctx.user.id, true, {
       dropSecrets: providerChangedFrom(stored?.provider, input.provider) ? ["apiKey"] : [],
     });
+    forgetKeyRejection(ServerConfigKeys.DECISION_CONFIG);
 
     return { success: true };
   });
@@ -257,6 +266,8 @@ const listAvailableModels = adminProcedure
       provider: AIConfigInputSchema.shape.provider,
       endpoint: z.string().optional(),
       apiKey: z.string().optional(),
+      /** Image Generation's models rather than the AI settings' text models. */
+      purpose: z.enum(["text", "image"]).optional(),
     })
   )
   .query(async ({ input, ctx }) => {
@@ -277,6 +288,7 @@ const listAvailableModels = adminProcedure
       listModels(input.provider, {
         endpoint: input.endpoint,
         apiKey,
+        purpose: input.purpose,
       })
     );
   });
@@ -389,7 +401,11 @@ const imageGenerationSweepCount = adminProcedure.query(async () => {
   return { enabled: true as const, gapOnly: counts.missingImage, overwrite: counts.eligible };
 });
 
+/** The configured keys the provider is refusing, and since when: the admin's warning. */
+const aiKeyRejections = adminProcedure.query(() => listKeyRejections());
+
 export const aiConfigProcedures = router({
+  aiKeyRejections,
   updateAIConfig,
   updateVideoConfig,
   updateImageGenerationConfig,

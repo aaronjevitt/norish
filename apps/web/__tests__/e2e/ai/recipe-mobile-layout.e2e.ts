@@ -14,6 +14,7 @@ import { request } from "@playwright/test";
 import { Client } from "pg";
 
 import type { AIE2EStack } from "./fixture";
+import { clearDevicePreferences, setDevicePreferences } from "../harness/device-preferences";
 import { databaseUrl } from "./database";
 import { expect, test } from "./fixture";
 import { setAutomaticEnrichment } from "./recipe-enrichment-support";
@@ -228,7 +229,13 @@ test("the cook pill stays reachable at full scroll and covers neither nav nor ti
 
   // A running timer first, so the corner the dock rises into is occupied.
   // Both page trees render the chip; only the phone tree's copy is visible.
-  const timerChip = page.getByText("40 minutes").locator("visible=true").first();
+  // The chip exists only once the timer keywords arrive; before that
+  // "40 minutes" is plain step text, and clicking it ticks the step off.
+  const timerChip = page
+    .locator("[data-slot=chip]")
+    .filter({ hasText: /^40 minutes$/ })
+    .locator("visible=true")
+    .first();
 
   await expect(async () => {
     await timerChip.scrollIntoViewIfNeeded();
@@ -276,6 +283,12 @@ test("cooking mode pages its steps, keeps both swipes, and projects Ready At onl
   await expect(dialog.getByText(/Ready around/)).toBeVisible();
   await expect(dialog.getByText("1 / 3")).toBeVisible();
 
+  // The bottom bar fits a phone: keep-screen-on sits clear of Next step.
+  const awakeBox = await dialog.getByRole("button", { name: "Keep screen awake" }).boundingBox();
+  const nextBox = await dialog.getByRole("button", { name: "Next step" }).boundingBox();
+
+  expect(boxesOverlap(awakeBox!, nextBox!)).toBe(false);
+
   // The vertical swipe pages forward.
   await swipe(0, -120);
   await expect(dialog.getByText("2 / 3")).toBeVisible();
@@ -297,16 +310,21 @@ test("cooking mode pages its steps, keeps both swipes, and projects Ready At onl
 });
 
 test("hiding Nutrition Information takes the card and the Glance Bar's calories together", async () => {
-  await context.addCookies([
-    { name: "norish_hidden_items", value: "nutrition", url: stack.baseURL },
-  ]);
+  // A phone-sized window, but the browser's user agent is a desktop's.
+  await setDevicePreferences(stack.baseURL, stack.ownerCookies, "desktop", {
+    hiddenItems: ["nutrition"],
+  });
 
-  await page.goto(`/recipes/${recipeId}`);
+  try {
+    await page.goto(`/recipes/${recipeId}`);
 
-  const glanceBar = page.getByTestId("glance-bar");
+    const glanceBar = page.getByTestId("glance-bar");
 
-  await expect(glanceBar).toBeVisible();
-  await expect(glanceBar).toContainText("45m");
-  await expect(glanceBar).not.toContainText("640");
-  await expect(page.locator("h2:visible").filter({ hasText: "Nutrition" })).toHaveCount(0);
+    await expect(glanceBar).toBeVisible();
+    await expect(glanceBar).toContainText("45m");
+    await expect(glanceBar).not.toContainText("640");
+    await expect(page.locator("h2:visible").filter({ hasText: "Nutrition" })).toHaveCount(0);
+  } finally {
+    await clearDevicePreferences(databaseUrl());
+  }
 });

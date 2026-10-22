@@ -1,13 +1,13 @@
 ---
 sidebar_position: 4
 title: Server & runtime
-description: Core server settings — encryption key, networking, logging, uploads, and the scheduler.
+description: Core server settings, the encryption key, networking, logging, uploads and the scheduler.
 ---
 
 # Server & runtime
 
-General settings for the Norish server process. Most have sensible defaults;
-`MASTER_KEY` is the one you must set.
+Settings for the Norish server. Most have working defaults, but you must provide your own
+`MASTER_KEY`.
 
 ## Core
 
@@ -21,9 +21,8 @@ General settings for the Norish server process. Most have sensible defaults;
 | `REDIS_URL`  | Redis connection URL for events and jobs     | `redis://localhost:6379`               |
 
 :::info Generate a `MASTER_KEY`
-`MASTER_KEY` derives the encryption keys used to protect stored secrets. Generate
-a strong one and keep it stable — changing it invalidates previously encrypted
-data:
+Norish derives the keys that encrypt stored secrets from `MASTER_KEY`, so
+changing it makes them unreadable. Generate one with:
 
 ```bash
 openssl rand -base64 32
@@ -37,12 +36,10 @@ openssl rand -base64 32
 | ----------------- | ------------------------------------------ | ------- |
 | `TRUSTED_ORIGINS` | Comma-separated additional trusted origins | (empty) |
 
-`TRUSTED_ORIGINS` is useful when Norish is reached from more than one origin, for
+Set `TRUSTED_ORIGINS` when people reach Norish on more than one address, for
 example `http://192.168.1.100:3000,https://norish.example.com`. The WebSocket
-refuses an upgrade from a browser origin it does not trust, so a proxy that
-rewrites `Host` needs the public origin listed here when that origin is not the
-one in `AUTH_URL` either — see
-[WebSocket & realtime](./websocket.md#origin-check).
+refuses origins it doesn't trust, see
+[Origin check](./websocket.md#origin-check).
 
 ## Auth rate limiting
 
@@ -53,9 +50,7 @@ one in `AUTH_URL` either — see
 | `AUTH_RATE_LIMIT_MAX`     | Requests allowed per window        | `20`    |
 
 :::warning
-
 Turning this off removes brute-force protection from sign-in.
-
 :::
 
 ## Registration
@@ -64,7 +59,7 @@ Turning this off removes brute-force protection from sign-in.
 | --------------------- | --------------------------- | ------- |
 | `ENABLE_REGISTRATION` | Allow new-user registration | `false` |
 
-After the first user signs in, registration is disabled automatically. See
+Registration turns off after the first user signs in, see
 [Authentication](./authentication.md).
 
 ## Logging
@@ -87,3 +82,22 @@ After the first user signs in, registration is disabled automatically. See
 | Variable                   | Description                        | Default |
 | -------------------------- | ---------------------------------- | ------- |
 | `SCHEDULER_CLEANUP_MONTHS` | Cleanup retention period in months | `3`     |
+
+## Ingredient catalogue
+
+| Variable                        | Description                                                                                                              | Default                                  |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| `INGREDIENT_CATALOGUE_URL`      | Where the ingredient catalogue seed is fetched from, nightly and at startup. Empty turns the fetch off                   | The Open Food Facts ingredients taxonomy |
+| `INGREDIENT_REVIEW_CONCURRENCY` | How many ingredients are asked at once, from 1 to 50. Lower it when a self-hosted model struggles with parallel requests | `10`                                     |
+
+Norish seeds its [ingredient catalogue](../groceries/ingredients.md) from the
+[Open Food Facts](https://world.openfoodfacts.org) ingredients taxonomy and
+refreshes it every night at midnight.
+
+On a server without internet, serve a copy of `ingredients.txt` from a local
+mirror and point `INGREDIENT_CATALOGUE_URL` at it, or leave it empty. Norish
+works either way.
+
+The taxonomy is under the
+[Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/1-0/).
+Download it under **Settings => Ingredients => Data sources**.

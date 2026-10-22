@@ -1,3 +1,4 @@
+import JSZip from "jszip";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // @vitest-environment node
@@ -8,6 +9,8 @@ const mockUpdateRecipeWithRefs = vi.fn();
 const mockDashboardRecipe = vi.fn();
 const mockRateRecipe = vi.fn();
 const mockAddFavorite = vi.fn();
+const mockParseMelaArchive = vi.fn();
+const mockParseMelaRecipeToDTO = vi.fn();
 
 vi.mock("node:fs/promises", () => ({
   default: {
@@ -31,12 +34,39 @@ vi.mock("@norish/db", () => ({
   dashboardRecipe: mockDashboardRecipe,
 }));
 
+vi.mock("@norish/shared-server/ingredients/recipe-lines", () => ({
+  withResolvedIngredients: vi.fn(async (payload: object) => ({
+    ...payload,
+    ingredientResolutions: new Map(),
+  })),
+  createResolvedRecipe: vi.fn(async (id: string, userId: unknown, payload: object) =>
+    mockCreateRecipeWithRefs(id, userId, { ...payload, ingredientResolutions: new Map() })
+  ),
+  updateResolvedRecipe: vi.fn(
+    async (id: string, userId: unknown, payload: object, _actor: unknown, version?: number) =>
+      version === undefined
+        ? mockUpdateRecipeWithRefs(id, userId, { ...payload, ingredientResolutions: new Map() })
+        : mockUpdateRecipeWithRefs(
+            id,
+            userId,
+            { ...payload, ingredientResolutions: new Map() },
+            version
+          )
+  ),
+}));
+
 vi.mock("@norish/db/repositories/ratings", () => ({
   rateRecipe: mockRateRecipe,
 }));
 
 vi.mock("@norish/db/repositories/favorites", () => ({
   addFavorite: mockAddFavorite,
+}));
+
+vi.mock("@norish/db/repositories/cookbooks", () => ({
+  findOwnCookbookIdByTitle: vi.fn(),
+  createCookbook: vi.fn(),
+  addRecipeToCookbook: vi.fn(),
 }));
 
 vi.mock("@norish/db/repositories/cuisines", () => ({
@@ -50,8 +80,8 @@ vi.mock("@norish/shared-server/media/storage", () => ({
 }));
 
 vi.mock("@norish/shared-server/archive/mela-parser", () => ({
-  parseMelaArchive: vi.fn(),
-  parseMelaRecipeToDTO: vi.fn(),
+  parseMelaArchive: mockParseMelaArchive,
+  parseMelaRecipeToDTO: mockParseMelaRecipeToDTO,
 }));
 
 vi.mock("@norish/shared-server/archive/mealie-parser", () => ({
@@ -71,6 +101,13 @@ vi.mock("@norish/shared-server/archive/mealie-legacy-parser", () => ({
 vi.mock("@norish/shared-server/archive/tandoor-parser", () => ({
   extractTandoorRecipes: vi.fn(),
   parseTandoorRecipeToDTO: vi.fn(),
+}));
+
+vi.mock("@norish/shared-server/archive/recipe-keeper-parser", () => ({
+  readRecipeKeeperHtml: vi.fn().mockResolvedValue(null),
+  countRecipeKeeperRecipes: vi.fn(),
+  extractRecipeKeeperRecipes: vi.fn(),
+  parseRecipeKeeperRecipeToDTO: vi.fn(),
 }));
 
 vi.mock("@norish/shared-server/archive/paprika-parser", () => ({
@@ -205,5 +242,28 @@ describe("archive import loop favourite extra", () => {
 
     expect(result.imported).toHaveLength(1);
     expect(result.errors).toHaveLength(0);
+  });
+  it("favourites a Mela recipe its archive marks as a favourite", async () => {
+    mockFindExistingRecipe.mockResolvedValue(null);
+    mockCreateRecipeWithRefs.mockResolvedValue({ status: "inserted", recipeId: "new-recipe-id" });
+    mockDashboardRecipe.mockResolvedValue({ id: "new-recipe-id", name: "Marked Soup" });
+    mockParseMelaArchive.mockResolvedValue([
+      { title: "Marked Soup", favorite: true },
+      { title: "Plain Soup", favorite: false },
+    ]);
+    mockParseMelaRecipeToDTO.mockImplementation(async (_raw, recipeId: string) =>
+      buildDto(recipeId)
+    );
+
+    const zip = new JSZip();
+
+    zip.file("recipe.melarecipe", "{}");
+    const zipBytes = Buffer.from(await zip.generateAsync({ type: "uint8array" }));
+
+    const { importArchive } = await import("@norish/shared-server/archive/parser");
+
+    await importArchive("user-1", ["user-1"], zipBytes);
+
+    expect(mockAddFavorite).toHaveBeenCalledTimes(1);
   });
 });

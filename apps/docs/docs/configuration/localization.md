@@ -1,12 +1,12 @@
 ---
 sidebar_position: 5
 title: Localization
-description: Set the default locale and which languages are available in Norish.
+description: All available languages in Norish.
 ---
 
 # Localization
 
-Norish ships with translations for these languages:
+Norish ships with these languages:
 
 | Flag | Language           |     Code      |
 | :--: | ------------------ | :-----------: |
@@ -25,8 +25,9 @@ Norish ships with translations for these languages:
 |  🇧🇷  | Português (Brasil) |    `pt-BR`    |
 |  🇧🇬  | Български          |     `bg`      |
 |  🇫🇮  | Suomi              |     `fi`      |
+|  🇺🇦  | Українська         |     `uk`      |
 
-You can set the instance default and restrict which locales are available:
+Set the default language, and limit which ones people can pick:
 
 | Variable          | Description                             | Default       |
 | ----------------- | --------------------------------------- | ------------- |
@@ -39,7 +40,7 @@ ENABLED_LOCALES: en,nl,no
 ```
 
 :::tip
-Locales can also be enabled or disabled at runtime in
-**Settings → Admin → General**. To add a brand-new language, see
-[Adding translations](../development/contributing.md#adding-translations).
+You can also turn languages on or off under **Settings => Admin => General**.
+To add a new language, see
+[Adding translations](https://github.com/norish-recipes/Norish/blob/main/CONTRIBUTING.md#adding-translations).
 :::

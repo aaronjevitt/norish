@@ -207,21 +207,6 @@ export function isUrl(str: string): boolean {
 }
 
 /**
- * A pasted or typed link with `https://` in front when it has no scheme, so
- * "www.example.com/recipe" imports instead of failing validation. Anything
- * that already names a scheme is returned trimmed and otherwise untouched.
- */
-export function withDefaultUrlScheme(input: string): string {
-  const trimmed = input.trim();
-
-  if (trimmed === "" || /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) {
-    return trimmed;
-  }
-
-  return `https://${trimmed.replace(/^\/+/, "")}`;
-}
-
-/**
  * Hostnames whose URLs import as videos. A matching URL skips structural
  * webpage parsing entirely, so the list holds platforms where a shared recipe
  * link is (near-)always a video post — not sites that merely host some video.

@@ -1,44 +1,26 @@
 ---
-sidebar_position: 7
+sidebar_position: 8
 title: Hidden Items
-description: Choose what you would rather not be shown, from Recipe Provenance and Nutrition Information to ratings, favorites and timers. Everything is shown by default, and hiding changes only your own view.
+description: Hide parts of the recipe page you don't use.
 ---
 
 # Hidden Items
 
-The recipe page displays a lot of information, not every user wants to see the same settings.
-Not every device needs the same information density, for this reason a lot of elements can be hidden.
-By default everything is **enabled** disabling is on a per device basis.
+Under **Settings => User => Hidden items** you can hide parts of the recipe
+page. Everything shows by default, and your choice is kept separately for phone
+and desktop.
 
-## What can be hidden
+- **Provenance**: the provenance card. The flag beside the title stays.
+- **Nutrition**: the nutrition card.
+- **Notes**: the notes card.
+- **Ratings**: the rating card.
+- **Favorites**: the heart and the favorites filter.
+- **Ingredient conversion**: the metric and US conversion menu.
+- **Recipe timers**: timers Norish finds in the steps.
+- **Cookbooks**: the cookbooks card at the end of a recipe.
+- **Ingredient icons**: see [Ingredient icons](../groceries/ingredient-icons.md).
 
-Settings => User => **Hidden Items** is a single control listing everything you
-can choose not to see:
-
-- **Provenance**, the Recipe Provenance section: country, region, cuisines and
-  the explanatory note. Country flags remain **visible** besides the title
-- **Nutrition**, the Nutrition Information section, including the calories
-  entry in the recipe page's Glance Bar
-- **Notes**, the notes section on the recipe page
-- **Ratings**, the rating section on the recipe page, the rating on library
-  cards and the rating filter
-- **Favorites**, the heart wherever it appears and the favorites filter
-- **Ingredient conversion**, the measurement conversion control on the recipe
-  page
-- **Recipe timers**, the automatic timer detection in recipe steps.
+Hiding something doesn't delete any data.
 
 ![The Hidden Items control in user settings](/img/screenshots/hidden-items-settings.png)
-
-Hiding an item suppresses it everywhere it would appear for you, not just in
-one place. Hiding ratings, for example, takes the recipe page's stars, the
-library card's rating and the rating filter together. Items that exist only on
-the recipe page simply make the page slimmer:
-
 ![A recipe page with Recipe Provenance, Nutrition Information and notes hidden](/img/screenshots/hidden-items-recipe.jpg)
-
-## Hiding changes only your view
-
-A Hidden Item settles nothing about the recipe. What is stored, what may be
-edited and what Recipe Enrichment produces are all unchanged, and every other
-member of your household still sees everything. Someone reading a recipe
-through a share link, or signed out, sees the whole page.

@@ -1,110 +1,74 @@
 ---
 sidebar_position: 9
 title: Site authentication
-description: Import from sites that only serve a signed-in visitor, using your own cookies or headers, and spread imports over several accounts.
+description: Import from sites that only show recipes to signed-in visitors, using your own cookies or headers.
 ---
 
 # Site authentication
 
-Some sites will not show a recipe to a visitor who is not signed in. **Site
-Authentication Tokens** let an import carry your own session to those sites.
+Some sites only show a recipe to signed-in visitors. A **site authentication
+token** sends one of your own cookies or headers with imports from that site.
 
-A token is one cookie or one request header. You save it under
-**Settings => User**, and Norish sends it with imports from the domain you saved
-it against.
+Save tokens under **Settings => User**. Norish encrypts them with a key derived
+from [`MASTER_KEY`](./server-runtime.md).
 
-![The Site Authentication Tokens card under Settings => User](/img/screenshots/site-auth-tokens.png)
-
-Tokens are encrypted at rest with a key derived from the server's
-[`MASTER_KEY`](./server-runtime.md).
+![The Site authentication tokens card under Settings => User](/img/screenshots/site-auth-tokens.png)
 
 ## Adding a token
 
-Each token has five parts.
+| Field                  | What goes in it                                        |
+| ---------------------- | ------------------------------------------------------ |
+| **Domain**             | The site the token is for, for example `instagram.com` |
+| **Account (optional)** | Which of your logins it belongs to, see below          |
+| **Name**               | The cookie name, or the header name                    |
+| **Value**              | The cookie value, or the header value                  |
+| **Type**               | **Cookie** or **Header**                               |
 
-| Field                  | What goes in it                                           |
-| ---------------------- | --------------------------------------------------------- |
-| **Domain**             | The site the token is for, for example `instagram.com`    |
-| **Account (optional)** | Which of your logins on that site it belongs to see below |
-| **Name**               | The cookie name, or the header name                       |
-| **Value**              | The cookie value, or the header value                     |
-| **Type**               | **Cookie** or **Header**                                  |
-
-**Domain** matches by suffix, so `instagram.com` covers `www.instagram.com` and
-any other subdomain. A bare word works too: `instagram` matches
-`instagram.com`. Only tokens whose domain matches the URL being imported are
-sent, so an Instagram session never travels to a recipe blog.
+**Domain** covers subdomains, so `instagram.com` also matches
+`www.instagram.com`. A bare `instagram` works too. A token is only sent to its
+own domain.
 
 ### Finding a cookie
 
-In a browser where you are already signed in to the site:
+In a browser where you are signed in to the site:
 
-1. Open the developer tools (`F12`, or `⌥⌘I` on a Mac).
-2. Go to **Application** (Chrome, Edge) or **Storage** (Firefox).
+1. Open the developer tools with `F12`, or `⌥⌘I` on a Mac.
+2. Go to **Application** in Chrome or Edge, or **Storage** in Firefox.
 3. Open **Cookies** and pick the site.
 4. Copy the **Name** and **Value** of the cookie you need.
 
 :::warning
-A session cookie is a signed-in session. Anyone holding it is you, on that site,
-until it expires or you log out. Treat one like a password, and remember that
-logging out of the browser you copied it from usually invalidates it.
+A session cookie is your signed-in session. Anyone who has it is you on that
+site until it expires, so treat it like a password. Logging out in the browser
+you copied it from usually ends the session.
 :::
 
 ## Several accounts for one site
 
-Give a token an **Account** name when you have more than one login for a site.
-The name can be anything, "personal", "recipes". It only has to
-be the same for every token belonging to that login.
+Give tokens an **Account** name when you have more than one login on a site.
+Each import then uses one account, picked at random, which spreads imports out
+and lowers the risk of a rate limit or a block.
 
-Each import from that site then uses **one** account, picked at random. Over a
-run of imports the load spreads across the accounts you saved, instead of every
-import landing on one login and risking a rate limit or a block on it.
+Tokens without an account name are sent with every import for their domain.
+Use that for a cookie all your logins share, like a CSRF cookie.
 
-Two rules decide what an import sends:
-
-- A token **with** an account name is sent only when that account's turn comes.
-- A token **without** one is not tied to a login, so it is sent with every
-  import for its domain. A CSRF cookie shared by all your logins on a site is
-  saved once, without an account, rather than once per account.
-
-A site whose tokens are all unnamed is one set always sent together.
-
-An example. Two Instagram logins that share a `csrftoken`:
+For example, two Instagram logins that share a `csrftoken`:
 
 | Domain          | Account | Name        | Type   |
 | --------------- | ------- | ----------- | ------ |
-| `instagram.com` | —       | `csrftoken` | Cookie |
+| `instagram.com` |         | `csrftoken` | Cookie |
 | `instagram.com` | `alice` | `sessionid` | Cookie |
 | `instagram.com` | `bob`   | `sessionid` | Cookie |
 
-An import from Instagram sends `csrftoken` plus **either** Alice's `sessionid`
-**or** Bob's, chosen at random.
+An Instagram import sends `csrftoken` plus either Alice's or Bob's `sessionid`.
 
-## Seeing which account an import used
+Admins can see which account an import used. Open the import under
+**Settings => Admin => Job queues** and look at its **parsing** step.
 
-Server admins can read the account back off the job. Open
-**Settings => Admin => Jobs**, find the import, and open it: the **parsing** step
-of each attempt carries the account it was given, next to the number of accounts
-it chose from.
+## When imports fail
 
-```json
-{ "siteAuth": { "account": "alice", "ofAccounts": 2 }, "usedAI": true }
-```
-
-The same detail is repeated on the `parsing` line of the attempt's log. It is
-recorded when parsing starts rather than when it finishes, so an import that
-failed on an expired or rate-limited login still names the login it failed on.
-
-An import that sent no tokens has no `siteAuth` on the step at all.
-
-## When imports still fail
-
-- **The token expired.** Sessions do not last forever, and logging out of the
-  browser you copied a cookie from usually ends it. Copy the cookie again and
-  update the token.
-- **Nothing matched the domain.** Check the **Domain** field against the URL you
-  are importing. `instagram.com` covers subdomains; a full URL does not belong
-  in the field.
-- **The account is blocked or rate-limited.** The job detail names which account
-  the failed import used. Adding another account spreads the next imports over
-  both.
+- **The token expired.** Copy the cookie again and update the token.
+- **The domain doesn't match.** Check **Domain** against the URL you import. It
+  takes a domain, not a full URL.
+- **The account is blocked or rate-limited.** The job shows which account the
+  import used. Adding another account spreads the next imports over both.

@@ -61,9 +61,10 @@ export type NorishManifest = z.output<typeof NorishManifestSchema>;
  *   already knows (matched case-insensitively) and visibly drops the rest.
  * - media fields (`image`, `images`, `videos`, step `images`) are relative
  *   paths into the recipe's folder inside the archive, not web paths.
- * - three extra fields ride along: the author's display name (attribution
- *   only — ownership never transfers), and the exporter's own rating and
- *   favourite mark.
+ * - extra fields ride along: the author's display name (attribution only —
+ *   ownership never transfers), the exporter's own rating and favourite
+ *   mark, and the titles of the cookbooks the exporter can see that hold the
+ *   recipe (added within version 1, so an older importer ignores them).
  *
  * Ingredient references likewise travel by name: `ingredientId` is
  * instance-local, so the writer nulls it and fills `ingredientName`.
@@ -81,6 +82,7 @@ export const NorishArchiveRecipeSchema = FullRecipeInsertSchema.omit({
   authorName: z.string().nullable().optional(),
   rating: z.number().int().min(1).max(5).optional(),
   favorite: z.boolean().optional(),
+  cookbooks: z.array(z.string()).default([]),
 });
 
 export type NorishArchiveRecipe = z.input<typeof NorishArchiveRecipeSchema>;

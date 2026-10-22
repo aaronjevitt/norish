@@ -12,8 +12,9 @@
  *
  * Neither fault is visible in a green run, which is why they are pinned here.
  *
- * The gates used to be a build-a-matrix shell loop and are now plain steps in a
- * single job, so this reads the steps directly. Nothing about either fault is
+ * The gates used to be a build-a-matrix shell loop and are now plain steps
+ * (the browser E2E in a sharded job of its own), so this reads the steps
+ * directly. Nothing about either fault is
  * specific to that shape — a step can be pointed at the write script, or lose
  * its NODE_ENV, exactly as a matrix entry could.
  */
@@ -43,7 +44,7 @@ interface Step {
 }
 
 /**
- * The steps of the single `verify` job, in file order. Steps are the six-space
+ * The steps of every job, in file order. Steps are the six-space
  * indented `- name:` entries; splitting on that boundary keeps each step's own
  * `run:`/`env:` block with it.
  */
@@ -80,11 +81,11 @@ const gates = GATE_NAMES.map((name) => step(name));
  * (`pnpm run x`) or in one workspace (`pnpm --filter @norish/web run x`).
  */
 function scriptFor(command: string | undefined): string | undefined {
-  const root = /^pnpm run (\S+)$/.exec(command ?? "")?.[1];
+  const root = /^pnpm run (\S+)(?: .*)?$/.exec(command ?? "")?.[1];
 
   if (root) return rootScripts[root];
 
-  const filtered = /^pnpm --filter (\S+) run (\S+)$/.exec(command ?? "");
+  const filtered = /^pnpm --filter (\S+) run (\S+)(?: .*)?$/.exec(command ?? "");
 
   if (!filtered) return undefined;
 
@@ -161,9 +162,10 @@ describe("CI quality gates", () => {
 
   // A gate guarded on the gate before it turns one red into a cascade of
   // skips, which reads as "not run" rather than "not reached". Each is guarded
-  // on the install (or, past the build, on the build) instead.
+  // on the install instead. The browser E2E is alone in its own job, so no
+  // gate precedes it there.
   it("guards each gate so one red still lets the rest report", () => {
-    for (const entry of gates) {
+    for (const entry of gates.filter((gate) => gate!.name !== "Browser E2E")) {
       const block = workflow.split(/^ {6}- (?=name:)/m).find((part) => part.includes(entry!.name))!;
 
       expect(block, entry!.name).toMatch(/steps\.(setup|build)\.outcome == 'success'/);

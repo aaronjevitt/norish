@@ -64,6 +64,8 @@ function delay(milliseconds: number): Promise<void> {
  * it rather than a kernel-assigned one, because Docker re-assigns ephemeral
  * host ports on a container restart and a fixed binding survives one — which
  * is what lets a scenario restart Redis under a server that keeps its URL.
+ * The embedded parser gets one too, so stacks running side by side never
+ * share (or kill) each other's parser.
  */
 function freeHostPort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -76,7 +78,7 @@ function freeHostPort(): Promise<number> {
 
       if (!address || typeof address === "string") {
         probe.close();
-        reject(new Error("Could not allocate a host port for Redis"));
+        reject(new Error("Could not allocate a free host port"));
 
         return;
       }
@@ -128,6 +130,9 @@ async function stopAll(
 export class ProductionStack {
   readonly baseURL: string;
   readonly uploadsDir: string;
+  private readonly port: number;
+  private readonly runtimeDir: string;
+  private parserPort: number | null = null;
   private postgres: StartedPostgreSqlContainer | null = null;
   private redis: StartedRedisContainer | null = null;
   private activeServer: ProductionServer | null = null;
@@ -136,8 +141,14 @@ export class ProductionStack {
   private capturedLogs: string[] = [];
 
   constructor(private readonly options: ProductionStackOptions) {
-    this.baseURL = `http://localhost:${options.port}`;
-    this.uploadsDir = path.join(E2E_RUNTIME_DIR, options.project, "uploads");
+    // Every Playwright worker boots its own stack, so each takes the
+    // project's port plus its worker index and a runtime directory of its own.
+    const worker = Number(process.env.TEST_PARALLEL_INDEX ?? 0);
+
+    this.port = options.port + worker;
+    this.baseURL = `http://localhost:${this.port}`;
+    this.runtimeDir = path.join(E2E_RUNTIME_DIR, `${options.project}-${worker}`);
+    this.uploadsDir = path.join(this.runtimeDir, "uploads");
   }
 
   get databaseUrl(): string {
@@ -199,6 +210,8 @@ export class ProductionStack {
 
     try {
       const redisHostPort = await freeHostPort();
+
+      this.parserPort = await freeHostPort();
       const [postgresResult, redisResult] = await Promise.allSettled([
         new PostgreSqlContainer("postgres:17-alpine")
           .withDatabase(this.options.databaseName)
@@ -267,9 +280,9 @@ export class ProductionStack {
     if (this.activeServer) return this.activeServer;
     ensureBuilt();
 
-    if (await portIsOpen(this.options.port)) {
+    if (await portIsOpen(this.port)) {
       throw new Error(
-        `[${this.options.project}] port ${this.options.port} is already in use; stop the lingering process before running browser E2E`
+        `[${this.options.project}] port ${this.port} is already in use; stop the lingering process before running browser E2E`
       );
     }
 
@@ -300,10 +313,10 @@ export class ProductionStack {
 
         const closeDeadline = Date.now() + STOP_TIMEOUT_MS;
 
-        while (await portIsOpen(this.options.port)) {
+        while (await portIsOpen(this.port)) {
           if (Date.now() >= closeDeadline) {
             throw new Error(
-              `[${this.options.project}] production port ${this.options.port} stayed open after process exit`
+              `[${this.options.project}] production port ${this.port} stayed open after process exit`
             );
           }
 
@@ -380,8 +393,7 @@ export class ProductionStack {
       },
       {
         label: `[${this.options.project}] runtime directory`,
-        run: () =>
-          rm(path.join(E2E_RUNTIME_DIR, this.options.project), { recursive: true, force: true }),
+        run: () => rm(this.runtimeDir, { recursive: true, force: true }),
       },
     ]);
   }
@@ -417,7 +429,8 @@ export class ProductionStack {
     return {
       ...process.env,
       NODE_ENV: "production",
-      PORT: String(this.options.port),
+      PORT: String(this.port),
+      PARSER_API_PORT: String(this.parserPort),
       DATABASE_URL: this.databaseUrl,
       REDIS_URL: this.redisConnectionUrl!,
       AUTH_URL: this.baseURL,
@@ -433,6 +446,9 @@ export class ProductionStack {
       // returns 429 and pages that need client-side session data hang on their
       // skeletons — a failure about the harness, not the code under test.
       AUTH_RATE_LIMIT_ENABLED: "false",
+      // Nothing outbound: a spec that needs an ingredient catalogue seeds its
+      // own, rather than the server fetching Open Food Facts at boot.
+      INGREDIENT_CATALOGUE_URL: "",
       ...this.options.environment,
     };
   }

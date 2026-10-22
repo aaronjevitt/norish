@@ -311,6 +311,21 @@ describe("Paprika Parser", () => {
       expect(ingredientNames.every((name) => name.length > 0)).toBe(true);
     });
 
+    it("keeps colon Headings in the ingredients and the steps", async () => {
+      mockRecipe.ingredients = "For the sauce:\n2 cups tomatoes\nFor the topping";
+      mockRecipe.directions = "Sauce:\nSimmer the tomatoes.";
+
+      const dto = await parsePaprikaRecipeToDTO(mockRecipe, "123e4567-e89b-42d3-a456-426614174000");
+
+      expect(dto.recipeIngredients!.map((line) => line.ingredientName)).toEqual([
+        "# For the sauce",
+        "tomatoes",
+        // No colon, so no Heading: the source never marked it as one.
+        "For the topping",
+      ]);
+      expect(dto.steps!.map((step) => step.step)).toEqual(["# Sauce", "Simmer the tomatoes."]);
+    });
+
     it("filters empty categories", async () => {
       mockRecipe.categories = ["Breakfast", "", "Lunch", ""];
 

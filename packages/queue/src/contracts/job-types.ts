@@ -1,5 +1,6 @@
 import type { Job } from "bullmq";
 
+import type { ReviewMode } from "@norish/shared/contracts/ingredient-catalogue";
 import type {
   RecipeEnrichmentKind,
   RecipeEnrichmentOrigin,
@@ -112,5 +113,62 @@ export interface RecipeEnrichmentJobData {
  * grocery jumps a stale batch.
  */
 export type StoreLookupJobData =
-  | { kind: "match"; storeId: string; name: string; householdKey: string }
+  | {
+      kind: "match";
+      storeId: string;
+      /**
+       * The Ingredient asked about, which the answer is filed under (ADR-0037).
+       * Absent on a job queued before the upgrade, which names only the text.
+       */
+      ingredientId?: string;
+      /** The grocery's name as the list shows it: what the shop is searched for. */
+      name: string;
+      householdKey: string;
+    }
   | { kind: "refresh"; storeId: string; productIds: string[]; householdKey: string };
+
+/**
+ * One Draw icons round: the foods whose Ingredient Icons a person asked to
+ * be drawn, and who asked, since each food's icon is set under the
+ * ingredient permission policy for that person, checked again as the round
+ * reaches it.
+ */
+export interface IngredientIconsJobData {
+  /** The foods, by id and by name, so the job monitor reads "uien" rather than an id. */
+  ingredients: Array<{ id: string; name: string }>;
+  actor: {
+    userId: string;
+    householdUserIds: string[] | null;
+    isServerAdmin: boolean;
+  };
+}
+
+/**
+ * Foods one resolution just minted for someone's action, for what the
+ * administrator turned on for new foods: their Plain Name, their icon.
+ */
+export interface NewIngredientsJobData {
+  ingredientIds: string[];
+}
+
+/**
+ * One round of Ask AI over Flagged Ingredients (ADR-0037): the foods a person
+ * asked about, in the order the page listed them, and who asked, since each
+ * food's edit follows the ingredient permission policy for that person. A
+ * round outlives the tab that started it, so it carries the actor rather than
+ * a session.
+ */
+export interface IngredientReviewJobData {
+  /**
+   * The foods, by id and by name, so the job monitor reads "uitjes" rather
+   * than an id, and what is asked of each: what a flagged food is, what food
+   * it is a kind of, or its Plain Name. One round may ask a food's flag and
+   * another food's name.
+   */
+  ingredients: Array<{ id: string; name: string; mode: ReviewMode }>;
+  actor: {
+    userId: string;
+    householdUserIds: string[] | null;
+    isServerAdmin: boolean;
+  };
+}

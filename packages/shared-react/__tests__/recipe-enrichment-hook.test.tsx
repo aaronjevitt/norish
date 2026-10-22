@@ -127,7 +127,39 @@ function cachedState(kind: string) {
   return status?.kinds.find((entry) => entry.kind === kind)?.state;
 }
 
+function statusWith(state: "processing" | "succeeded"): RecipeEnrichmentStatusDto {
+  const status = idleStatus();
+
+  return {
+    ...status,
+    kinds: status.kinds.map((entry) =>
+      entry.kind === "auto-tagging"
+        ? { ...entry, state, origin: "automatic", runId: "run-1", runSequence: 1 }
+        : entry
+    ),
+  };
+}
+
 describe("useRecipeEnrichment", () => {
+  it("reads the status again once its subscription has started", async () => {
+    // A run that finished between the first read and the subscription
+    // starting sends its event to nobody; only a second read can see it.
+    statusFetch
+      .mockResolvedValueOnce(statusWith("processing"))
+      .mockResolvedValueOnce(statusWith("succeeded"));
+    render();
+    await vi.waitFor(() => expect(cachedState("auto-tagging")).toBe("processing"));
+
+    const options = useSubscriptionMock.mock.calls.at(-1)?.[0] as { onStarted?: () => void };
+
+    await act(async () => {
+      options.onStarted?.();
+    });
+
+    await vi.waitFor(() => expect(cachedState("auto-tagging")).toBe("succeeded"));
+    expect(statusFetch).toHaveBeenCalledTimes(2);
+  });
+
   it("reports every kind as idle before any status arrives", () => {
     render();
 

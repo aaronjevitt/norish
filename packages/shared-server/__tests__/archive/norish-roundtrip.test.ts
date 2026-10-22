@@ -45,7 +45,7 @@ describe("norish archive round-trip", () => {
   async function roundTrip(
     recipe = buildFullRecipe(),
     mediaBytes: Record<string, string> = {},
-    marks: { rating?: number; favorite?: boolean } = {}
+    marks: { rating?: number; favorite?: boolean; cookbooks?: string[] } = {}
   ) {
     const reloaded = await writeArchive({
       records: [
@@ -273,6 +273,15 @@ describe("norish archive round-trip", () => {
 
     expect(parsed.importedRating).toBeUndefined();
     expect(parsed.importedFavorite).toBeUndefined();
+    expect(parsed.cookbooks).toEqual([]);
+  });
+
+  it("carries the cookbook titles through for the importer to file under", async () => {
+    const { parsed } = await roundTrip(buildFullRecipe(), {}, { cookbooks: ["Dolci", "Kerst"] });
+
+    expect(parsed.cookbooks).toEqual(["Dolci", "Kerst"]);
+    // A title is something to file under, never recipe data.
+    expect(parsed.dto).not.toHaveProperty("cookbooks");
   });
 
   it("keeps attribution out of the imported recipe", async () => {

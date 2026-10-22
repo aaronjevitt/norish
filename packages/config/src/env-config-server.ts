@@ -190,6 +190,19 @@ const ServerConfigSchema = z.object({
   YT_DLP_VERSION: z.string().default(DEFAULT_YT_DLP_VERSION),
   YT_DLP_BIN_DIR: z.string().default(defaultYtDlpBinDir),
 
+  // Ingredient catalogue seed (ADR-0038): the Open Food Facts ingredients
+  // taxonomy, fetched nightly. Point it at a mirror on a server without
+  // internet; empty turns the fetch off, and Norish works with no seed.
+  INGREDIENT_CATALOGUE_URL: z
+    .union([z.url(), z.literal("")])
+    .default(
+      "https://raw.githubusercontent.com/openfoodfacts/openfoodfacts-server/main/taxonomies/food/ingredients.txt"
+    ),
+
+  // How many ingredients a round of Ask AI asks about at once. Higher is
+  // faster on a hosted model; lower spares a self-hosted one.
+  INGREDIENT_REVIEW_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(10),
+
   // Transcription Configuration (separate from AI_PROVIDER)
   TRANSCRIPTION_PROVIDER: z
     .enum(["openai", "ollama", "lm-studio", "generic-openai", "disabled"])
@@ -209,6 +222,11 @@ const ServerConfigSchema = z.object({
     .string()
     .min(1, "OBSCURA_ENDPOINT is required for web scraping")
     .default("ws://obscura:9222"),
+  // Sent as a bearer token. Obscura refuses to listen beyond loopback without
+  // one, so the shipped `obscura` service sets the same value.
+  OBSCURA_CDP_TOKEN: z.string().optional(),
+  // How long a URL import waits for the page's `load` event in Obscura.
+  OBSCURA_NAVIGATION_TIMEOUT_MS: z.coerce.number().int().positive().default(45000),
 
   PARSER_API_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
 
@@ -244,7 +262,9 @@ const ServerConfigSchema = z.object({
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
 export const INTERNAL_PARSER_API_HOST = "127.0.0.1";
-export const INTERNAL_PARSER_API_PORT = 8001;
+// The browser E2E boots several servers side by side and gives each parser its
+// own port; the parser's dev script reads the same variable.
+export const INTERNAL_PARSER_API_PORT = Number(process.env.PARSER_API_PORT) || 8001;
 export const INTERNAL_PARSER_API_URL = `http://${INTERNAL_PARSER_API_HOST}:${INTERNAL_PARSER_API_PORT}`;
 
 export function buildInternalParserApiUrl(pathname: string): string {

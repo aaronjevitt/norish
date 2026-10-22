@@ -40,7 +40,7 @@ const moments: {
     tint: "text-tint-photo",
     track: "bg-tint-photo/25",
     fill: "bg-tint-photo",
-    body: "Use the cooking mode, to remove the clutter and focus on the task at hand.",
+    body: "Use cooking mode to remove the clutter and focus on the task at hand.",
   },
 ];
 

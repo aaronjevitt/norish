@@ -1,102 +1,59 @@
 ---
-sidebar_position: 5
+sidebar_position: 6
 title: Recipe provenance
-description: Where a recipe comes from, its country, region, cuisines, and a short explanation, how Norish works that out, and how to curate the cuisine list.
+description: Where a recipe comes from, its country, region and cuisines.
 ---
 
 # Recipe provenance
 
-Provenance is where a recipe comes from. Norish records four things:
+Provenance is where a recipe comes from. Norish records:
 
-- **Country**, the country the dish comes from
-- **Region**, a finer-grained region within it, when the dish warrants one
-- **Cuisines**, the culinary traditions it belongs to; a fusion dish can have
-  several
-- **Note**, a couple of sentences explaining how that was concluded
+- **Country**
+- **Region**, when the dish belongs to one
+- **Cuisines**, one or more
+- **Note**, a few sentences on how Norish concluded this
 
-The country is that section's own heading with its flag, and named **in the recipe's language**, the same
-language as the note beside it: a Dutch recipe about a Turkish dish is titled
-_Turkije_. Recipes placed before this name existed fall back to the country's
-own name for itself until a run stores one. Until there is a country at all,
-the section simply calls itself **Provenance**. The region and the note are
-shown exactly as written.
-
-A dish that several countries claim still gets a country: Norish picks the
-single strongest claim and acknowledges the rivals in the note. Only a dish
-that belongs to no national tradition at all keeps an empty country, an
-honest blank rather than an invented answer.
-
-The flag also flies in front of the recipe's title, and beside every recipe on
-your dashboard, so you can see at a glance where a dish comes from.
+The country's flag shows before the recipe title and beside the recipe on your
+dashboard.
 
 ![Recipe provenance on a recipe page](/img/screenshots/provenance-recipe.png)
 
-If a recipe has no provenance and nothing is running, the section simply isn't
-there.
+The country name and the note are in the recipe's language, not yours. A Dutch
+recipe for a Turkish dish says _Turkije_. The note is never translated.
 
-## The note is in the recipe's language
+When several countries claim a dish, Norish picks the strongest claim and names
+the others in the note.
 
-The explanation is written in the language **the recipe itself** is written in,
-not yours. An Italian recipe gets an Italian note beside its Italian steps; a
-Dutch recipe gets a Dutch one. The note is recipe content, like the steps and
-the ingredients, and is never translated.
+## Cuisines
 
-## Cuisines are a list your administrator owns
-
-Unlike tags, which anyone can invent, cuisines come from a curated list that
-your instance's administrator maintains. Norish ships with a starting list, and
-your administrator can add to it, rename entries, or remove them under
-**Settings => Admin => AI & Processing => Cuisines**.
+Cuisines come from a list your administrator keeps under
+**Settings => Admin => AI & processing => Cuisines**. Norish ships with a
+starting list.
 
 ![Managing the Cuisine vocabulary in admin settings](/img/screenshots/admin-cuisines.png)
 
-- **Renaming** a cuisine updates every recipe using it at once.
-- **Deleting** one removes it from every recipe that had it. Notes written
-  earlier may still mention it; Norish leaves them alone.
-- Cuisine names are shown exactly as your administrator wrote them, in every
-  language. If you want them in your own language, rename them.
+- Renaming a cuisine renames it on every recipe.
+- Deleting a cuisine removes it from every recipe. Older notes may still
+  mention it.
+- Cuisine names show as written, in every language. Rename them to use your own
+  language.
 
-| Cuisine strategy            | What AI may do                                      |
-| --------------------------- | --------------------------------------------------- |
-| **Only existing cuisines**  | Pick from your list; anything else is discarded     |
-| **AI can add new cuisines** | Pick from your list, or add an entry that's missing |
+The [cuisine strategy](../configuration/ai-provider.md#cuisine-strategy) decides
+whether AI may add cuisines to the list. By default it may only pick from it.
 
-The default is **only existing cuisines**.
+## Running it
 
-## Automatic and on-demand
+- Your administrator can turn on **Recipe provenance** for new recipes under
+  **Settings => Admin => AI**. It is off by default.
+- **Work Out Provenance** in a recipe's actions menu runs it any time, and
+  replaces the country, region, cuisines and note together.
 
-Provenance is one of the kinds of [recipe enrichment](./enrichment.md), so it
-behaves like the others:
-
-- Your administrator turns **Recipe Provenance** on or off for new recipes under
-  **Settings => Admin => AI**. It is **off by default**, so upgrading never starts
-  spending AI on its own.
-- You can ask for it yourself at any time from a recipe's actions menu
-  (**Work Out Provenance**), whether or not the automatic switch is on.
-- An automatic run **fills in only what is missing** and never touches what you
-  or your import source provided, see below.
-- A run you ask for **replaces the whole group**, country, region, cuisines,
-  and note together, because a deliberate refresh shouldn't be half-blocked by
-  a value you no longer want.
-
-## Your own answer wins
-
-Whatever is already filled in, a country you picked, a cuisine your import
-source stated, a note you wrote, is never overwritten by automatic inference.
-Instead, inference works **around** your answer: import a recipe that only
-carries a cuisine and it still gets its country, region, and note. Your values
-are handed to the AI as settled facts, so the explanation it writes accounts
-for them rather than arguing with them.
-
-Once the group is complete, a country, a note, and at least one cuisine,
-automatic inference leaves the recipe entirely alone. A missing region never
-triggers a run by itself: many dishes are national rather than regional, so an
-empty region is an answer, not a gap.
+An automatic run only fills in what is missing and keeps what you or the source
+gave. A recipe with a country, a note and at least one cuisine is left alone.
 
 ![Editing recipe provenance in the recipe form](/img/screenshots/provenance-form.png)
 
 :::note
-Emptying provenance does not re-arm automatic inference, automatic enrichment is
-enrolled once, when a recipe is new. Empty it, then ask for a run, or an
-administrator's **Enrich All Recipes** will fill the gaps on its next pass.
+Clearing provenance doesn't start an automatic run. Run it yourself, or an
+administrator's **Enrich all recipes** fills it in.
 :::

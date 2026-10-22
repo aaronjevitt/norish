@@ -5,7 +5,7 @@ export {
   createWsContext,
   type Context,
 } from "./context";
-export { getOpenApiDocument, handleOpenApiRequest } from "./openapi";
+export { handleOpenApiRequest } from "./openapi";
 export { router, publicProcedure, middleware, mergeRouters } from "./trpc";
 export {
   authedProcedure,

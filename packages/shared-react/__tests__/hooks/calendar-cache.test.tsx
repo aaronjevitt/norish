@@ -15,6 +15,7 @@ import type { CreateCalendarHooksOptions } from "../../src/hooks/calendar/types"
 import { calendarRangeOfQueryKey } from "../../src/hooks/calendar/calendar-cache-merge";
 import { createUseCalendarCache } from "../../src/hooks/calendar/use-calendar-cache";
 import { createUseCalendarMutations } from "../../src/hooks/calendar/use-calendar-mutations";
+import { createUseCalendarQuery } from "../../src/hooks/calendar/use-calendar-query";
 import { createUseCalendarSubscription } from "../../src/hooks/calendar/use-calendar-subscription";
 import { trackedEvent } from "../realtime/tracked-event";
 import { renderHookWithClient } from "./render-hook";
@@ -48,6 +49,12 @@ const useTRPC = (() => ({
     listItems: {
       queryKey: (input?: { startISO: string; endISO: string }) =>
         input ? rangeKey(input.startISO, input.endISO) : [PATH],
+      // Every read fails, as it does Offline.
+      queryOptions: (input: { startISO: string; endISO: string }, opts: object) => ({
+        queryKey: rangeKey(input.startISO, input.endISO),
+        queryFn: () => Promise.reject(new Error("Offline")),
+        ...opts,
+      }),
     },
     createItem: {
       mutationOptions: (opts: object) => ({ mutationKey: [["calendar", "createItem"]], ...opts }),
@@ -231,5 +238,41 @@ describe("calendar cache convergence across ranges", () => {
 
     expect(idsIn(queryClient, THIS_WEEK)).toEqual(["item-0", "item-1"]);
     expect(idsIn(queryClient, CALENDAR_PAGE)).toEqual(["item-0", "item-1"]);
+  });
+});
+
+describe("a range the cache has not read yet", () => {
+  it("starts from the items cached for its days, and keeps them when its own read fails", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const useCalendarQuery = createUseCalendarQuery({ useTRPC });
+    // The calendar page widens its range twelve days into the past as it is
+    // scrolled, and Offline the wider range can never be read.
+    const WIDER = { startISO: "2026-08-26", endISO: CALENDAR_PAGE.endISO };
+    let items: PlannedItemFromQuery[] = [];
+
+    queryClient.setQueryData(rangeKey(CALENDAR_PAGE.startISO, CALENDAR_PAGE.endISO), [
+      cachedItem({ id: "item-0", date: "2026-09-22" }),
+    ]);
+    queryClient.setQueryData(rangeKey(THIS_WEEK.startISO, THIS_WEEK.endISO), [
+      cachedItem({ id: "item-0", date: "2026-09-22" }),
+    ]);
+    queryClient.setQueryData(rangeKey("2026-10-12", "2026-10-18"), [
+      cachedItem({ id: "item-later", date: "2026-10-14" }),
+    ]);
+
+    const { unmount } = renderHookWithClient(queryClient, () => {
+      items = useCalendarQuery(WIDER.startISO, WIDER.endISO).items;
+    });
+
+    expect(items.map((item) => item.id)).toEqual(["item-0"]);
+    await act(async () => {
+      await vi.waitFor(() =>
+        expect(queryClient.getQueryState(rangeKey(WIDER.startISO, WIDER.endISO))?.status).toBe(
+          "error"
+        )
+      );
+    });
+    expect(items.map((item) => item.id)).toEqual(["item-0"]);
+    unmount();
   });
 });

@@ -68,6 +68,33 @@ export function upsertItemInRange(
 }
 
 /**
+ * What the cached ranges already know about a range none of them is: their
+ * items on its days, each once. Undefined when no cached range overlaps it.
+ */
+export function knownItemsInRange(
+  cached: { range: CalendarRange; items: PlannedItemFromQuery[] }[],
+  startISO: string,
+  endISO: string
+): PlannedItemFromQuery[] | undefined {
+  const overlapping = cached.filter(
+    ({ range }) => range.startISO <= endISO && range.endISO >= startISO
+  );
+
+  if (overlapping.length === 0) return undefined;
+  const known = new Map<string, PlannedItemFromQuery>();
+
+  for (const { items } of overlapping) {
+    for (const item of items) {
+      if (isDateInRange(item.date, startISO, endISO) && !known.has(item.id)) {
+        known.set(item.id, item);
+      }
+    }
+  }
+
+  return sortCalendarItems([...known.values()]);
+}
+
+/**
  * The range a `calendar.listItems` query key was made for, or null for a key
  * that is not one — the bare path prefix, or a key shaped differently.
  */

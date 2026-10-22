@@ -14,13 +14,19 @@ import type { StoreDto } from "@norish/shared/contracts";
 
 const createStore = vi.fn(async () => "store-new");
 const updateStore = vi.fn();
+const reorderStores = vi.fn();
+// What the list hands motion: the reorder callback and each row's drag end.
+const reorderList = vi.hoisted(() => ({
+  onReorder: undefined as ((values: unknown[]) => void) | undefined,
+  onDragEnd: undefined as (() => void) | undefined,
+}));
 
 vi.mock("@/hooks/stores", () => ({
   useStoresMutations: () => ({
     createStore,
     updateStore,
     deleteStore: vi.fn(),
-    reorderStores: vi.fn(),
+    reorderStores,
     checkSearchAddress: vi.fn(async () => ({ outcome: "answered", count: null })),
   }),
 }));
@@ -68,8 +74,22 @@ vi.mock("@/components/shared/action-button", () => ({
 
 vi.mock("motion/react", () => ({
   Reorder: {
-    Group: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    Item: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    Group: ({
+      children,
+      onReorder,
+    }: {
+      children: ReactNode;
+      onReorder?: (values: unknown[]) => void;
+    }) => {
+      reorderList.onReorder = onReorder;
+
+      return <div>{children}</div>;
+    },
+    Item: ({ children, onDragEnd }: { children: ReactNode; onDragEnd?: () => void }) => {
+      reorderList.onDragEnd = onDragEnd;
+
+      return <div>{children}</div>;
+    },
   },
   useDragControls: () => ({ start: () => undefined }),
 }));
@@ -95,9 +115,30 @@ function nameField(): HTMLElement {
 beforeEach(() => {
   createStore.mockClear();
   updateStore.mockClear();
+  reorderStores.mockClear();
 });
 
 describe("StoreManagerPanel", () => {
+  it("saves a drag's order once, when the Store is let go", () => {
+    const ah = { ...DIRK, id: "store-ah", name: "AH", sortOrder: 1 } as StoreDto;
+    const lidl = { ...DIRK, id: "store-lidl", name: "Lidl", sortOrder: 2 } as StoreDto;
+
+    render(
+      <StoreManagerPanel open={true} stores={[DIRK, ah, lidl]} onOpenChange={() => undefined} />
+    );
+
+    // Dirk passes AH, then Lidl: two swaps, one drag. A write per swap raced
+    // its own versions, and the list settled on the order of the first swap.
+    act(() => reorderList.onReorder?.([ah, DIRK, lidl]));
+    act(() => reorderList.onReorder?.([ah, lidl, DIRK]));
+    expect(reorderStores).not.toHaveBeenCalled();
+
+    act(() => reorderList.onDragEnd?.());
+
+    expect(reorderStores).toHaveBeenCalledTimes(1);
+    expect(reorderStores).toHaveBeenCalledWith(["store-ah", "store-lidl", "store-dirk"]);
+  });
+
   it("opens a Store in a panel of its own, with what it is already", () => {
     render(<StoreManagerPanel open={true} stores={[DIRK]} onOpenChange={() => undefined} />);
 

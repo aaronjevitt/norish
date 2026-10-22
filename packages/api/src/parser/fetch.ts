@@ -2,25 +2,12 @@ import type { BrowserContext, Page } from "playwright-core";
 
 import type { SiteAuthTokenDecryptedDto } from "@norish/shared/contracts/dto/site-auth-tokens";
 import { getBrowser } from "@norish/api/obscura";
+import { SERVER_CONFIG } from "@norish/config/env-config-server";
 import { parserLogger as log } from "@norish/shared-server/logger";
-
-/**
- * The whole navigation budget. One deadline rather than a stack of them: the
- * page settling and the recipe-shaped selector races that used to sit under
- * this one are Obscura's job now, and the parser's. Waiting past the
- * navigation for a page to become itself has its own deadline below, because
- * only a caller can tell that it has not.
- */
-const NAVIGATION_TIMEOUT_MS = 30_000;
 
 /** How long a page that answered with something else is given to become itself. */
 const SETTLE_TIMEOUT_MS = 15_000;
 const SETTLE_POLL_MS = 500;
-
-/** Playwright's navigation timeout, told apart by name: the class differs per bundled copy. */
-function isTimeoutError(error: unknown): boolean {
-  return error instanceof Error && error.name === "TimeoutError";
-}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -141,27 +128,14 @@ export async function renderPage(
       }
     });
 
-    let response: Awaited<ReturnType<Page["goto"]>> = null;
-
-    try {
-      response = await page.goto(targetUrl, {
-        waitUntil: "load",
-        timeout: NAVIGATION_TIMEOUT_MS,
-      });
-    } catch (error) {
-      // `load` also waits on a page's trackers, fonts and third-party apps, so
-      // a healthy article can arrive in a fraction of a second and still miss
-      // the deadline (#606). Once the main document has arrived, that page is
-      // read as it stands; a navigation that never got a document still fails.
-      if (!isTimeoutError(error) || status === null) {
-        throw error;
-      }
-
-      log.info(
-        { url: targetUrl, timeoutMs: NAVIGATION_TIMEOUT_MS },
-        "Page did not finish loading in time; reading the document that arrived"
-      );
-    }
+    const response = await page.goto(targetUrl, {
+      waitUntil: "load",
+      // The whole navigation budget. One deadline rather than a stack of them:
+      // page settling is Obscura's job, and waiting past the navigation for a
+      // page to become itself has its own deadline, SETTLE_TIMEOUT_MS, because only a
+      // caller can tell that it has not.
+      timeout: SERVER_CONFIG.OBSCURA_NAVIGATION_TIMEOUT_MS,
+    });
 
     status ??= response?.status() ?? null;
 

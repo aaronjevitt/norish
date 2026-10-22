@@ -8,8 +8,9 @@ import { CopyCommand } from "../copy-command";
 import { Reveal } from "../reveal";
 
 const PLACEHOLDER = "<openssl rand -base64 32>";
+const TOKEN_PLACEHOLDER = "<openssl rand -hex 32>";
 
-function buildCompose(masterKey: string) {
+function buildCompose(masterKey: string, obscuraToken: string) {
   return `services:
   norish:
     image: norishapp/norish:latest
@@ -23,6 +24,7 @@ function buildCompose(masterKey: string) {
       MASTER_KEY: ${masterKey}
       REDIS_URL: redis://redis:6379
       OBSCURA_ENDPOINT: ws://obscura:9222
+      OBSCURA_CDP_TOKEN: ${obscuraToken}
     depends_on: [db, redis, obscura]
 
   db:
@@ -34,13 +36,15 @@ function buildCompose(masterKey: string) {
       - db_data:/var/lib/postgresql/data
 
   redis:
-    image: redis:8.6.2
+    image: redis:8.10.1
     volumes:
       - redis_data:/data
 
   # Renders recipe pages for URL imports
   obscura:
-    image: norishapp/obscura:0.2.2-norish.1
+    image: norishapp/obscura:0.2.4-norish.1
+    environment:
+      OBSCURA_CDP_TOKEN: ${obscuraToken}
 
 volumes:
   db_data:
@@ -61,27 +65,40 @@ function generateMasterKey() {
   return btoa(binary);
 }
 
+/** Generate a 32-byte random token, hex-encoded — matches `openssl rand -hex 32`. */
+function generateObscuraToken() {
+  const bytes = new Uint8Array(32);
+
+  crypto.getRandomValues(bytes);
+
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 /**
- * Renders the docker-compose snippet with a MASTER_KEY generated locally in the
- * browser, so the copied file is unique and ready to run with no extra steps.
+ * Renders the docker-compose snippet with a MASTER_KEY and Obscura token generated
+ * locally in the browser, so the copied file is unique and ready to run with no extra steps.
  */
 export function SelfHostCompose() {
   const [masterKey, setMasterKey] = useState(PLACEHOLDER);
+  const [obscuraToken, setObscuraToken] = useState(TOKEN_PLACEHOLDER);
 
-  // Generated after mount to keep SSR markup stable and the secret client-only.
-  useEffect(() => setMasterKey(generateMasterKey()), []);
+  // Generated after mount to keep SSR markup stable and the secrets client-only.
+  useEffect(() => {
+    setMasterKey(generateMasterKey());
+    setObscuraToken(generateObscuraToken());
+  }, []);
 
   const ready = masterKey !== PLACEHOLDER;
 
   return (
     <Reveal className="min-w-0" delay={120}>
-      <CopyCommand collapsible code={buildCompose(masterKey)} />
+      <CopyCommand collapsible code={buildCompose(masterKey, obscuraToken)} />
       <p className="text-muted mt-3 flex items-start gap-1.5 text-xs text-pretty">
         <LockClosedIcon className="text-accent mt-0.5 size-3.5 shrink-0" />
         {ready ? (
           <span>
-            A unique <span className="text-foreground font-mono">MASTER_KEY</span> was generated
-            right here in your browser. No data is saved.{" "}
+            A unique <span className="text-foreground font-mono">MASTER_KEY</span> and Obscura token
+            were generated right here in your browser. No data is saved.{" "}
             <a
               className="hover:text-foreground underline underline-offset-2 transition-colors"
               href={links.keyGen}

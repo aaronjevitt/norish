@@ -27,9 +27,11 @@ export async function getBrowser(): Promise<Browser> {
   if (connecting) return connecting;
 
   const endpoint = SERVER_CONFIG.OBSCURA_ENDPOINT;
+  const token = SERVER_CONFIG.OBSCURA_CDP_TOKEN;
+  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
   connecting = chromium
-    .connectOverCDP(endpoint)
+    .connectOverCDP(endpoint, { headers })
     .then((connected) => {
       browser = connected;
 
@@ -38,7 +40,7 @@ export async function getBrowser(): Promise<Browser> {
     .catch((error: unknown) => {
       log.error({ err: error, endpoint }, "Failed to connect to Obscura");
       throw new Error(
-        `Obscura is not reachable at ${endpoint}. Start the obscura service or check OBSCURA_ENDPOINT.`
+        `Obscura is not reachable at ${endpoint}. Start the obscura service or check OBSCURA_ENDPOINT and OBSCURA_CDP_TOKEN.`
       );
     })
     .finally(() => {

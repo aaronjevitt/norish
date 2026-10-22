@@ -22,6 +22,7 @@ services:
       TRUSTED_ORIGINS: http://localhost:3000,http://192.168.*.*:3000,exp://,exp://**,exp://192.168.*.*:*/**
       MASTER_KEY: X4fjLgB8egCPwlOQW8iC3JGXAtUIMUOGmk/y29n+YSw=
       OBSCURA_ENDPOINT: ws://obscura:9222
+      OBSCURA_CDP_TOKEN: test-obscura-token-0123456789abcdef0123456789abcdef
       PASSWORD_AUTH_ENABLED: "true"
       LOG_LEVEL: debug
     healthcheck:
@@ -59,9 +60,11 @@ services:
 
   # Obscura renders recipe pages for URL imports
   obscura:
-    image: norishapp/obscura:0.2.2-norish.1
+    image: norishapp/obscura:0.2.4-norish.1
     container_name: norish-obscura-test
     restart: unless-stopped
+    environment:
+      OBSCURA_CDP_TOKEN: test-obscura-token-0123456789abcdef0123456789abcdef
 
   # Redis for real-time events
   redis:

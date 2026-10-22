@@ -22,6 +22,7 @@ import { useWindowSize } from "usehooks-ts";
 import type { Slot } from "@norish/shared/contracts";
 import { dateKey, eachDayOfInterval } from "@norish/shared/lib/helpers";
 
+import { hasReachedDay, landOnDay, settleLanding } from "../land-on-day";
 import { usePrependAnchorRestore } from "../use-prepend-anchor-restore";
 import { DesktopDayCard } from "./desktop-day-card";
 import { DesktopDragOverlay } from "./desktop-drag-overlay";
@@ -100,9 +101,7 @@ export function DesktopTimeline({ onAddItem, onNoteClick, onRecipeClick }: Deskt
     () => rows.map((row, index) => (row[0] ? dateKey(row[0]) : `row-${index}`)),
     [rows]
   );
-  const { captureAnchor, restoreAnchor, shouldAdjustScrollForSizeChange } = usePrependAnchorRestore(
-    { keys: rowKeys }
-  );
+  const { captureAnchor, restoreAnchor } = usePrependAnchorRestore({ keys: rowKeys });
 
   // Date formatters
   const weekdayFormatter = useMemo(
@@ -142,15 +141,12 @@ export function DesktopTimeline({ onAddItem, onNoteClick, onRecipeClick }: Deskt
     estimateSize: () => ESTIMATED_ROW_HEIGHT,
     overscan: 2,
     scrollMargin,
-    shouldAdjustScrollPositionOnItemSizeChange: (item, _delta, instance) => {
-      const scrollOffset = instance.scrollOffset ?? 0;
-
-      return shouldAdjustScrollForSizeChange(item.start, scrollOffset, scrollMargin);
-    },
+    onChange: settleLanding,
   });
 
   // Track if we've scrolled to today and if we've triggered expand
   const hasScrolledRef = useRef(false);
+  const hasLandedRef = useRef(false);
   const hasTriggeredExpandPastRef = useRef(false);
   const hasTriggeredExpandFutureRef = useRef(false);
 
@@ -159,7 +155,7 @@ export function DesktopTimeline({ onAddItem, onNoteClick, onRecipeClick }: Deskt
     if (hasScrolledRef.current || isLoading || todayRowIndex < 0) return;
 
     requestAnimationFrame(() => {
-      virtualizer.scrollToIndex(todayRowIndex, { align: "start" });
+      landOnDay(virtualizer, todayRowIndex);
       hasScrolledRef.current = true;
     });
   }, [isLoading, todayRowIndex, virtualizer]);
@@ -218,6 +214,10 @@ export function DesktopTimeline({ onAddItem, onNoteClick, onRecipeClick }: Deskt
   // Infinite scroll: trigger expandRange when near the edges
   useEffect(() => {
     if (virtualItems.length === 0 || !hasScrolledRef.current) return;
+    if (!hasLandedRef.current) {
+      if (!hasReachedDay(virtualItems, todayRowIndex)) return;
+      hasLandedRef.current = true;
+    }
 
     const firstItem = virtualItems[0];
     const lastItem = virtualItems[virtualItems.length - 1];
@@ -250,7 +250,15 @@ export function DesktopTimeline({ onAddItem, onNoteClick, onRecipeClick }: Deskt
     if (!isNearEnd) {
       hasTriggeredExpandFutureRef.current = false;
     }
-  }, [virtualItems, rows.length, isLoadingMore, expandRange, virtualizer, captureAnchor]);
+  }, [
+    virtualItems,
+    rows.length,
+    isLoadingMore,
+    expandRange,
+    virtualizer,
+    captureAnchor,
+    todayRowIndex,
+  ]);
 
   const handleScrollToToday = useCallback(() => {
     virtualizer.scrollToIndex(todayRowIndex, { align: "start", behavior: "smooth" });

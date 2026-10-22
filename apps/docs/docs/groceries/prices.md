@@ -1,64 +1,51 @@
 ---
 sidebar_position: 1
 title: Prices
-description: Point a Store at a real shop and see what the groceries on your list cost there, using the shop's own pages and no AI provider.
+description: Connect a Store to a real shop and see what your groceries cost.
 ---
 
 # Prices
 
-A **Store** is a heading your groceries sit under. A Store can additionally point at a real shop, so the list can show what its groceries cost there.
+A **Store** can point at a real shop's website, so you can see what your groceries cost.
 
-## Pointing a Store at a shop
+## Linking a shop
 
-Open **Manage Stores**, edit a Store, and paste the shop's homepage or one of its search pages into **Shop link**.
-
-The link is turned into a **Search Address**, with `{query}` where the grocery name goes. You can edit that address yourself if the shop needs something different.
+Open **Manage Stores**, edit a Store, and paste the shop's homepage or one of
+its search pages into **Shop link**. Norish turns it into a **Search Address**
+with `{query}` where the grocery name goes. You can edit it if the shop needs
+something else.
 
 ![The store form, showing the Search Address derived from a pasted link](/img/screenshots/groceries-store-link.png)
 
-When you save, the shop is tried once and you are told whether priced products were found, products without prices were found, or the shop could not be reached. The Store is saved either way.
+When you save, Norish tests the link. If it finds no products, the panel says
+so and you need to fix the link by hand.
 
-## Prices on the list
+## Pricing {#which-product}
 
-When a grocery is linked to a shop product, its row shows the total to buy and the price of each pack:
-The shop's product name sits underneath. If it is on sale, the regular total is struck through beside the sale price.
+A grocery linked to a shop product shows the total to buy, price per pack
+and product name.
 
 ![A shopping list with Line Costs on its rows](/img/screenshots/groceries-prices.png)
 
-The Store heading adds up everything still to buy. Groceries without a price are left out of that total, and ticking a grocery removes its price from it.
-When similar ingredients are grouped, the group is priced as one purchase. So 300 g and 400 g of flour become 700 g when deciding how much to buy.
-
-## Which product
-
-Norish links a grocery to one of the shop's products by itself only when the product's name is the grocery's name, give or take a typo on longer names. A product whose name merely contains the grocery's, "snoepjes" inside "Fortuin salmiak snoepjes", is not taken: it could as well be any other bag of sweets.
-
-Everything else is yours to decide. Open the grocery and use the **Product** field: typing shows what the Store already knows and what the shop answers.
-
-When your administrator has configured a [Decision Model](../configuration/ai-provider.md#decision-model) with _Grocery linking_ selected, it is asked which of the shop's products is the grocery once the name rule has declined. Its pick is linked and priced as a name match would be when it rates that product likelier than every alternative together; otherwise nothing is linked and the shop's answers are offered most likely first.
-
-```mermaid
-flowchart TD
-  S[The shop's search results] --> N{"A product's name is the grocery's,<br/>to the letter or a slip?"}
-  N -- yes --> L[Linked and priced]
-  N -- no --> D{Decision Model with<br/>Grocery linking on?}
-  D -- no --> M[Miss: offered in the shop's order]
-  D -- yes --> P{"Its pick likelier than<br/>every alternative together?"}
-  P -- yes --> L
-  P -- no --> O[Miss: offered most likely first]
-```
-
-To undo a link, open the grocery and press **Unlink product**. The row loses its price, and the Store treats the name as one it has no product for until you pick or type one.
+The Store heading adds up what is still to buy. Groceries without a price, and
+done ones, are not counted. Grouped groceries are bought as one: 300 g and
+400 g of flour count as 700 g.
 
 ![The product field, with the shop's answers to pick from](/img/screenshots/groceries-picker.png)
 
+With a [Decision Model](../configuration/ai-provider.md#decision-model) set up
+for _Grocery linking_, Norish asks it when the name doesn't match. It links the
+model's pick when that pick is likelier than all other products together.
+Otherwise you get the shop's products to choose from, most likely first.
+
+**Unlink product** in the grocery panel removes the link and the price.
+
 ## How much to buy
 
-The amount on your grocery is compared with the amount one shop product contains.
+Norish compares the grocery's amount with what one pack holds. 700 g of flour
+and a 500 g pack is two packs, and 12 eggs and a box of ten is two boxes. A
+grocery without an amount, or one that can't be compared, is one pack.
 
-So 700 g of flour against a 500 g pack means two packs, and 12 eggs against a box of ten means two boxes.
-
-A grocery without an amount means one pack. If its amount cannot sensibly be compared with the shop's pack, one pack is used.
-
-You can override this in the grocery panel under **Amount to buy**.
+Change it under **Amount to buy** in the grocery panel.
 
 ![The grocery panel with a quick amount control](/img/screenshots/groceries-purchase-amount.png)

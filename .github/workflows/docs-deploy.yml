@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - "apps/docs/**"
+      # The docs read the product's colour tokens from here.
+      - "tooling/tailwind/heroui-theme.css"
+      # The intro lists the languages from here.
+      - "packages/i18n/src/locales.ts"
       - ".github/workflows/docs-deploy.yml"
   workflow_dispatch:
 

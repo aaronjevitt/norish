@@ -1,79 +1,50 @@
 ---
 sidebar_position: 1
 title: Development setup
-description: Set up a local Norish development environment with the devcontainer or manually.
+description: Run Norish locally for development, in the devcontainer or on your machine.
 ---
 
 # Development setup
 
-There are two supported ways to develop Norish: the provided **devcontainer**
-(recommended — services are wired up for you) or a **local** setup.
+You need Node.js at the version in `.nvmrc`, pnpm 10 or later, Docker and Git.
 
-## Prerequisites
+## Devcontainer
 
-- **Node.js** 22.22.0 (see `.nvmrc`)
-- **pnpm** 10.x or later
-- **Docker** (for PostgreSQL, Redis, and Obscura)
-- **Git**
-
-## Devcontainer development
-
-Open the repository in the provided devcontainer — dependencies install
-automatically via `postCreateCommand`.
+Open the repository in the devcontainer. It installs the dependencies and
+starts PostgreSQL, Redis and Obscura.
 
 ```bash
-# Create your environment file
 cp .env.example .env.local
-
-# Run the web app
 pnpm run dev
-
-# Run the mobile app (Expo)
-pnpm run dev:mobile
 ```
 
-The devcontainer starts the required dependency services (`db`, `redis`, and
-`obscura`) for you, so you do **not** need to run `pnpm run docker:up`.
-
 :::tip
-To customize devcontainer settings, copy the default folder — everything inside
-`.devcontainers` is untracked except `default`.
+To customise the devcontainer, copy `.devcontainer/default` to a new folder
+next to it. Git only tracks `default`.
 :::
 
-## Local development
+## Locally
 
 ```bash
-# Clone the repository
 git clone https://github.com/norish-recipes/norish.git
 cd norish
 
-# Install dependencies
-# (this also runs `uv sync --locked` in apps/parser-api and creates its .venv)
+# Also installs the recipe parser's Python environment
 pnpm install
 
-# Create your environment file
 cp .env.example .env.local
 
-# Start required services (Postgres, Redis, Obscura)
+# Starts PostgreSQL, Redis and Obscura
 pnpm run docker:up
 
-# Run the web app (also starts the embedded parser from apps/parser-api/.venv)
 pnpm run dev
-
-# Run the mobile app (Expo)
-pnpm run dev:mobile
 ```
 
-`obscura` is the headless browser URL imports render pages in before the
-structured parser and the AI fallback read the HTML — see
-[Recipe parser](../configuration/parser.md). `.env.example` points
-`OBSCURA_ENDPOINT` at the port the local stack publishes on loopback, so
-imports work without extra setup.
+`.env.local` needs at least `DATABASE_URL`, `REDIS_URL`, `AUTH_URL` and
+`MASTER_KEY`, see [Server & runtime](../configuration/server-runtime.md).
+`.env.example` already points `OBSCURA_ENDPOINT` at the local stack.
 
-At minimum, your `.env.local` needs `DATABASE_URL`, `REDIS_URL`, `AUTH_URL`, and
-`MASTER_KEY` (generate the last with `openssl rand -base64 32`). See
-[Server & runtime](../configuration/server-runtime.md) and
-[Database](../configuration/database.md) for the full reference.
+## Contributing
 
-Next: the [development commands](./commands.md) and the
-[contributing guide](./contributing.md).
+The commands, code style and pull request process can be found on GitHub in
+[CONTRIBUTING.md](https://github.com/norish-recipes/Norish/blob/main/CONTRIBUTING.md).

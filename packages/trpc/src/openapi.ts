@@ -82,12 +82,15 @@ export function handleOpenApiRequest(req: Request) {
   });
 }
 
-export function getOpenApiDocument(baseUrl: string) {
-  return generateOpenApiDocument(openApiRouter, {
+// The spec is published on the docs site, so the server is a variable each reader
+// fills in with their own instance.
+export function getOpenApiDocument() {
+  const serverUrl = "{server}/api/v1";
+  const document = generateOpenApiDocument(openApiRouter, {
     title: "Norish Recipe API",
     description: "API access for Norish recipes and imports.",
     version: "1.0.0",
-    baseUrl: new URL("/api/v1", `${baseUrl}/`).toString(),
+    baseUrl: serverUrl,
     tags: ["Health", "Recipes", "Recipe Imports", "Groceries", "Stores", "Planned Recipes"],
     securitySchemes: {
       ApiKeyAuth: {
@@ -101,4 +104,15 @@ export function getOpenApiDocument(baseUrl: string) {
       },
     },
   });
+
+  return {
+    ...document,
+    servers: [
+      {
+        url: serverUrl,
+        description: "Your Norish server",
+        variables: { server: { default: "https://norish.example.com" } },
+      },
+    ],
+  };
 }

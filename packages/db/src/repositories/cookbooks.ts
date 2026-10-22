@@ -59,6 +59,7 @@ type CookbookRow = {
   id: string;
   userId: string | null;
   title: string;
+  image: string | null;
   createdAt: Date;
   updatedAt: Date;
   version: number;
@@ -68,6 +69,7 @@ const COOKBOOK_COLUMNS = {
   id: cookbooks.id,
   userId: cookbooks.userId,
   title: cookbooks.title,
+  image: cookbooks.image,
   createdAt: cookbooks.createdAt,
   updatedAt: cookbooks.updatedAt,
   version: cookbooks.version,
@@ -301,14 +303,15 @@ export async function createCookbook(input: {
   return toCookbookSummary(row, undefined);
 }
 
-export async function renameCookbook(
+/** Retitle a cookbook, and set or clear its image when `image` is given. */
+export async function updateCookbook(
   id: string,
-  title: string,
+  changes: { title: string; image?: string | null },
   version: number
 ): Promise<MutationOutcome<CookbookRow>> {
   const [row] = await db
     .update(cookbooks)
-    .set({ title, updatedAt: new Date(), version: sql`${cookbooks.version} + 1` })
+    .set({ ...changes, updatedAt: new Date(), version: sql`${cookbooks.version} + 1` })
     .where(and(eq(cookbooks.id, id), eq(cookbooks.version, version)))
     .returning(COOKBOOK_COLUMNS);
 
@@ -444,6 +447,58 @@ export async function listEditableCookbooks(ctx: RecipeListContext): Promise<Coo
     .orderBy(asc(cookbooks.title));
 
   return withMemberSummaries(ctx, rows);
+}
+
+/**
+ * The user's own cookbook bearing a title, matched the way an archive import
+ * files by one: case-insensitively and trimmed (ADR-0022).
+ */
+export async function findOwnCookbookIdByTitle(
+  userId: string,
+  title: string
+): Promise<string | null> {
+  const [row] = await db
+    .select({ id: cookbooks.id })
+    .from(cookbooks)
+    .where(
+      and(
+        eq(cookbooks.userId, userId),
+        sql`lower(trim(${cookbooks.title})) = ${title.trim().toLowerCase()}`
+      )
+    )
+    .orderBy(asc(cookbooks.createdAt))
+    .limit(1);
+
+  return row?.id ?? null;
+}
+
+/**
+ * The titles of the cookbooks this reader can see that hold each recipe:
+ * what a Recipe Archive says a recipe is filed under.
+ */
+export async function listCookbookTitlesByRecipeIds(
+  ctx: RecipeListContext,
+  recipeIds: string[]
+): Promise<Map<string, string[]>> {
+  const titles = new Map<string, string[]>();
+
+  if (recipeIds.length === 0) return titles;
+
+  const policyCondition = await buildOwnerPolicyCondition(ctx, cookbooks.userId, "view");
+  const membership = inArray(cookbookRecipes.recipeId, recipeIds);
+
+  const rows = await db
+    .select({ recipeId: cookbookRecipes.recipeId, title: cookbooks.title })
+    .from(cookbookRecipes)
+    .innerJoin(cookbooks, eq(cookbookRecipes.cookbookId, cookbooks.id))
+    .where(policyCondition ? and(membership, policyCondition) : membership)
+    .orderBy(asc(cookbooks.title));
+
+  for (const row of rows) {
+    titles.set(row.recipeId, [...(titles.get(row.recipeId) ?? []), row.title]);
+  }
+
+  return titles;
 }
 
 /**

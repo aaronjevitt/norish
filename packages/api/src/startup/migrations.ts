@@ -6,6 +6,8 @@ import { db } from "@norish/db";
 import { resolveExistingWorkspacePath } from "@norish/shared-server/lib/workspace-paths";
 import { dbLogger } from "@norish/shared-server/logger";
 
+import { forgetRetiredForkMigrations } from "./fork-migration-repair";
+
 const MIGRATIONS_RELATIVE_PATH = path.join("packages", "db", "src", "migrations");
 const JOURNAL_FILENAME = path.join("meta", "_journal.json");
 
@@ -24,6 +26,7 @@ export async function runMigrations(): Promise<void> {
   dbLogger.info("Checking and applying DB migrations...");
 
   try {
+    await forgetRetiredForkMigrations();
     await migrate(db, { migrationsFolder: resolveMigrationsFolder() });
     dbLogger.info("Migrations complete");
   } catch (err) {

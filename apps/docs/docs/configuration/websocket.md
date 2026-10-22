@@ -1,18 +1,18 @@
 ---
 sidebar_position: 4.5
 title: WebSocket & realtime
-description: The realtime socket, what a reverse proxy must pass through, the Origin check, close codes, and what to expect in Redis.
+description: The realtime WebSocket, reverse proxy setup and the origin check.
 ---
 
 # WebSocket & realtime
 
-Norish pushes changes to open browsers over a WebSocket. If the socket cannot 
-connect the app still works, but updates won't be retrieved.
+Norish pushes changes to open browsers over a WebSocket. Without it the app
+still works, but other people's changes require manual refreshing.
 
 ## The endpoint
 
-The socket is an HTTP upgrade on the same host and port as the app, at the
-path `/trpc`. The server prints it at startup:
+The socket runs on the same host and port as the app, at `/trpc`. The server
+prints it at startup:
 
 ```
 WS:   ws://0.0.0.0:3000/trpc
@@ -22,8 +22,7 @@ WS:   ws://0.0.0.0:3000/trpc
 
 ### nginx
 
-nginx does not forward upgrades unless told to, and its default read timeout
-(60 s) is fine Norish pings every 20 seconds. Example:
+nginx only forwards WebSocket upgrades when you tell it to:
 
 ```nginx
 location / {
@@ -37,12 +36,12 @@ location / {
 }
 ```
 
-Keep `proxy_read_timeout` above 25 seconds. A value under it closes every
-socket between two pings and the app reconnects in a loop.
+Norish pings every 20 seconds, so keep `proxy_read_timeout` above 25 seconds.
+A lower value closes the socket between pings and the app keeps reconnecting.
 
 ### Caddy
 
-Nothing to add. `reverse_proxy` passes WebSocket upgrades through by default:
+`reverse_proxy` passes WebSocket upgrades through as is:
 
 ```caddyfile
 norish.example.com {
@@ -52,22 +51,21 @@ norish.example.com {
 
 ### Traefik
 
-Traefik forwards upgrades on any HTTP router. If you
-have set a `respondingTimeouts.readTimeout` on the entrypoint, keep it above
-25 seconds.
+Traefik forwards upgrades on any HTTP router. If you set
+`respondingTimeouts.readTimeout` on the entrypoint, keep it above 25 seconds.
 
 ## Origin check
 
-Norish will send `403 Forbidden` for any untrusted origins.
-Origins that are trusted:
+Norish answers `403 Forbidden` to a WebSocket from an origin it doesn't trust.
+It trusts:
 
-- the origin of `AUTH_URL`,
-- any entry of `TRUSTED_ORIGINS`, or
-- the host the request itself arrived on, under `http` or `https`.
+- the origin of `AUTH_URL`
+- every entry in `TRUSTED_ORIGINS`
+- the host the request arrived on, over `http` or `https`
 
-If your proxy rewrites or strips the `Host` header and the browser's origin is
-not the one in `AUTH_URL`, list the public origin in `TRUSTED_ORIGINS` (see
-[Server & runtime](./server-runtime.md#networking--origins)):
+If your proxy rewrites or strips the `Host` header and people use an address
+other than `AUTH_URL`, add that address to
+[`TRUSTED_ORIGINS`](./server-runtime.md#networking--origins):
 
 ```env
 AUTH_URL=https://norish.example.com

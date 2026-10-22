@@ -15,10 +15,13 @@ permissions:
   contents: read
 
 jobs:
-  # One job on purpose. Actions jobs do not share a filesystem, so every extra
-  # job pays another checkout plus a full `pnpm install`, and any build it
-  # depends on has to be redone. Running the gates in sequence here costs a few
-  # minutes of wall clock and saves five installs and five rebuilds.
+  # The gates share one job on purpose. Actions jobs do not share a
+  # filesystem, so every extra job pays another checkout plus a full
+  # `pnpm install`, and any build it depends on has to be redone. Running them
+  # in sequence costs a few minutes of wall clock and saves the reinstalls.
+  # The browser E2E is the exception: at ~20 minutes it was two thirds of the
+  # run, so it is sharded across jobs below and pays its own install and build
+  # in each, in parallel with this one.
   verify:
     # Named for what it runs, not for its role: this is the only check covering
     # the unit tests now that they are steps rather than their own job, and
@@ -35,8 +38,7 @@ jobs:
         uses: ./tooling/github/setup
 
       # Gate order is cheapest-first so a trivial break reports in a minute
-      # instead of behind the build. Everything up to and including the unit
-      # tests runs on the bare checkout; only the e2e suites need build output.
+      # instead of behind the build.
       #
       # Each gate is guarded on the *install* rather than on the gate before
       # it, so one red gate still lets the rest report. That preserves what the
@@ -70,48 +72,57 @@ jobs:
         env:
           NODE_ENV: test
 
-      # The one build. Note what does *not* follow it: the e2e step below calls
-      # the @norish/web script directly rather than the root `test:e2e`, which
-      # prefixes `build:web && build:server` — precisely the build this step
-      # just did. The suites boot dist-server/index.mjs (the harness at
-      # apps/web/__tests__/e2e/harness/production-stack.ts), which is what
-      # `build:server` emits here.
-      #
-      # That reuse leans on turbo actually running @norish/web#build. It always
-      # does today: the task graph has no remote cache and each run starts from
-      # a bare checkout. If remote caching is ever turned on, add ".next/**" to
-      # the build task's `outputs` in turbo.json first — it is missing there, so
-      # a cache replay would restore dist-server/ but leave .next/ absent and
-      # the browser gate would boot against nothing.
       - name: Build
-        id: build
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: pnpm run build
 
+  # One Playwright worker per shard (see the E2E config): a worker is a whole
+  # stack, and a second one on a 4-vCPU runner slows both into timing reds.
+  # Shards split at file granularity while `fullyParallel` is off, so a
+  # serial spec stays whole, and are balanced by test count, not duration:
+  # when one runs well past the main job, add a shard rather than reordering.
+  e2e:
+    name: Browser E2E (${{ matrix.shard }}/${{ strategy.job-total }})
+    runs-on: ubuntu-latest
+    # On 2026-10-05 the unsharded suite hit 30 minutes at test 130 of 147.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup toolchain and install dependencies
+        uses: ./tooling/github/setup
+
+      # The suites boot dist-server/index.mjs (the harness at
+      # apps/web/__tests__/e2e/harness/production-stack.ts), so the web app and
+      # what it depends on is all a shard builds.
+      - name: Build
+        run: pnpm run build --filter=@norish/web...
+
       - name: Install Playwright browsers
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: pnpm --filter @norish/web exec playwright install --with-deps chromium
 
       # setup-uv stopped publishing floating major tags with v8; pin exactly.
       - name: Install uv
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         uses: astral-sh/setup-uv@v10.0.1
 
       # The production server boots the embedded parser and refuses to run
       # without its runtime; the shared setup skips it for everything else.
       - name: Install the embedded parser runtime
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: pnpm --filter @norish/parser-api run install:deps
 
       - name: Browser E2E
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: pnpm --filter @norish/web run test:e2e
+        run: pnpm --filter @norish/web run test:e2e --shard=${{ matrix.shard }}/${{ strategy.job-total }}
 
       - name: Upload traces and results on failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-results
+          name: e2e-results-${{ matrix.shard }}
           path: apps/web/__tests__/e2e/.results
           retention-days: 7
           if-no-files-found: ignore

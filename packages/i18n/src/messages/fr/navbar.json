@@ -42,7 +42,7 @@
     "uploading": "Téléversement…",
     "uploadFile": "Téléverser un fichier",
     "dragDrop": "ou glisser-déposer",
-    "formats": ".norishrecipes (Norish), .melarecipes (Mela), .paprikarecipes (Paprika), .zip (export Mealie/Tandoor)",
+    "formats": ".norishrecipes (Norish), .melarecipes (Mela), .paprikarecipes (Paprika), .zip (export Mealie/Tandoor/Recipe Keeper)",
     "dropzoneLabel": "Téléverser un fichier d'archive de recettes",
     "uploadingFile": "Téléversement du fichier…",
     "processing": "Traitement : {details}",

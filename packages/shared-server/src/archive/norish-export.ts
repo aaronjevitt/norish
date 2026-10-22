@@ -5,6 +5,7 @@ import { Readable } from "node:stream";
 
 import type { RecipeListContext } from "@norish/db/repositories/recipes";
 import { SERVER_CONFIG } from "@norish/config/env-config-server";
+import { listCookbookTitlesByRecipeIds } from "@norish/db/repositories/cookbooks";
 import { getFavoritesByRecipeIds } from "@norish/db/repositories/favorites";
 import { getUserRatingsByRecipeIds } from "@norish/db/repositories/ratings";
 import { getRecipeFull, listVisibleRecipeIds } from "@norish/db/repositories/recipes";
@@ -96,7 +97,8 @@ async function collectExistingMedia(recipe: FullRecipeDTO): Promise<NorishArchiv
 async function* loadExportRecords(
   recipeIds: string[],
   ratings: ReadonlyMap<string, number>,
-  favorites: ReadonlySet<string>
+  favorites: ReadonlySet<string>,
+  cookbookTitles: ReadonlyMap<string, string[]>
 ): AsyncGenerator<NorishArchiveRecord> {
   for (const recipeId of recipeIds) {
     let recipe: FullRecipeDTO | null = null;
@@ -114,6 +116,7 @@ async function* loadExportRecords(
       media: await collectExistingMedia(recipe),
       rating: ratings.get(recipeId),
       favorite: favorites.has(recipeId) || undefined,
+      cookbooks: cookbookTitles.get(recipeId),
     };
   }
 }
@@ -130,14 +133,16 @@ export async function buildNorishArchiveForViewer(
 ): Promise<NorishExportResult> {
   const recipeIds = await listVisibleRecipeIds(input.ctx);
 
-  // Only the exporter's own marks travel — never any other user's
-  const [ratings, favorites] = await Promise.all([
+  // Only the exporter's own marks travel — never any other user's — and
+  // only the cookbooks the exporter can see
+  const [ratings, favorites, cookbookTitles] = await Promise.all([
     getUserRatingsByRecipeIds(input.ctx.userId, recipeIds),
     getFavoritesByRecipeIds(input.ctx.userId, recipeIds),
+    listCookbookTitlesByRecipeIds(input.ctx, recipeIds),
   ]);
 
   const stream = streamNorishArchive({
-    records: loadExportRecords(recipeIds, ratings, favorites),
+    records: loadExportRecords(recipeIds, ratings, favorites, cookbookTitles),
     exporter: input.exporter,
     exportedAt: input.exportedAt,
     recipeCount: recipeIds.length,

@@ -38,6 +38,11 @@ function createEmptyLookups(): MealieLookups {
     recipeCategories: new Map(),
     recipeRatings: new Map(),
     recipeNutrition: new Map(),
+    favoriteRecipes: new Set(),
+    tools: new Map(),
+    recipeTools: new Map(),
+    recipeNotes: new Map(),
+    instructionReferences: new Map(),
   };
 }
 
@@ -57,6 +62,10 @@ function createMinimalDatabase(overrides: Partial<MealieDatabase> = {}): MealieD
     recipes_to_categories: [],
     users_to_recipes: [],
     recipe_nutrition: [],
+    recipe_ingredient_ref_link: [],
+    tools: [],
+    recipes_to_tools: [],
+    notes: [],
     ...overrides,
   };
 }
@@ -290,7 +299,7 @@ describe("Mealie Parser", () => {
       expect(dto!.recipeIngredients![1].unit).toBe("tablespoon");
     });
 
-    it("uses parsed original_text description for parsed ingredients to avoid duplicated amount/unit text", async () => {
+    it("builds a structured line from its fields, never repeating the amount in its text", async () => {
       const parsedIngredients: MealieIngredient[] = [
         {
           id: 1,
@@ -324,7 +333,7 @@ describe("Mealie Parser", () => {
       expect(dto!.recipeIngredients![0].unit).toBe("tablespoon");
     });
 
-    it("falls back to Mealie quantity and unit when parsing original_text cannot extract them", async () => {
+    it("takes the amount and unit from Mealie's fields, not from original_text", async () => {
       const parsedIngredients: MealieIngredient[] = [
         {
           id: 1,
@@ -356,6 +365,41 @@ describe("Mealie Parser", () => {
       expect(dto!.recipeIngredients![0].ingredientName).toBe("butter, softened");
       expect(dto!.recipeIngredients![0].amount).toBe(2);
       expect(dto!.recipeIngredients![0].unit).toBe("tablespoon");
+    });
+
+    it("reads a line as Mealie holds it now, not as it was first scraped", async () => {
+      const parsedLookups = createEmptyLookups();
+
+      parsedLookups.foods.set("food-margarine", { id: "food-margarine", name: "margarine" });
+      parsedLookups.units.set("unit-cup", { id: "unit-cup", name: "cup" });
+
+      const dto = await parseMealieRecipeToDTO(
+        mockRecipe,
+        [
+          {
+            id: 1,
+            recipe_id: "recipe-1",
+            food_id: "food-margarine",
+            unit_id: "unit-cup",
+            quantity: 3,
+            // Corrected in Mealie after it was scraped.
+            original_text: "1 tbsp butter",
+            note: "softened",
+            position: 0,
+          },
+        ],
+        mockInstructions,
+        parsedLookups,
+        "123e4567-e89b-42d3-a456-426614174000"
+      );
+
+      expect(dto.recipeIngredients[0]).toMatchObject({
+        ingredientName: "margarine, softened",
+        amount: 3,
+        unit: "cup",
+        // The food Mealie named is what the line resolves from.
+        foodText: "margarine",
+      });
     });
 
     it("throws error for recipe with all empty ingredients (no food_id, no original_text, no note)", async () => {

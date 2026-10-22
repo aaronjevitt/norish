@@ -6,15 +6,14 @@ packages:
   - tooling/*
 
 catalog:
-  "@better-auth/api-key": 1.6.9
-  "@better-auth/core": 1.6.9
-  "@better-auth/expo": 1.6.9
-  "@better-auth/utils": 0.4.0
+  "@better-auth/api-key": 1.6.33
+  "@better-auth/core": 1.6.33
+  "@better-auth/expo": 1.6.33
+  "@better-auth/utils": 0.4.2
   "@eslint/js": ^9.39.5
   "@heroicons/react": 2.2.0
   "@heroui/react": 3.2.4
   "@heroui/styles": 3.2.4
-  "@scalar/nextjs-api-reference": ^0.11.16
   "@tailwindcss/postcss": ^4.3.3
   "@tanstack/react-query": ^5.101.4
   "@testcontainers/postgresql": ^12.1.0
@@ -28,7 +27,7 @@ catalog:
   "@types/react-dom": 19.2.4
   "@vitejs/plugin-react": ^6.1.0
   archiver: ^7.0.1
-  better-auth: 1.6.9
+  better-auth: 1.6.33
   bullmq: ^5.81.3
   date-fns: ^4.4.0
   drizzle-orm: 0.45.2
@@ -38,7 +37,7 @@ catalog:
   ioredis: ^5.11.1
   jsdom: ^30.0.1
   jszip: 3.10.1
-  next: 16.3.2
+  next: 16.3.8
   pg: 8.23.0
   postcss: ^8.5.26
   prettier: ^3.9.6

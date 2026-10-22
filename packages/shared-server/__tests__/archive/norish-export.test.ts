@@ -9,6 +9,7 @@ const mockListVisibleRecipeIds = vi.fn();
 const mockGetRecipeFull = vi.fn();
 const mockGetUserRatingsByRecipeIds = vi.fn();
 const mockGetFavoritesByRecipeIds = vi.fn();
+const mockListCookbookTitlesByRecipeIds = vi.fn();
 
 vi.mock("@norish/db/repositories/recipes", () => ({
   listVisibleRecipeIds: mockListVisibleRecipeIds,
@@ -21,6 +22,10 @@ vi.mock("@norish/db/repositories/ratings", () => ({
 
 vi.mock("@norish/db/repositories/favorites", () => ({
   getFavoritesByRecipeIds: mockGetFavoritesByRecipeIds,
+}));
+
+vi.mock("@norish/db/repositories/cookbooks", () => ({
+  listCookbookTitlesByRecipeIds: mockListCookbookTitlesByRecipeIds,
 }));
 
 /** Read the streamed archive back, the way the browser's download would. */
@@ -45,6 +50,7 @@ describe("norish export service", () => {
     );
     mockGetUserRatingsByRecipeIds.mockResolvedValue(new Map());
     mockGetFavoritesByRecipeIds.mockResolvedValue(new Set());
+    mockListCookbookTitlesByRecipeIds.mockResolvedValue(new Map());
   });
 
   it("hands back a stream before it has loaded a single recipe", async () => {
@@ -149,6 +155,32 @@ describe("norish export service", () => {
     expect(recipeA).not.toHaveProperty("favorite");
     expect(recipeB).not.toHaveProperty("rating");
     expect(recipeB.favorite).toBe(true);
+  });
+
+  it("names the cookbooks the exporter can see, read under the export's own viewer", async () => {
+    const ctx = { userId: "user-1", householdUserIds: null, isServerAdmin: false };
+
+    mockListCookbookTitlesByRecipeIds.mockResolvedValue(new Map([[RECIPE_A, ["Dolci", "Kerst"]]]));
+
+    const { buildNorishArchiveForViewer } =
+      await import("@norish/shared-server/archive/norish-export");
+
+    const { stream } = await buildNorishArchiveForViewer({
+      ctx,
+      exporter: { name: "Mika", origin: "https://norish.example.com" },
+      exportedAt: new Date("2026-08-15T12:00:00Z"),
+    });
+    const zip = await collect(stream);
+
+    // Which cookbooks are visible is the repository's view policy, the same
+    // viewer context the recipe list was read under.
+    expect(mockListCookbookTitlesByRecipeIds).toHaveBeenCalledWith(ctx, [RECIPE_A, RECIPE_B]);
+
+    const recipeA = JSON.parse(await zip.file(`${RECIPE_A}/recipe.json`)!.async("string"));
+    const recipeB = JSON.parse(await zip.file(`${RECIPE_B}/recipe.json`)!.async("string"));
+
+    expect(recipeA.cookbooks).toEqual(["Dolci", "Kerst"]);
+    expect(recipeB.cookbooks).toEqual([]);
   });
 
   it("drops a recipe deleted between listing and loading", async () => {

@@ -29,7 +29,7 @@
     "goHome": "Go Home",
     "test": "Test",
     "format": "Format",
-    "restoreDefaults": "Restore Defaults",
+    "restoreDefaults": "Restore defaults",
     "saveChanges": "Save Changes"
   },
   "secret": {
@@ -293,5 +293,10 @@
     "title": "Couldn't start",
     "description": "Norish could not read its secure storage, so it cannot tell which server it belongs to. Nothing has been changed. Try again, or restart the app.",
     "detailsLabel": "Technical details"
+  },
+  "aiKeyRejected": {
+    "title": "An AI key stopped working",
+    "description": "The provider has refused the API key for {blocks} since {since}. Save a new key to get those AI features working again.",
+    "openSettings": "Open settings"
   }
 }

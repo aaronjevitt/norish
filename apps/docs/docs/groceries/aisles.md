@@ -1,60 +1,35 @@
 ---
 sidebar_position: 2
 title: Aisles
-description: Give a Store the aisles of the shop it stands for, and your list is shown in the order you walk it, with every name filed once and remembered.
+description: Group groceries by aisle within a Store.
 ---
 
 # Aisles
 
-A **Store** in Norish is a heading your groceries sit under. A Store can
-additionally have **Aisles**, you could also see this as categories.
+A Store can have aisles to group groceries on your list. Aisles appear in the order you set, including when they're empty.
 
-## Adding aisles to a store
+## Managing aisles
 
-Open **Manage Stores**, edit a store, and under the colour you find the
-**Aisles**. Type a name and press Enter or the plus to add one, type over a
-name to rename it, drag the handle to reorder, and press the **X** to remove one.
+Open **Manage Stores** and edit a Store. Add an aisle by typing its name below the colour picker and pressing Enter. Edit a name to rename an aisle, drag the handle to reorder it, or press **X** to remove it.
 
 ![The store editor, with the Store's aisles under the colour picker](/img/screenshots/groceries-aisles-editor.png)
 
-## The list by aisle
+## Sorting groceries
 
-Once a Store has aisles, its card shows every one of them, this is
-done purposefully to make drag and drop easy.
+Drag a grocery by its handle to move it between aisles. On a phone, press and hold the row.
+
+- Drag it to the top of the Store to remove it from its aisle.
+- Drag it into another Store to move it there.
+- To choose an aisle directly, open the grocery and use the **Aisle** field.
+
+Groceries without an aisle appear at the top of their Store.
 
 ![A Store's card shown by aisle, with unfiled rows at the top](/img/screenshots/groceries-aisles-list.png)
 
-An unknown grocery, e.g. one that's added for the first time. Will default
-to no aisle at the top of a store or the unsorted section.
+## How aisles are remembered
 
-## Adding groceries to an aisle
+Aisles are remembered per Store and [ingredient](./ingredients.md), so different names for the same ingredient can share an aisle. For example, assigning "melk" to Zuivel also assigns "milk" and "Melk (halfvol)" to that aisle.
 
-There are two ways to add groceries to an aisle.
+Renaming an aisle keeps its groceries. Removing an aisle leaves its groceries unassigned. Each Store remembers its own aisles, and deleting a Store deletes its aisle settings.
 
-**Drag the row** into an aisle. Dragging it back to the top of the Store
-unlinks it. Dragging a row into another Store's aisle moves it to that Store
-and aisles. Dragging it into another Store's top area moves it there and
-leaves that Store's own memory to place it.
-
-**Or using the edit panel** Directly under the Store selector, a Store
-with aisles shows an **Aisle** field once the grocery has a name.
-
-![The grocery panel's Aisle field under the Store selector](/img/screenshots/groceries-aisle-field.png)
-
-## Memory
-
-When you add a grocery to an aisle, the Store remembers that grocery **by name**.
-
-So if you put “melk” in Zuivel at a Store, every “melk” at that Store will appear in Zuivel.
-
-That same rule applies everywhere:
-
-- **Rename a grocery:** it will appear in the aisle the Store remembers for its new name.
-- **Move a grocery to another Store:** the new Store uses its own aisle memory. Nothing carries over between Stores.
-- **Rename an aisle:** everything assigned to it stays there.
-- **Remove an aisle:** the groceries that belonged to it become unassigned.
-- **Delete a Store:** its aisles and all of its grocery-to-aisle memory are deleted with it.
-
-Because the Store remembers aisles by grocery name, two groceries with exactly the same name at the same Store can’t belong to different aisles.
-
-The grouped list works the same way. Groups are per aisle, per Store, and per unit: lines of one name measured the same way share a row and add up, while a line measured differently, or with no measure at all, keeps a row of its own. Dragging a group into another aisle assigns every grocery name in that group to that aisle.
+Groceries with the same name and unit share a row, so moving that row moves them all.

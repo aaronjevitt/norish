@@ -46,6 +46,8 @@ export type NorishArchiveRecord = {
   rating?: number;
   /** The exporter's own favourite mark — never anyone else's */
   favorite?: boolean;
+  /** Titles of the cookbooks the exporter can see that hold the recipe */
+  cookbooks?: string[];
 };
 
 export type NorishArchiveExporter = {
@@ -154,10 +156,11 @@ export function collectRecipeMediaRefs(recipe: FullRecipeDTO): NorishArchiveMedi
  * unchanged; media that did not make it into the archive is dropped rather
  * than exported as a dead reference.
  *
- * Three export-only fields ride along: the author's display name as
- * attribution (a name and nothing else — no id, no avatar, no email), plus
- * the exporter's own rating and favourite mark. Nobody else's marks and no
- * account data of anyone ever enter the archive (ADR-0022).
+ * Export-only fields ride along: the author's display name as attribution
+ * (a name and nothing else — no id, no avatar, no email), the exporter's own
+ * rating and favourite mark, and the titles of the cookbooks the exporter
+ * can see that hold the recipe. Nobody else's marks and no account data of
+ * anyone ever enter the archive (ADR-0022).
  */
 function buildArchiveRecipe(record: NorishArchiveRecord): NorishArchiveRecipe {
   const recipe = record.recipe;
@@ -178,7 +181,9 @@ function buildArchiveRecipe(record: NorishArchiveRecord): NorishArchiveRecipe {
     url: recipe.url,
     notes: recipe.notes,
     servings: recipe.servings,
-    systemUsed: recipe.systemUsed,
+    // The system the recipe was written in, whichever one it was showing: an
+    // import takes it for the original, the one AI never writes over.
+    systemUsed: recipe.originalSystem ?? recipe.systemUsed,
     prepMinutes: recipe.prepMinutes,
     cookMinutes: recipe.cookMinutes,
     totalMinutes: recipe.totalMinutes,
@@ -250,6 +255,7 @@ function buildArchiveRecipe(record: NorishArchiveRecord): NorishArchiveRecipe {
     authorName: recipe.author?.name ?? null,
     rating: record.rating,
     favorite: record.favorite,
+    cookbooks: record.cookbooks ?? [],
   };
 }
 

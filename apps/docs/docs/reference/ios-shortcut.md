@@ -7,7 +7,7 @@ description: Import a recipe from the iOS share sheet with a Shortcut and the No
 # iOS Shortcut
 
 A Shortcut can send any page you share on iPhone or iPad straight to Norish.
-It calls [`POST /api/v1/recipes/import/url`](./api.md) with an API key.
+It calls [`POST /api/v1/recipes/import/url`](./api.mdx) with an API key.
 
 :::info Shortcuts made before 0.20
 

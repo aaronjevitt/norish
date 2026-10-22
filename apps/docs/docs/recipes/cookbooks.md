@@ -1,59 +1,52 @@
 ---
-sidebar_position: 8
+sidebar_position: 9
 title: Cookbooks
-description: Group recipes into titled sets, file a recipe from its own page, and browse the Library as recipes and cookbooks together under three chips.
+description: Group recipes into named cookbooks.
 ---
 
 # Cookbooks
 
-A **Cookbook** are a set of recipes contained by a title.
+A **Cookbook** is a named set of recipes.
 
 ## Making one
 
-With the **Cookbooks** chip lit, the Add button becomes **+ Cookbook**. This opens a panel where you can set the title.
-
-Under **All** the list holds both kinds (recipes + cookbooks). Its menu offers a cookbook beside the ways of adding a recipe. Under
-**Recipes** it makes recipes only, because that is all that list can show.
+In the Library, select the **Cookbooks** chip and press **+ Cookbook**, then
+give it a title. Under **All**, the add menu offers a cookbook as well.
 
 ![Creating a cookbook from the Library](/img/screenshots/cookbooks-create.png)
 
-## Adding a recipe
+## Adding recipes
 
-There are two ways to add recipes to a cookbook. Via a recipe page using in the quick actions panel. The add panel shows all available cookbooks.
+- On a recipe, open the quick actions and pick its cookbooks.
+- In the Library, swipe a cookbook left or open its three dots, and press the
+  plus to add several recipes at once.
 
 ![The cookbook membership panel on a recipe](/img/screenshots/cookbooks-panel.png)
-
-The other way is to swipe left (or using the three dots) on a cookbook and click the plus icon.
-
 ![Adding several recipes to a cookbook at once](/img/screenshots/cookbooks-add-recipes.png)
 
-At the end if a recipe page there is a card showing all cookbooks the recipe is placed into.
-Each of these items are clickable and take you to the respective cookbook.
+The end of a recipe page lists the cookbooks it is in. Hide that card under
+**Settings => User => Hidden items**.
 
 ![The cookbooks card at the end of a recipe page](/img/screenshots/cookbooks-recipe-card.png)
 
-If you do no whish to see the cookbooks card you can hide it under: Settings => User => **Hidden
-Items**, this is a per device setting.
+## Editing one
 
-## Renaming one, and taking recipes out
+**Edit cookbook**, on its card in the Library or in the menu on its page,
+changes the cover, the name and which recipes it holds. Without a cover image,
+a cookbook shows photos of its recipes. Changing the cover needs a connection.
 
-**Edit cookbook** — from a cookbook's card in the Library, or from the menu on
-its own page, opens the name and the list of what is in it. Rename
-it, untick anything that should go, and **Save** applies both.
+To take out a single recipe, swipe it left on the cookbook's page or open its
+three dots, and press the minus.
 
-![Editing a cookbook: its name and what is in it, in one panel](/img/screenshots/cookbooks-edit.png)
+![Editing a cookbook: its cover, name and what is in it, in one panel](/img/screenshots/cookbooks-edit.png)
 
-## Who can see and change what
+## Permissions and deleting
 
-Cookbooks obey the recipe permission policy your administrator already set.
+Cookbooks follow the [recipe permissions](../configuration/admin-settings.md#permissions)
+your administrator set.
 
-Nothing about cookbooks is destructive:
+- Deleting a cookbook keeps its recipes.
+- Deleting a recipe removes it from every cookbook.
+- A cookbook stays when the person who made it deletes their account.
 
-- Deleting a cookbook leaves every recipe it held untouched.
-- Deleting a recipe takes it out of every cookbook it was in.
-- A cookbook made by someone who later deletes their account stays (becomes orphaned).
-
-## Offline
-
-Every cookbook you can see, and what is in it, is part of the guaranteed
-**Warm Set**.
+Every cookbook you can see is available [offline](../offline.md).

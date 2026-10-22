@@ -20,7 +20,7 @@ type Group = {
 
 const groups: Group[] = [
   {
-    name: "Importing recipes.",
+    name: "Importing recipes",
     tint: "bg-tint-site",
     features: [
       {
@@ -29,7 +29,7 @@ const groups: Group[] = [
       },
       {
         title: "From a video",
-        body: "YouTube, Instagram and Facebook and more. When no audio is available it looks at the discription.",
+        body: "YouTube, Instagram, Facebook and more. When a video has no audio, Norish reads its description instead.",
         ai: true,
       },
       {
@@ -43,7 +43,7 @@ const groups: Group[] = [
       },
       {
         title: "Filled in afterwards",
-        body: "Tags, meal categories, cuisines, nutrition, allergens and provenance are worked out in the background once a recipe lands.",
+        body: "Tags, meal categories, cuisines, allergens and provenance are worked out in the background once a recipe lands.",
         ai: true,
       },
     ],
@@ -54,7 +54,7 @@ const groups: Group[] = [
     features: [
       {
         title: "Cookbooks",
-        body: "Group recipes into a of your choosing: the weeknight dinners, the Christmas baking, everything out of your grandmother's book.",
+        body: "Group recipes into cookbooks of your choosing, each with its own cover: the weeknight dinners, the Christmas baking, everything out of your grandmother's book.",
       },
       {
         title: "Cooking mode",
@@ -66,29 +66,41 @@ const groups: Group[] = [
       },
       {
         title: "Scaling and units",
-        body: "Set the servings and every quantity re-does itself. Metric and US measurements swap with one tap.",
-        ai: true,
+        body: "Set the servings and every quantity re-does itself. Metric and US measurements swap with one tap, or automatically as a recipe opens.",
       },
       {
-        title: "Nutrition and allergies",
-        body: "Calories, protein, carbs and fat estimated per recipe, per serving and allergies are flagged against what your household reacts to.",
-        ai: true,
+        title: "Nutrition",
+        body: "Calories, protein, carbs and fat per serving, calculated from food databases such as CIQUAL and USDA FoodData Central.",
       },
       {
         title: "Plan together",
-        body: "Drop recipes onto the calendar shared along your household.",
-      },
-      {
-        title: "Shop together",
-        body: "One shared list, including recurring items.",
+        body: "Drop recipes onto the calendar your household shares, or sync it to your own calendar over CalDAV.",
       },
       {
         title: "Real-time, always",
-        body: "Edit a recipe, tick an item, plan a recipe. The whole household sees it on every device, with refresh needed..",
+        body: "Edit a recipe, tick an item, plan a recipe. The whole household sees it on every device, no refresh needed.",
       },
       {
         title: "Works even when offline",
         body: "Your fifty most recent recipes, all groceries and the current calendar window stay on the device. Changes you make offline queue up and replay themselves when you come back online.",
+      },
+    ],
+  },
+  {
+    name: "Groceries and pantry",
+    tint: "bg-tint-video",
+    features: [
+      {
+        title: "Shop together",
+        body: "One shared list, sorted by aisle, with recurring items and prices from the shop you use.",
+      },
+      {
+        title: "Pantry",
+        body: "Keep track of what is already on the shelf. Adding a recipe to your groceries leaves those ingredients off the list.",
+      },
+      {
+        title: "Ingredient catalogue",
+        body: "Ingredients are matched to foods from Open Food Facts, with an icon beside them. The pantry still recognises a food when a recipe names it in another language.",
       },
     ],
   },
@@ -105,8 +117,8 @@ const groups: Group[] = [
         body: "Any OIDC provider such as Authentik, Pocket ID, GitHub, Google, or plain email and password.",
       },
       {
-        title: "Thirteen languages",
-        body: "English, Nederlands, Deutsch, Français, Español, Italiano, Português, Polski, Dansk, Norsk, Русский, Български and 한국어, translated by the community.",
+        title: "Fifteen languages",
+        body: "English, Nederlands, Deutsch, Français, Español, Italiano, Português, Polski, Dansk, Norsk, Suomi, Русский, Українська, Български and 한국어, translated by the community.",
       },
       {
         title: "Installs like an app",

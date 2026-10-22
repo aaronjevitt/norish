@@ -144,8 +144,13 @@ export function StoreManagerPanel({ open, onOpenChange, stores }: StoreManagerPa
     deleteStore(storeId, deleteGroceries, grocerySnapshot);
     setStoreToDelete(null);
   };
-  const handleReorder = (newOrder: StoreDto[]) => {
-    reorderStores(newOrder.map((s) => s.id));
+  // The order while a Store is dragged, saved once it is let go: a write per
+  // swap raced its own versions, and the list could settle on an earlier swap.
+  const [draggedOrder, setDraggedOrder] = useState<StoreDto[] | null>(null);
+  const shownStores = draggedOrder ?? stores;
+  const handleDragEnd = () => {
+    if (draggedOrder) reorderStores(draggedOrder.map((s) => s.id));
+    setDraggedOrder(null);
   };
   const handlePanelOpenChange = (isOpen: boolean) => {
     if (!isOpen) setEditingStore(null);
@@ -170,10 +175,10 @@ export function StoreManagerPanel({ open, onOpenChange, stores }: StoreManagerPa
             <Reorder.Group
               axis="y"
               className="flex flex-col gap-2"
-              values={stores}
-              onReorder={handleReorder}
+              values={shownStores}
+              onReorder={setDraggedOrder}
             >
-              {stores.map((store) => (
+              {shownStores.map((store) => (
                 <StoreListItem
                   key={store.id}
                   dragConstraintsRef={dragConstraintsRef}
@@ -183,6 +188,7 @@ export function StoreManagerPanel({ open, onOpenChange, stores }: StoreManagerPa
                     editLabel: tActions("edit"),
                   }}
                   onDelete={() => handleDeleteClick(store)}
+                  onDragEnd={handleDragEnd}
                   onEdit={() => handleStartEdit(store)}
                 />
               ))}
@@ -256,6 +262,7 @@ interface StoreListItemProps {
   };
   onEdit: () => void;
   onDelete: () => void;
+  onDragEnd: () => void;
 }
 function StoreListItem({
   store,
@@ -263,6 +270,7 @@ function StoreListItem({
   translations,
   onEdit,
   onDelete,
+  onDragEnd,
 }: StoreListItemProps) {
   const controls = useDragControls();
 
@@ -279,6 +287,7 @@ function StoreListItem({
         position: "relative",
       }}
       value={store}
+      onDragEnd={onDragEnd}
     >
       {/* Drag handle */}
       <div

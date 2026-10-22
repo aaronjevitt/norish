@@ -10,6 +10,8 @@ const mockDashboardRecipe = vi.fn();
 const mockRateRecipe = vi.fn();
 const mockAddFavorite = vi.fn();
 const mockListCuisines = vi.fn();
+const mockCreateCookbook = vi.fn();
+const mockAddRecipeToCookbook = vi.fn();
 
 vi.mock("node:fs/promises", () => ({
   default: {
@@ -26,6 +28,28 @@ vi.mock("@norish/config/env-config-server", () => ({
   },
 }));
 
+// Resolving the lines is the resolver's concern, not the import loop's.
+vi.mock("@norish/shared-server/ingredients/recipe-lines", () => ({
+  withResolvedIngredients: vi.fn(async (payload: object) => ({
+    ...payload,
+    ingredientResolutions: new Map(),
+  })),
+  createResolvedRecipe: vi.fn(async (id: string, userId: unknown, payload: object) =>
+    mockCreateRecipeWithRefs(id, userId, { ...payload, ingredientResolutions: new Map() })
+  ),
+  updateResolvedRecipe: vi.fn(
+    async (id: string, userId: unknown, payload: object, _actor: unknown, version?: number) =>
+      version === undefined
+        ? mockUpdateRecipeWithRefs(id, userId, { ...payload, ingredientResolutions: new Map() })
+        : mockUpdateRecipeWithRefs(
+            id,
+            userId,
+            { ...payload, ingredientResolutions: new Map() },
+            version
+          )
+  ),
+}));
+
 vi.mock("@norish/db", () => ({
   findExistingRecipe: mockFindExistingRecipe,
   createRecipeWithRefs: mockCreateRecipeWithRefs,
@@ -39,6 +63,12 @@ vi.mock("@norish/db/repositories/ratings", () => ({
 
 vi.mock("@norish/db/repositories/favorites", () => ({
   addFavorite: mockAddFavorite,
+}));
+
+vi.mock("@norish/db/repositories/cookbooks", () => ({
+  findOwnCookbookIdByTitle: vi.fn().mockResolvedValue(null),
+  createCookbook: mockCreateCookbook,
+  addRecipeToCookbook: mockAddRecipeToCookbook,
 }));
 
 vi.mock("@norish/db/repositories/cuisines", () => ({
@@ -89,6 +119,13 @@ vi.mock("@norish/shared-server/archive/mealie-legacy-parser", () => ({
 vi.mock("@norish/shared-server/archive/tandoor-parser", () => ({
   extractTandoorRecipes: vi.fn(),
   parseTandoorRecipeToDTO: vi.fn(),
+}));
+
+vi.mock("@norish/shared-server/archive/recipe-keeper-parser", () => ({
+  readRecipeKeeperHtml: vi.fn().mockResolvedValue(null),
+  countRecipeKeeperRecipes: vi.fn(),
+  extractRecipeKeeperRecipes: vi.fn(),
+  parseRecipeKeeperRecipeToDTO: vi.fn(),
 }));
 
 vi.mock("@norish/shared-server/archive/paprika-parser", () => ({
@@ -204,6 +241,28 @@ describe("norish archive rides the shared import loop", () => {
 
     expect(mockRateRecipe).toHaveBeenCalledWith("user-1", createdId, 4);
     expect(mockAddFavorite).toHaveBeenCalledWith("user-1", createdId);
+  });
+
+  it("files the created recipe into the cookbooks the archive names", async () => {
+    mockCreateCookbook.mockImplementation(async ({ title }: { title: string }) => ({
+      id: `cookbook-${title}`,
+    }));
+
+    const zipBytes = await buildArchiveBytes([
+      {
+        folderKey: FOLDER_KEY,
+        json: JSON.stringify(buildArchiveRecipeJson({ cookbooks: ["Dolci", "Kerst"] })),
+      },
+    ]);
+
+    const { importArchive } = await import("@norish/shared-server/archive/parser");
+
+    await importArchive("user-1", ["user-1"], zipBytes);
+
+    const createdId = mockCreateRecipeWithRefs.mock.calls[0]![0];
+
+    expect(mockAddRecipeToCookbook).toHaveBeenCalledWith("cookbook-Dolci", createdId);
+    expect(mockAddRecipeToCookbook).toHaveBeenCalledWith("cookbook-Kerst", createdId);
   });
 
   it("stores its own extracted Dish Colour for an imported recipe (archive path)", async () => {

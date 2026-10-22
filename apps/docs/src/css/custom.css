@@ -1,197 +1,417 @@
-/**
- * Norish theme for Docusaurus.
- *
- * The HeroUI/Tailwind hero theme can't be reused here, so this recreates the
- * Norish look with plain CSS: the same forest-green brand, Inter Variable font,
- * and light/dark surfaces. Color values are ported verbatim (OKLch) from
- * tooling/tailwind/heroui-theme.css so the docs match norish.dev exactly.
+/*
+ * The docs stylesheet. It takes Infima's place (see norishTheme in
+ * docusaurus.config.ts), so nothing here competes with a Docusaurus default:
+ * HeroUI v3 on the product's own tokens, the landing's Inter + Fraunces, and
+ * prose rules for the Markdown body.
  */
-
+@import "tailwindcss";
 @import "@fontsource-variable/inter";
+@import "@fontsource-variable/fraunces/wght.css";
+@import "@fontsource-variable/fira-code";
+@import "@heroui/styles";
+/* The product's ground. The docs install sits outside the pnpm workspace, so
+   the shared tokens are read by path rather than as @norish/tailwind-config. */
+@import "../../../../tooling/tailwind/heroui-theme.css";
+@source "../../node_modules/@heroui/styles/dist";
 
-:root {
-  /* Brand — forest green. Accent stays identical to the app's --accent. */
-  --ifm-color-primary: oklch(46.37% 0.0828 150.36);
-  --ifm-color-primary-dark: oklch(42% 0.0828 150.36);
-  --ifm-color-primary-darker: oklch(39.7% 0.0828 150.36);
-  --ifm-color-primary-darkest: oklch(33.5% 0.0828 150.36);
-  --ifm-color-primary-light: oklch(51% 0.0828 150.36);
-  --ifm-color-primary-lighter: oklch(53.3% 0.0828 150.36);
-  --ifm-color-primary-lightest: oklch(59.5% 0.0828 150.36);
+@custom-variant dark (&:is(.dark *, [data-theme="dark"] *));
 
-  /* Surfaces & text (light) */
-  --ifm-background-color: oklch(97.02% 0.0015 150.36);
-  --ifm-background-surface-color: oklch(100% 0.0008 150.36);
-  --ifm-font-color-base: oklch(21.03% 0.0015 150.36);
-  --ifm-heading-color: oklch(21.03% 0.0015 150.36);
-  --ifm-color-content-secondary: oklch(55.17% 0.003 150.36);
-  --ifm-toc-border-color: oklch(90% 0.0015 150.36);
-  --ifm-table-border-color: oklch(90% 0.0015 150.36);
-  --ifm-hr-border-color: oklch(92% 0.0015 150.36);
+@layer theme {
+  :root {
+    --font-inter: "Inter Variable", system-ui, sans-serif;
+    --font-fraunces: "Fraunces Variable", ui-serif, Georgia, serif;
+    --font-code:
+      "Fira Code Variable", ui-monospace, "SFMono-Regular", "Menlo", "Monaco", "Consolas", monospace;
 
-  /* Typography */
-  --ifm-font-family-base:
-    "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --ifm-heading-font-weight: 600;
+    /* The accent is a deep forest green; as text on the dark ground it needs lifting. */
+    --link: var(--accent);
 
-  /* Shape — matches --radius (0.5rem) */
-  --ifm-global-radius: 0.5rem;
-  --ifm-button-border-radius: 0.5rem;
-  --ifm-code-font-size: 90%;
+    /* Code token colours, warm to sit on the paper ground. */
+    --code-plain: var(--foreground);
+    --code-comment: var(--muted);
+    --code-punctuation: oklch(55% 0.01 80);
+    --code-key: oklch(46.37% 0.0828 150.36);
+    --code-string: oklch(50% 0.12 55);
+    --code-number: oklch(52% 0.14 253);
+    --code-keyword: oklch(50% 0.16 330);
+    --code-function: oklch(48% 0.12 200);
 
-  /* Navigation */
-  --ifm-navbar-background-color: oklch(100% 0.0008 150.36);
-  --ifm-menu-color-background-active: color-mix(in oklch, var(--ifm-color-primary) 9%, transparent);
-  --ifm-menu-color-background-hover: color-mix(in oklch, var(--ifm-color-primary) 6%, transparent);
+    --docusaurus-progress-bar-color: var(--accent);
+  }
 
-  --docusaurus-highlighted-code-line-bg: color-mix(
-    in oklch,
-    var(--ifm-color-primary) 12%,
-    transparent
-  );
+  [data-theme="dark"] {
+    --link: oklch(74% 0.1 150.36);
+
+    --code-punctuation: oklch(66% 0.01 80);
+    --code-key: oklch(76% 0.11 150.36);
+    --code-string: oklch(80% 0.11 70);
+    --code-number: oklch(76% 0.11 253);
+    --code-keyword: oklch(76% 0.13 330);
+    --code-function: oklch(78% 0.1 200);
+  }
 }
 
-/* Infima themes dark-mode variables under `html[data-theme='dark']`, so match
-   that specificity (and load later) to win — a plain `[data-theme='dark']`
-   selector loses and the background/surface overrides silently no-op. */
-html[data-theme="dark"] {
-  /* Lift the brand green in dark mode so links/buttons stay legible on the
-     dark charcoal background while keeping the same hue. */
-  --ifm-color-primary: oklch(62% 0.095 150.36);
-  --ifm-color-primary-dark: oklch(57.5% 0.095 150.36);
-  --ifm-color-primary-darker: oklch(55% 0.095 150.36);
-  --ifm-color-primary-darkest: oklch(48% 0.09 150.36);
-  --ifm-color-primary-light: oklch(66% 0.092 150.36);
-  --ifm-color-primary-lighter: oklch(68% 0.09 150.36);
-  --ifm-color-primary-lightest: oklch(74% 0.08 150.36);
+@theme inline {
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-fraunces);
+  --font-mono: var(--font-code);
+  --color-link: var(--link);
 
-  /* Surfaces & text (dark) — ported from the app's dark tokens. */
-  --ifm-background-color: oklch(16.5% 0.0015 150.36);
-  --ifm-background-surface-color: oklch(23.5% 0.003 150.36);
-  --ifm-font-color-base: oklch(99.11% 0.0015 150.36);
-  --ifm-heading-color: oklch(99.11% 0.0015 150.36);
-  --ifm-color-content-secondary: oklch(70.5% 0.003 150.36);
-  --ifm-toc-border-color: oklch(31% 0.0015 150.36);
-  --ifm-table-border-color: oklch(31% 0.0015 150.36);
-  --ifm-hr-border-color: oklch(28% 0.0015 150.36);
-  --ifm-navbar-background-color: oklch(20% 0.0015 150.36);
-  --ifm-card-background-color: oklch(23.5% 0.003 150.36);
-
-  --docusaurus-highlighted-code-line-bg: color-mix(
-    in oklch,
-    var(--ifm-color-primary) 18%,
-    transparent
-  );
+  /* One easing for the whole site: a long, settled deceleration. */
+  --ease-calm: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Subtle accent-tinted divider under the navbar, echoing the landing page. */
-.navbar {
-  border-bottom: 1px solid var(--ifm-toc-border-color);
+@layer base {
+  html {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Anchored headings land below the sticky header. */
+    scroll-padding-top: 6.5rem;
+  }
+
+  body {
+    background-color: var(--background);
+  }
+
+  #__docusaurus {
+    display: flex;
+    min-height: 100vh;
+    flex-direction: column;
+  }
+
+  /* Fraunces ships a soft, slightly quirky default; dial it toward the
+     bookish end so headlines read calm rather than decorative. */
+  .font-serif {
+    font-variation-settings:
+      "SOFT" 0,
+      "WONK" 0;
+    letter-spacing: -0.015em;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklch, var(--accent) 22%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 3px;
+  }
 }
 
-/* The brand wordmark is a single forest-green; brighten it slightly in dark
-   mode so it reads against the dark navbar. */
-[data-theme="dark"] .navbar__logo img {
-  filter: brightness(1.5) saturate(1.05);
+/*
+ * The Markdown body. Docusaurus wraps every doc in `.markdown`; these are the
+ * only element-level rules on the site, and they stay inside it.
+ */
+@layer components {
+  .markdown {
+    font-size: 1rem;
+    line-height: 1.75;
+    overflow-wrap: break-word;
+  }
+
+  .markdown > :first-child,
+  .markdown > header:first-child + * {
+    margin-top: 0;
+  }
+
+  .markdown h1,
+  .markdown h2 {
+    font-family: var(--font-serif);
+    font-variation-settings:
+      "SOFT" 0,
+      "WONK" 0;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+
+  .markdown h1 {
+    margin: 0 0 1.25rem;
+    font-size: clamp(2.25rem, 1.8rem + 1.6vw, 3rem);
+    line-height: 1.1;
+  }
+
+  .markdown h2 {
+    margin: 3rem 0 1rem;
+    font-size: 1.75rem;
+    line-height: 1.25;
+  }
+
+  .markdown h3 {
+    margin: 2.25rem 0 0.75rem;
+    font-size: 1.1875rem;
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: -0.005em;
+  }
+
+  .markdown h4,
+  .markdown h5,
+  .markdown h6 {
+    margin: 1.75rem 0 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .markdown p,
+  .markdown ul,
+  .markdown ol,
+  .markdown blockquote,
+  .markdown details,
+  .markdown figure {
+    margin: 0 0 1.25rem;
+  }
+
+  .markdown ul,
+  .markdown ol {
+    padding-left: 1.375rem;
+  }
+
+  .markdown ul {
+    list-style: disc;
+  }
+
+  .markdown ol {
+    list-style: decimal;
+  }
+
+  .markdown li {
+    margin: 0.375rem 0;
+    padding-left: 0.25rem;
+  }
+
+  .markdown li::marker {
+    color: var(--muted);
+  }
+
+  .markdown li > ul,
+  .markdown li > ol {
+    margin: 0.375rem 0 0;
+  }
+
+  .markdown a {
+    color: var(--link);
+    font-weight: 500;
+    text-decoration: underline;
+    text-decoration-color: color-mix(in oklch, var(--link) 35%, transparent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    transition: text-decoration-color 0.2s;
+  }
+
+  .markdown a:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .markdown strong {
+    font-weight: 600;
+  }
+
+  .markdown blockquote {
+    border-left: 3px solid color-mix(in oklch, var(--accent) 45%, transparent);
+    padding: 0.125rem 0 0.125rem 1.125rem;
+    color: var(--muted);
+  }
+
+  .markdown blockquote > :last-child {
+    margin-bottom: 0;
+  }
+
+  .markdown hr {
+    margin: 2.5rem 0;
+    border: 0;
+    border-top: 1px solid var(--separator);
+  }
+
+  .markdown img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.75rem;
+  }
+
+  /* A screenshot (see Screenshot.tsx): half its pixel size, no taller than the cap, centred. */
+  .markdown .shot {
+    --shot-cap: 28rem;
+    display: block;
+    width: min(100%, var(--shot-width), calc(var(--shot-cap) * var(--shot-ratio)));
+    margin-inline: auto;
+    border-radius: 0.75rem;
+    cursor: zoom-in;
+    outline-offset: 3px;
+  }
+
+  .markdown .shot img {
+    display: block;
+    width: 100%;
+    border: 1px solid var(--border);
+  }
+
+  /* Two or more in one paragraph share a row at one height; on a phone they stack. */
+  .markdown .shot + .shot {
+    margin-top: 0.75rem;
+  }
+
+  @media (min-width: 40rem) {
+    .markdown p:has(> .shot + .shot) {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+
+    .markdown p:has(> .shot + .shot) > .shot {
+      flex: var(--shot-ratio) 1 0;
+      min-width: 0;
+      max-width: calc(var(--shot-cap) * var(--shot-ratio));
+      margin: 0;
+    }
+  }
+
+  /* Badges in a row (shields.io) stay inline and unrounded. */
+  .markdown a img {
+    display: inline-block;
+    border-radius: 0.375rem;
+  }
+
+  .markdown :not(pre) > code {
+    border-radius: 0.375rem;
+    background-color: var(--default);
+    padding: 0.125rem 0.375rem;
+    font-family: var(--font-code);
+    font-size: 0.85em;
+    font-variant-ligatures: none;
+  }
+
+  .markdown a code {
+    color: inherit;
+  }
+
+  .markdown kbd {
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 0.375rem;
+    background-color: var(--surface);
+    padding: 0 0.375rem;
+    font-family: var(--font-code);
+    font-size: 0.8em;
+  }
+
+  /* Tables sit in a rounded card that scrolls sideways on a phone (see MDXComponents). */
+  .markdown .table-card {
+    margin: 0 0 1.25rem;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+  }
+
+  .markdown table {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+  }
+
+  .markdown thead th {
+    background-color: color-mix(in oklch, var(--default) 55%, transparent);
+    font-weight: 600;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .markdown th,
+  .markdown td {
+    border-bottom: 1px solid var(--separator);
+    padding: 0.625rem 0.875rem;
+    vertical-align: top;
+  }
+
+  .markdown tr:last-child td {
+    border-bottom: 0;
+  }
+
+  /* Heading anchors: a quiet # that appears on hover. */
+  .markdown .hash-link {
+    margin-left: 0.375rem;
+    color: var(--muted);
+    font-family: var(--font-sans);
+    font-weight: 400;
+    text-decoration: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .markdown .hash-link::before {
+    content: "#";
+  }
+
+  .markdown :is(h2, h3, h4):hover .hash-link,
+  .markdown .hash-link:focus-visible {
+    opacity: 1;
+  }
+
+  /* Mermaid diagrams sit centred in their own card. */
+  .markdown .docusaurus-mermaid-container {
+    margin: 0 0 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    background-color: var(--background);
+    padding: 1.25rem;
+    text-align: center;
+  }
 }
 
-/* Active sidebar item gets the brand color, not just a tint. */
-.menu__link--active:not(.menu__link--sublist) {
-  color: var(--ifm-color-primary);
-  font-weight: 600;
-}
-
-/* Slightly softer, rounded cards/admonitions to match the app's feel. */
-.theme-admonition,
-.card {
-  border-radius: var(--ifm-global-radius);
-}
-
-/* macOS-style browser mockup for the hero screenshot (ports the landing page
-   BrowserFrame). Wraps a themed screenshot that swaps with the color mode. */
-.browserMockup {
-  margin: 1.5rem 0 2rem;
-  overflow: hidden;
-  border: 1px solid var(--ifm-toc-border-color);
-  border-radius: 1rem;
-  background: var(--ifm-background-surface-color);
-  box-shadow: 0 40px 80px -32px rgba(0, 0, 0, 0.45);
-}
-
-.browserMockup__bar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.625rem 1rem;
-  border-bottom: 1px solid var(--ifm-toc-border-color);
-  background: color-mix(
-    in oklch,
-    var(--ifm-background-surface-color) 60%,
-    var(--ifm-background-color)
-  );
-}
-
-.browserMockup__dot {
-  width: 0.75rem;
-  height: 0.75rem;
-  border-radius: 9999px;
-  display: inline-block;
-  flex: none;
-}
-
-.browserMockup__url {
-  margin: 0 auto;
-  padding: 0.15rem 0.85rem;
-  font-size: 11px;
-  color: var(--ifm-color-content-secondary);
-  background: var(--ifm-background-color);
-  border: 1px solid var(--ifm-toc-border-color);
-  border-radius: 9999px;
-}
-
-/* Base sits at single-class specificity so the variant toggle below (also
-   single-class, but later in source) can override it. */
-.themedShot {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-/* Light/dark variant toggle, driven by Docusaurus's html[data-theme]. */
-.themedShot--dark {
-  display: none;
-}
-
-[data-theme="dark"] .themedShot--light {
-  display: none;
-}
-
-[data-theme="dark"] .themedShot--dark {
-  display: block;
-}
-
-/* Hero layout: the browser mockup with a small phone mockup overlapping the
-   bottom-right corner, mirroring the landing page hero. */
+/*
+ * The intro's hero: the browser mockup with the phone overlapping its
+ * bottom-right corner, as on norish.dev. Frozen versions of the intro use this
+ * class name too, so it stays a class rather than markup.
+ */
 .heroMockup {
   position: relative;
-  margin-bottom: 2.5rem;
+  margin: 2rem 0 3rem;
 }
 
-.heroMockup .browserMockup {
-  margin: 1.5rem 0 0;
-}
-
-.phoneMockup {
-  overflow: hidden;
-  border: 6px solid var(--ifm-background-surface-color);
-  border-radius: 1.75rem;
-  background: var(--ifm-background-surface-color);
-  box-shadow: 0 30px 60px -24px rgba(0, 0, 0, 0.5);
-}
-
-.heroMockup .phoneMockup {
+.heroMockup > :last-child {
   position: absolute;
   right: -0.5rem;
   bottom: -1.5rem;
   width: clamp(96px, 17%, 150px);
+}
+
+/* Highlighted code lines (`{1,3}` or a highlight-next-line comment). */
+.theme-code-block-highlighted-line {
+  margin: 0 -1rem;
+  background-color: color-mix(in oklch, var(--accent) 12%, transparent);
+  padding: 0 1rem;
+}
+
+/*
+ * Theme switch. The old theme holds still underneath while the new one sweeps
+ * out from the toggle as a growing circle (same as norish.dev).
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  animation: none;
+}
+
+::view-transition-new(root) {
+  animation: theme-reveal 0.55s var(--ease-calm) both;
+}
+
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0px at var(--theme-reveal-x, 50%) var(--theme-reveal-y, 0%));
+  }
+  to {
+    clip-path: circle(
+      var(--theme-reveal-r, 120vmax) at var(--theme-reveal-x, 50%) var(--theme-reveal-y, 0%)
+    );
+  }
 }

@@ -14,8 +14,11 @@ services:
   # server with stealth on and private-network protection intact, so it needs
   # no command of its own — see docker/obscura/README.md.
   obscura:
-    image: norishapp/obscura:0.2.2-norish.1
+    image: norishapp/obscura:0.2.4-norish.1
     restart: unless-stopped
+    environment:
+      # Development only. .env.example sets the same value for the app.
+      OBSCURA_CDP_TOKEN: norish-local-obscura-token-not-for-production
 
   # Redis for real-time events
   redis:

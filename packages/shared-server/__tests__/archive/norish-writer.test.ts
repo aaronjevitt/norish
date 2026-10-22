@@ -331,6 +331,18 @@ describe("norish archive writer", () => {
     expect(recipeJson.favorite).toBe(true);
   });
 
+  it("names the cookbooks the exporter filed the recipe under, by title", async () => {
+    const zip = await writeArchive({
+      records: [{ recipe: buildFullRecipe(), cookbooks: ["Dolci", "Kerst"] }],
+      exporter,
+      exportedAt,
+    });
+
+    const recipeJson = await readJson(zip, "11111111-1111-4111-8111-111111111111/recipe.json");
+
+    expect(recipeJson.cookbooks).toEqual(["Dolci", "Kerst"]);
+  });
+
   it("omits marks the exporter never made", async () => {
     const zip = await writeArchive({
       records: [{ recipe: buildFullRecipe() }],

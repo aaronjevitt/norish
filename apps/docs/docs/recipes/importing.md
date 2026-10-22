@@ -1,38 +1,42 @@
 ---
 sidebar_position: 1
 title: Importing recipes
-description: How a recipe gets into Norish from elsewhere, from a link, a link you copied, pasted text or a photo, and what happens between pressing Import and the recipe appearing.
+description: Import a recipe from a link, text, photos or another app.
 ---
 
 # Importing recipes
 
-The most important feature in Norish is of course the abillity to import
-a recipe regardless of source. Importing is made as easy as possible and
-Norish can auto detect URL's from your clipboard. Sometimes auto-import
-fails and you need to edit or create a recipe yourself in that case see:
-([Creating and editing](./creating-and-editing.md)).
-
 ## From a link
 
-If norish has the permissions to view your clipboard it can auto-detect when
-an URL is in it and request to import it. This works on any page. This feature
-is limited to chromeium based browsers. Safari and Firefox only
-hand it over inside a paste, so there a copied link turns up in the URL
-dialog's prefilled field instead.
+**Add Recipe => URL** asks for the address of a recipe page. A link on your
+clipboard is filled in for you, so you copy the address, open the dialog and
+press **Import**.
+
+You can also paste a link in the dashboard search bar. Norish checks whether
+the page holds a recipe and imports it.
+
+In Chromium-based browsers, Norish can offer to import a copied link on any
+page once you allow clipboard access. Safari and Firefox don't allow this, so
+paste the link there instead.
 
 ![Norish asking to import a copied link](/img/screenshots/import-clipboard-prompt.png)
 
-**Add Recipe => URL** asks for the address of a recipe page. A link already on
-your clipboard is filled in for you, so the usual round trip is: copy the
-address, open the dialog, press **Import**. Pasting a link straight into the
-library's search box imports it too, without a dialog.
+Video links from YouTube, Instagram, TikTok and other sites import too when
+[video import](../configuration/ai-provider.md#video-import) is set up.
 
-**Dashboard => Search bar** Paste any URL in the dashboards searchbar and Norish
-will check of that URL is a recipe and attempt to import it.
+## From pasted text or photos
 
-## From pasted text or a photo
+- **Add Recipe => Paste** takes a recipe as plain text or as
+  [JSON-LD](https://schema.org/Recipe).
+- **Add Recipe => Image** reads a recipe from photos or screenshots, up to 10
+  images into one recipe.
 
-**Add Recipe => Paste** takes a recipe as text or as JSON-LD, and **Add Recipe
-=> Image** takes up to ten photos of one recipe, a cookbook page or a
-screenshot. Reading a recipe out of free text or a picture is the AI provider's
-work, so the Image option only appears when one is configured.
+:::note
+Plain text and images need an [AI provider](../configuration/ai-provider.md).
+Without one, the Image option is hidden.
+:::
+
+## From another app
+
+Exports from Mela, Paprika, Mealie, Tandoor and Recipe Keeper import as a
+whole, see [Recipe Archive](./recipe-archive.md#importing-an-archive).

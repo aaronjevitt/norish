@@ -1,56 +1,52 @@
 ---
 sidebar_position: 6
 title: Recipe parser
-description: How Norish scrapes and parses structured recipes.
+description: How URL imports load and read recipe pages.
 ---
 
 # Recipe parser
 
-Norish imports structured recipes through a parser service. By default, non-video
-URL imports are rendered in a browser first, then handed to the Python parser API.
+A URL import opens the page in **Obscura**, a headless browser, which is the
+`obscura` service in the [Quick start](../quick-start.mdx) compose. Norish then
+reads the recipe from that page with
+[recipe-scrapers](https://github.com/hhursev/recipe-scrapers). When that finds
+nothing and [AI](./ai-provider.md) is set up, the AI reads the page instead.
+Video links go through [video import](./ai-provider.md#video-import).
 
-## How it works
+If Obscura can't load the page, the import fails. Norish itself starts without
+Obscura, so the app remains available but parsing won't.
 
-Plenty of recipe sites build their page with JavaScript, so the recipe simply is
-not in the HTML the server first receives. Every non-video URL import is
-therefore loaded in **Obscura** — the `obscura` service in the
-[Quick start](../quick-start.mdx) compose — and it is that rendered HTML which
-the structured parser, and the AI fallback behind it, read.
-
-Structured imports use the [**recipe-scrapers**](https://github.com/hhursev/recipe-scrapers)
-library (wrapped by [`apps/parser-api`](https://github.com/norish-recipes/Norish/tree/main/apps/parser-api)).
-Whether the result is a recipe stays the parser's decision: Obscura returns a
-page, nothing more. If Obscura cannot reach or render the page, the import fails
-— there is no second browser and no plain-HTTP fallback behind it.
-
-Obscura is a stealth browser: it presents one coherent browser identity and
-blocks tracker and fingerprinting domains, which is what gives an import its
-best chance on sites that screen automated traffic. Norish adds nothing to that
-beyond the [site authentication tokens](./site-authentication.md) you have saved
-for a source, and Obscura refuses to fetch loopback, private-network, and
-link-local addresses, so an import cannot be pointed at services inside your
-network.
+Obscura blocks trackers, and refuses loopback and private-network addresses, so
+an import can't reach services inside your network. For sites that only show a
+recipe when you are signed in, see
+[Site authentication](./site-authentication.md).
 
 ## Settings
 
-| Variable                | Description                               | Default             |
-| ----------------------- | ----------------------------------------- | ------------------- |
-| `OBSCURA_ENDPOINT`      | Obscura CDP endpoint used to render pages | `ws://obscura:9222` |
-| `PARSER_API_TIMEOUT_MS` | Parser API timeout in milliseconds        | `15000`             |
+| Variable                        | Description                                                    | Default             |
+| ------------------------------- | -------------------------------------------------------------- | ------------------- |
+| `OBSCURA_ENDPOINT`              | Obscura CDP endpoint used to render pages                      | `ws://obscura:9222` |
+| `OBSCURA_CDP_TOKEN`             | Token for Obscura, the same value as on the `obscura` service  | (empty)             |
+| `OBSCURA_NAVIGATION_TIMEOUT_MS` | How long a URL import waits for the page to load, milliseconds | `45000`             |
+| `PARSER_API_TIMEOUT_MS`         | Parser API timeout in milliseconds                             | `15000`             |
 
-The default addresses the `obscura` service shipped in the Quick start compose.
-Point `OBSCURA_ENDPOINT` at any reachable Obscura CDP server if you would rather
-run the browser elsewhere — the value is whatever that server answers on, for
-example `ws://browser.internal:9222`. Keep it inside your own network: anything
+To run the browser elsewhere, point `OBSCURA_ENDPOINT` at it, for example
+`ws://browser.internal:9222`. Keep it inside your own network, because anything
 that can reach it can drive the browser.
 
-Norish starts fine without a reachable Obscura; URL imports are what fail, and
-they say so.
+Obscura only starts on a network address when its `OBSCURA_CDP_TOKEN` is at
+least 32 characters, and Norish has to send the same token. Generate one with
+`openssl rand -hex 32`.
+
+The compose files pin an exact Obscura image, like `0.2.4-norish.1`. For a
+rolling release, use `norishapp/obscura:latest` instead.
+
+A page counts as loaded once its images and scripts have finished too. If slow
+sites fail with a timeout, raise `OBSCURA_NAVIGATION_TIMEOUT_MS`.
 
 ## Content detection
 
-Advanced overrides for how recipe content is detected. Most instances never need
-these.
+Overrides for how Norish detects recipe content. Most servers don't need these.
 
 | Variable              | Description                                     | Default |
 | --------------------- | ----------------------------------------------- | ------- |

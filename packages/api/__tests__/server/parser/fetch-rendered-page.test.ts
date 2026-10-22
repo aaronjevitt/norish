@@ -18,6 +18,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SiteAuthTokenDecryptedDto } from "@norish/shared/contracts/dto/site-auth-tokens";
 import { fetchRenderedPage, renderPage } from "@norish/api/parser/fetch";
+import { SERVER_CONFIG } from "@norish/config/env-config-server";
 
 const { mockGetBrowser, mockNewContext, mockNewPage, mockGoto, mockContent, mockClose } =
   vi.hoisted(() => {
@@ -122,7 +123,7 @@ describe("fetchRenderedPage – rendered-page contract", () => {
     const [url, options] = mockGoto.mock.calls[0] as [string, { timeout?: number }];
 
     expect(url).toBe("https://example.com/recipe");
-    expect(options.timeout).toBeGreaterThan(0);
+    expect(options.timeout).toBe(SERVER_CONFIG.OBSCURA_NAVIGATION_TIMEOUT_MS);
   });
 
   it("supplies no browser identity of its own", async () => {
@@ -177,29 +178,6 @@ describe("fetchRenderedPage – rendered-page contract", () => {
 
     await expect(fetchRenderedPage("https://example.com/recipe")).resolves.toBe("");
     expect(mockClose).toHaveBeenCalledOnce();
-  });
-
-  it("reads a page whose document arrived but whose load event missed the deadline (#606)", async () => {
-    mockGoto.mockImplementation(async () => {
-      emitResponse(fakeResponse(200));
-      throw Object.assign(new Error("page.goto: Timeout 30000ms exceeded."), {
-        name: "TimeoutError",
-      });
-    });
-
-    await expect(renderPage("https://example.com/slow-blog")).resolves.toEqual({
-      html: "<html>rendered</html>",
-      status: 200,
-    });
-  });
-
-  it("still fails a navigation that timed out before any document arrived", async () => {
-    mockGoto.mockRejectedValue(
-      Object.assign(new Error("page.goto: Timeout 30000ms exceeded."), { name: "TimeoutError" })
-    );
-
-    await expect(fetchRenderedPage("https://example.com/dead")).resolves.toBe("");
-    expect(mockContent).not.toHaveBeenCalled();
   });
 
   it("reports no HTML when Obscura is unreachable", async () => {
